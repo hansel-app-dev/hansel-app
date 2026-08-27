@@ -37,7 +37,7 @@ describe('App [REQ-002]', () => {
   it('routes the verification step', () => {
     render(<App path="/onboarding/verify-email" />);
     expect(
-      screen.getByRole('heading', { name: 'Verify your email' }),
+      screen.getByRole('heading', { name: 'Verify your account.' }),
     ).toBeInTheDocument();
   });
 
@@ -61,7 +61,7 @@ describe('App [REQ-002]', () => {
     fireEvent.change(screen.getByLabelText('Verification code'), {
       target: { value: '123456' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Verify email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledOnce();
     });
@@ -122,7 +122,7 @@ describe('App [REQ-002]', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Create with email' }));
     expect(
-      await screen.findByRole('heading', { name: 'Verify your email' }),
+      await screen.findByRole('heading', { name: 'Verify your account.' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Resend code in 60s')).toBeInTheDocument();
     window.history.replaceState({}, '', '/');

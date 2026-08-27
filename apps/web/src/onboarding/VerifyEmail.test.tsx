@@ -12,6 +12,25 @@ import { maskEmail, VerifyEmail } from './VerifyEmail.js';
 afterEach(cleanup);
 
 describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
+  it('uses the approved Figma verify-account wording', () => {
+    render(
+      <VerifyEmail
+        email="owner@example.com"
+        verify={vi.fn()}
+        resend={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole('heading', { name: 'Verify your account.' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Thanks for signing up!/)).toHaveTextContent(
+      'The code will expire in 15 minutes for your security.',
+    );
+    expect(
+      screen.getByRole('button', { name: 'Verify account' }),
+    ).toBeInTheDocument();
+  });
+
   it('masks the destination and validates six digits before submission', async () => {
     const verify = vi.fn();
     render(
@@ -25,7 +44,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
     fireEvent.change(screen.getByLabelText('Verification code'), {
       target: { value: '123' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Verify email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
     expect(await screen.findByText('Enter all six digits')).toBeInTheDocument();
     expect(verify).not.toHaveBeenCalled();
   });
@@ -45,7 +64,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
       target: { value: '012345' },
     });
     expect(verify).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Verify email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
     await waitFor(() => {
       expect(onVerified).toHaveBeenCalledOnce();
     });
@@ -62,7 +81,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
     fireEvent.change(screen.getByLabelText('Verification code'), {
       target: { value: '123456' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Verify email' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'could not be verified',
     );

@@ -102,11 +102,12 @@ export function VerifyEmail({
             className="text-2xl font-semibold tracking-tight"
             id="verify-heading"
           >
-            Verify your email
+            Verify your account.
           </h1>
           <p className="text-sm leading-6 text-content-muted">
-            Enter the six-digit code sent to {maskEmail(email)}. It expires in
-            15 minutes.
+            Thanks for signing up! To complete your registration, please verify
+            your account using the code sent to {maskEmail(email)}. The code
+            will expire in 15 minutes for your security.
           </p>
         </div>
         <form className="grid gap-4" noValidate onSubmit={submit}>
@@ -128,7 +129,7 @@ export function VerifyEmail({
             disabled={isSubmitting}
             type="submit"
           >
-            Verify email
+            Verify account
           </Button>
         </form>
         {secondsRemaining > 0 ? (
