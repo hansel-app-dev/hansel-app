@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "provider": "figma",
+  "file": {
+    "name": "Hansel App UI",
+    "key": "2zlJi8PzLXCbHqEGQI7Hn5",
+    "url": "https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI"
+  },
+  "nodes": [
+    {
+      "id": "0:1",
+      "name": "Cover",
+      "kind": "page",
+      "implementationRole": "reference-only"
+    },
+    {
+      "id": "48:25",
+      "name": "Cover",
+      "kind": "frame",
+      "implementationRole": "reference-only",
+      "parentId": "0:1"
+    }
+  ]
+}
