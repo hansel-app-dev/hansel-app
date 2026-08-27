@@ -26,7 +26,36 @@ for (const [snapshotName, storyId, focusRole, focusName] of stories) {
     await expect(page).toHaveScreenshot(`${snapshotName}.png`, {
       animations: 'disabled',
       fullPage: true,
-      maxDiffPixelRatio: 0.01,
+      maxDiffPixelRatio: 0.001,
     });
   });
 }
+
+test('onboarding account creation is accessible and visually stable [AC-053, REQ-082, REQ-083]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-account-creation--default&viewMode=story',
+  );
+  const heading = page.getByRole('heading', { name: "Let's get started" });
+  await expect(heading).toBeVisible();
+  await expect(heading).toHaveCSS('font-family', /Figtree/);
+  await expect(page.getByLabel('Email')).toHaveAttribute(
+    'placeholder',
+    'you@gmail.com',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Create with email' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Continue with Google' }),
+  ).toHaveCSS('column-gap', '8px');
+
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+  await expect(page).toHaveScreenshot('onboarding-account-creation.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});

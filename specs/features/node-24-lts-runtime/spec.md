@@ -60,7 +60,7 @@ Hansel uses Node.js 24 LTS on every supported runtime surface without changing a
 
 - Given the API image is built
 - When Docker executes the build and runtime stages
-- Then both stages use the official Node.js 24 Alpine image and the resulting service returns the existing `GET /health` response
+- Then both stages use the official Node.js 24 Alpine image and the resulting service returns the existing `GET /api/health` response
 
 ### AC-004 — Behavior and quality do not regress [REQ-006]
 
@@ -80,7 +80,7 @@ There is no intended user-interface or accessibility change. The existing semant
 
 ## API and integrations
 
-There is no OpenAPI contract change. `GET /health` MUST continue returning HTTP 200 with `{ "status": "ok" }`. GitHub Actions, the official Node.js container registry image, Corepack, pnpm, Vite, Vitest, Playwright, Prisma, Express, and AWS CDK must remain compatible with Node.js 24.
+There is no OpenAPI contract change introduced by this runtime feature. The platform foundation's current `GET /api/health` endpoint MUST continue returning HTTP 200 with `{ "status": "ok" }`. GitHub Actions, the official Node.js container registry image, Corepack, pnpm, Vite, Vitest, Playwright, Prisma, Express, and AWS CDK must remain compatible with Node.js 24.
 
 ## Data and migration
 
@@ -102,7 +102,7 @@ Existing health checks, structured startup/shutdown logs, ECS deployment circuit
 - Run formatting, ESLint, strict TypeScript, unit/integration tests, coverage, and production builds.
 - Confirm frontend and backend coverage remains 100% for statements, branches, functions, and lines.
 - Run Playwright's critical browser journey against the live local API and SPA.
-- Build or otherwise exercise the production dependency deployment layout and verify `GET /health` where the container registry is reachable.
+- Build or otherwise exercise the production dependency deployment layout and verify `GET /api/health` where the container registry is reachable.
 - Run CDK assertions and synthesize the CloudFormation template.
 
 ## Rollout and rollback

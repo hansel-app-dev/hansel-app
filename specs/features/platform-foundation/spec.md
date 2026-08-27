@@ -26,6 +26,9 @@ Every product change is traceable to an approved specification and CI rejects in
 - REQ-003: Critical browser behavior MUST be testable with Playwright.
 - REQ-004: Infrastructure MUST be defined with AWS CDK in TypeScript and follow least-privilege, encryption, logging, and high-availability practices.
 - REQ-005: CI/CD MUST authenticate to AWS through GitHub OIDC and use protected deployment environments.
+- REQ-006: The root web route MUST render only the word `Hansel` as a centered level-one heading within the main landmark. It MUST NOT show marketing copy, navigation, or API health status.
+- REQ-007: Every environment MUST expose application HTTP routes beneath `/api`; the health endpoint MUST be `GET /api/health`. Local web development MUST proxy `/api` requests from the Vite origin to the Express origin so browser code uses the same relative route contract as CloudFront in deployed environments.
+- REQ-008: The API development command MUST load a gitignored root `.env.local` file when present, and the repository MUST provide a non-secret `.env.local.example`. Local development MUST use an explicit `console` verification-email adapter that writes the recipient and verification code to the API process output without contacting AWS. Staging and production MUST use the SES adapter and MUST reject unsupported delivery modes. Secrets and usable credentials MUST NOT be committed.
 
 ## Acceptance scenarios
 
@@ -47,13 +50,27 @@ Every product change is traceable to an approved specification and CI rejects in
 - When CDK synthesis and deployment run
 - Then templates use encrypted managed services and GitHub assumes a scoped deployment role without static credentials
 
+### AC-004 — Landing page is intentionally minimal [REQ-006]
+
+- Given a person opens the root web route
+- When the page renders at any supported viewport width
+- Then `Hansel` is the only visible page content and is centered horizontally and vertically
+
+### AC-005 — Local web requests reach the API [REQ-007, REQ-008]
+
+- Given the API and Vite development servers are started with the documented local environment
+- When a browser requests `GET /api/health` through the Vite origin
+- Then Vite proxies the request to Express and returns the specified healthy response without CORS configuration or an absolute frontend API URL
+- When onboarding sends a verification email in `console` mode
+- Then the API process outputs the recipient and code locally without constructing or calling an SES client
+
 ## UX and accessibility
 
-The starter UI uses semantic landmarks and exposes API health in readable text. Product features must target WCAG 2.2 AA.
+The root route uses a main landmark and a single level-one `Hansel` heading. Product features must target WCAG 2.2 AA.
 
 ## API and integrations
 
-The initial OpenAPI contract exposes `GET /health`.
+The initial OpenAPI contract exposes `GET /api/health`.
 
 ## Data and migration
 

@@ -10,13 +10,12 @@ export default defineConfig({
   webServer: [
     {
       command:
-        'ALLOWED_ORIGIN=http://127.0.0.1:5173 pnpm --filter @hansel/api dev',
-      url: 'http://127.0.0.1:3000/health',
+        'ALLOWED_ORIGIN=http://127.0.0.1:5173 EMAIL_DELIVERY_MODE=console PASSWORD_PEPPER=e2e-password-pepper VERIFICATION_DIGEST_KEY=e2e-verification-digest-key DATABASE_URL=postgresql://hansel:hansel@127.0.0.1:5433/hansel?schema=public pnpm --filter @hansel/api dev',
+      url: 'http://127.0.0.1:3000/api/health',
       reuseExistingServer: !process.env.CI,
     },
     {
-      command:
-        'VITE_API_URL=http://127.0.0.1:3000 pnpm --filter @hansel/web dev --host 127.0.0.1',
+      command: 'pnpm --filter @hansel/web dev --host 127.0.0.1',
       url: 'http://127.0.0.1:5173',
       reuseExistingServer: !process.env.CI,
     },

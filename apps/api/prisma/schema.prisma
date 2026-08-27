@@ -7,23 +7,109 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum OnboardingEntryPath {
+  NEW_ORGANIZATION
+  ORGANIZATION_INVITATION
+  SITE_INVITATION
+}
+
+enum OnboardingStep {
+  VERIFY_EMAIL
+  PERSONAL_PROFILE
+  PLAN_SELECTION
+  PAYMENT
+  ORGANIZATION_PROFILE
+  DISCOVERY
+  COMPLETE
+}
+
+enum VerificationPurpose {
+  ONBOARDING_EMAIL
+  PASSWORD_RECOVERY
 }
 
 model User {
-  id             String   @id @default(uuid()) @db.Uuid
-  tenantId       String   @db.Uuid
-  identityId     String   @unique
-  email          String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String                  @id @default(uuid()) @db.Uuid
+  email           String                  @unique
+  emailVerifiedAt DateTime?
+  password        PasswordCredential?
+  consents        ConsentRecord[]
+  challenges      VerificationChallenge[]
+  journeys        OnboardingJourney[]
+  memberships     Membership[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+}
 
-  @@unique([tenantId, email])
+model PasswordCredential {
+  userId        String   @id @db.Uuid
+  passwordHash  String
+  pepperVersion Int      @default(1)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ConsentRecord {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  termsVersion   String
+  privacyVersion String
+  onboardingPath String
+  country        String
+  consentedAt    DateTime
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model VerificationChallenge {
+  id             String              @id @default(uuid()) @db.Uuid
+  userId         String              @db.Uuid
+  purpose        VerificationPurpose
+  codeDigest     String
+  expiresAt      DateTime
+  failedAttempts Int                 @default(0)
+  sentAt         DateTime
+  consumedAt     DateTime?
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+
+  @@index([userId, purpose, expiresAt])
+}
+
+model OnboardingJourney {
+  id          String              @id @default(uuid()) @db.Uuid
+  userId      String              @db.Uuid
+  entryPath   OnboardingEntryPath
+  currentStep OnboardingStep
+  completedAt DateTime?
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([userId, completedAt])
+}
+
+model Tenant {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  memberships Membership[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Membership {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tenantId  String   @db.Uuid
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tenantId])
   @@index([tenantId])
 }

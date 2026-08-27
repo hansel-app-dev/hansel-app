@@ -1,29 +1,83 @@
 import { describe, expect, it } from 'vitest';
 import { loadConfig } from './config.js';
 
-describe('loadConfig [REQ-002]', () => {
-  it('uses safe local defaults', () => {
-    expect(loadConfig({})).toEqual({
+describe('loadConfig [REQ-002, REQ-008]', () => {
+  const required = {
+    PASSWORD_PEPPER: 'password-pepper',
+    VERIFICATION_DIGEST_KEY: 'verification-digest-key',
+    SES_FROM_EMAIL: 'no-reply@hanselapp.io',
+    AWS_REGION: 'ap-southeast-2',
+  };
+
+  it('uses safe network defaults with explicit security configuration', () => {
+    expect(loadConfig(required)).toEqual({
       allowedOrigin: 'http://localhost:5173',
       port: 3000,
+      passwordPepper: 'password-pepper',
+      verificationDigestKey: 'verification-digest-key',
+      sesFromEmail: 'no-reply@hanselapp.io',
+      awsRegion: 'ap-southeast-2',
+      emailDeliveryMode: 'ses',
     });
   });
 
   it('reads valid environment values', () => {
     expect(
-      loadConfig({ PORT: '8080', ALLOWED_ORIGIN: 'https://hansel.example' }),
+      loadConfig({
+        ...required,
+        PORT: '8080',
+        ALLOWED_ORIGIN: 'https://hansel.example',
+      }),
     ).toEqual({
       allowedOrigin: 'https://hansel.example',
       port: 8080,
+      passwordPepper: 'password-pepper',
+      verificationDigestKey: 'verification-digest-key',
+      sesFromEmail: 'no-reply@hanselapp.io',
+      awsRegion: 'ap-southeast-2',
+      emailDeliveryMode: 'ses',
     });
+  });
+
+  it('supports local console email without AWS email configuration', () => {
+    expect(
+      loadConfig({
+        PASSWORD_PEPPER: 'password-pepper',
+        VERIFICATION_DIGEST_KEY: 'verification-digest-key',
+        EMAIL_DELIVERY_MODE: 'console',
+      }),
+    ).toEqual({
+      allowedOrigin: 'http://localhost:5173',
+      port: 3000,
+      passwordPepper: 'password-pepper',
+      verificationDigestKey: 'verification-digest-key',
+      emailDeliveryMode: 'console',
+    });
+  });
+
+  it('rejects an unsupported email delivery mode', () => {
+    expect(() =>
+      loadConfig({ ...required, EMAIL_DELIVERY_MODE: 'unknown' }),
+    ).toThrow('EMAIL_DELIVERY_MODE must be console or ses');
   });
 
   it.each(['0', '65536', '1.5', 'invalid'])(
     'rejects invalid port %s',
     (port) => {
-      expect(() => loadConfig({ PORT: port })).toThrow(
+      expect(() => loadConfig({ ...required, PORT: port })).toThrow(
         'PORT must be an integer',
       );
     },
   );
+
+  it.each([
+    'PASSWORD_PEPPER',
+    'VERIFICATION_DIGEST_KEY',
+    'SES_FROM_EMAIL',
+    'AWS_REGION',
+  ])('rejects missing %s', (name) => {
+    expect(() => loadConfig({ ...required, [name]: '' })).toThrow(
+      `${name} is required`,
+    );
+  });
 });

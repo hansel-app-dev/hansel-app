@@ -1,5 +1,5 @@
 /**
- * @spec design-system-foundation REQ-005, REQ-007, REQ-011
+ * @spec design-system-foundation REQ-005, REQ-007, REQ-011, REQ-013
  * @figma 1:3
  */
 import type { Meta, StoryObj } from '@storybook/react-vite';
@@ -21,7 +21,17 @@ export const States: Story = {
       <span className="sr-only" data-focus-start tabIndex={-1} />
       <h1 className="text-xl font-semibold text-content">Text field</h1>
       <div className="grid min-w-80 gap-component-gap rounded-control bg-surface p-workbench shadow-control">
-        <TextField description="Use your work email." label="Email" />
+        <TextField
+          autoComplete="email"
+          label="Email"
+          placeholder="you@gmail.com"
+          type="email"
+        />
+        <TextField
+          autoComplete="new-password"
+          label="Password"
+          type="password"
+        />
         <TextField
           error="Enter a valid email address."
           label="Email with error"

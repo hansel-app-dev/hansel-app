@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx watch src/server.ts",
+    "dev": "pnpm --filter @hansel/contracts build && tsx watch --env-file-if-exists=../../.env.local src/server.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -14,8 +14,10 @@
   },
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.26.0",
+    "@aws-sdk/client-sesv2": "^3.1119.0",
     "@hansel/contracts": "workspace:*",
     "@prisma/client": "^6.15.0",
+    "argon2": "^0.45.1",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",

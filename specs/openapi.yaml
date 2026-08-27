@@ -3,7 +3,30 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
-  /health:
+  /api/onboarding/accounts:
+    post:
+      operationId: createOnboardingAccount
+      summary: Begin email and password onboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOnboardingAccountRequest'
+      responses:
+        '202':
+          description: The generic verification step is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOnboardingAccountResponse'
+        '400':
+          description: The request does not match the contract
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/health:
     get:
       operationId: getHealth
       summary: Report API health
@@ -16,6 +39,44 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
 components:
   schemas:
+    CreateOnboardingAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password, acceptsTerms, termsVersion, privacyVersion]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 15
+          maxLength: 128
+        acceptsTerms:
+          type: boolean
+          const: true
+        termsVersion:
+          type: string
+          minLength: 1
+          maxLength: 100
+        privacyVersion:
+          type: string
+          minLength: 1
+          maxLength: 100
+    CreateOnboardingAccountResponse:
+      type: object
+      additionalProperties: false
+      required: [nextStep]
+      properties:
+        nextStep:
+          type: string
+          const: verify-email
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
     HealthResponse:
       type: object
       additionalProperties: false

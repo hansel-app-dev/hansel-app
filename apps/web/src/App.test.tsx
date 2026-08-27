@@ -1,4 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
 
@@ -9,43 +15,50 @@ afterEach(() => {
 });
 
 describe('App [REQ-002]', () => {
-  it('shows healthy API status', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(JSON.stringify({ status: 'ok' }), { status: 200 }),
-        ),
-    );
+  it('shows only Hansel in the middle of the landing page [REQ-006]', () => {
     render(<App />);
-    expect(screen.getByRole('status')).toHaveTextContent('API checking');
-    expect(await screen.findByRole('status')).toHaveTextContent('API healthy');
-    expect(fetch).toHaveBeenCalledWith('/health');
+    const main = screen.getByRole('main');
+    expect(main).toHaveClass('place-items-center');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+      'Hansel',
+    );
+    expect(main).toHaveTextContent(/^Hansel$/);
   });
 
-  it('shows unavailable status and does not update after unmount', async () => {
-    let rejectRequest: (reason: Error) => void = () => undefined;
+  it('routes the approved onboarding entry to the account form', () => {
+    vi.stubGlobal('fetch', vi.fn());
+    render(<App path="/onboarding" />);
+    expect(
+      screen.getByRole('heading', { name: "Let's get started" }),
+    ).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('submits onboarding through the configured API URL', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(
-        () =>
-          new Promise((_resolve, reject) => {
-            rejectRequest = reject;
-          }),
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ nextStep: 'verify-email' }), {
+          status: 202,
+        }),
       ),
     );
-    const view = render(<App apiUrl="" />);
-    view.unmount();
-    rejectRequest(new Error('offline'));
+    render(<App apiUrl="https://api.example" path="/onboarding" />);
+
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'owner@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'Correct horse battery staple!7' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create with email' }));
+
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledOnce();
     });
-
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-    render(<App apiUrl="" />);
-    expect(await screen.findByRole('status')).toHaveTextContent(
-      'API unavailable',
+    expect(fetch).toHaveBeenCalledWith(
+      'https://api.example/api/onboarding/accounts',
+      expect.objectContaining({ method: 'POST' }),
     );
   });
 });

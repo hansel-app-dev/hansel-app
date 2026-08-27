@@ -61,7 +61,7 @@ This is a styling-system migration, not a visual redesign. The current content h
 
 ## API and integrations
 
-No API contract changes are permitted. The existing `GET /health` integration and frontend health-state behavior remain unchanged. Tailwind integrates only with the web workspace's Vite build.
+No API contract changes are introduced by this feature. The platform foundation's current `GET /api/health` integration and frontend health-state behavior remain unchanged. Tailwind integrates only with the web workspace's Vite build.
 
 ## Data and migration
 

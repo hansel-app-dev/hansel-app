@@ -20,7 +20,8 @@
   --color-focus: var(--color-foundation-brown-500);
   --color-danger: #b42318;
 
-  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-sans:
+    'Figtree Variable', Figtree, ui-sans-serif, system-ui, sans-serif;
   --spacing-control-inline: 1rem;
   --spacing-control-block: 0.5rem;
   --spacing-field-inline: 0.75rem;

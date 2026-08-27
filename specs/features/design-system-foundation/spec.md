@@ -25,7 +25,7 @@ Hansel has a version-controlled frontend design-system foundation whose semantic
 ## Requirements
 
 - REQ-001: The web workspace MUST define named semantic Tailwind CSS tokens for verified Hansel colors, typography, spacing, radii, borders, shadows, and focus treatment; reusable components MUST consume semantic tokens instead of unexplained raw values.
-- REQ-002: The initial verified color sources MUST include Figma `Foundation / Brown / brown-500` (`#634739`), `Foundation / Off-white / off-white-500` (`#F7F5EB`), and `Colours / Greys / White` (`#FFFFFF`); unverified brand or state colors MUST NOT be presented as Figma-derived tokens.
+- REQ-002: The initial verified sources MUST include Figma `Foundation / Brown / brown-500` (`#634739`), `Foundation / Off-white / off-white-500` (`#F7F5EB`), `Colours / Greys / White` (`#FFFFFF`), and the Figtree typeface used by onboarding frame `1:3`. The web application and Storybook MUST bundle and load Figtree rather than relying on its presence on the user's device; unverified brand, state, or typography values MUST NOT be presented as Figma-derived tokens.
 - REQ-003: The design-system module MUST initially expose `Button` and `TextField` through one public barrel interface and MUST keep Tailwind class composition inside their implementations.
 - REQ-004: `Button` MUST support native button attributes, visible keyboard focus, disabled behavior, and only the observed `primary` and `secondary` visual variants; its default `type` MUST be `button` to prevent accidental form submission.
 - REQ-005: `TextField` MUST support native input attributes, a programmatically associated visible label, optional description, optional error, invalid and disabled states, visible keyboard focus, and deterministic accessible-description relationships without requiring callers to construct IDs.
@@ -36,14 +36,15 @@ Hansel has a version-controlled frontend design-system foundation whose semantic
 - REQ-010: Tailwind Plus MAY be used as a licensed implementation reference for accessible React and Tailwind patterns, but the Hansel Figma designs and approved specifications remain authoritative for visual decisions and component scope.
 - REQ-011: Design-system source files MUST identify the governing specification and the exact verified Figma reference nodes: onboarding frame `1:3`, welcome-email frame `131:549`, and dashboard frame `2019:2296`.
 - REQ-012: Repository specification checks MUST reject missing design-system tokens, exports, workbench configuration, required test commands, or governing Figma references.
+- REQ-013: Every newly introduced reusable browser UI component MUST ship with a Storybook story covering its meaningful approved states, accessibility automation, and deterministic visual-regression coverage. Each implemented product screen MUST also ship with an API-independent Storybook story for visual review at its approved representative viewport. A story MUST identify its governing specification and Figma node, use fictional data, and MUST NOT make production network requests or weaken the component's runtime accessibility contract.
 
 ## Acceptance scenarios
 
 ### AC-001 — Semantic foundations compile [REQ-001, REQ-002]
 
-- Given a clean dependency installation
+- Given a clean dependency installation on a device without Figtree installed
 - When the web production and Storybook builds run
-- Then Tailwind emits the semantic Hansel tokens and no component needs a raw verified foundation color to reproduce its supported states
+- Then Tailwind emits the semantic Hansel tokens, the bundled Figtree files load locally, and no component needs a raw verified foundation value to reproduce its supported states
 
 ### AC-002 — Button is safe and accessible [REQ-003, REQ-004, REQ-006]
 
@@ -68,6 +69,13 @@ Hansel has a version-controlled frontend design-system foundation whose semantic
 - Given a change breaks semantics, accessibility, coverage, token contracts, workbench compilation, or approved visual output
 - When local verification or CI runs
 - Then the relevant unit, accessibility, contract, build, or visual-regression check fails with an actionable result
+
+### AC-006 — New UI remains independently reviewable [REQ-007, REQ-009, REQ-013]
+
+- Given a reusable browser component or implemented product screen is added or materially changes
+- When repository verification runs and Storybook is opened without the application API
+- Then its approved states are independently inspectable, traceable to its specification and Figma node, accessibility-scanned, and protected by a reviewed deterministic screenshot
+- And no story transmits production data or depends on a live application service
 
 ## UX and accessibility
 

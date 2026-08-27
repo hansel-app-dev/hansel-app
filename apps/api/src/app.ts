@@ -2,14 +2,27 @@ import compression from 'compression';
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';
-import { healthResponseSchema } from '@hansel/contracts';
+import {
+  createOnboardingAccountRequestSchema,
+  createOnboardingAccountResponseSchema,
+  healthResponseSchema,
+  type CreateOnboardingAccountRequest,
+  type CreateOnboardingAccountResponse,
+} from '@hansel/contracts';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
 
+export interface OnboardingModule {
+  createAccount(
+    input: CreateOnboardingAccountRequest,
+  ): Promise<CreateOnboardingAccountResponse>;
+}
+
 export function createApp(
   config: Pick<AppConfig, 'allowedOrigin'>,
   configureRoutes?: ConfigureRoutes,
+  onboarding?: OnboardingModule,
 ) {
   const app = express();
   app.disable('x-powered-by');
@@ -18,9 +31,25 @@ export function createApp(
   app.use(compression());
   app.use(express.json({ limit: '1mb' }));
 
-  app.get('/health', (_request, response) => {
+  app.get('/api/health', (_request, response) => {
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
+  if (onboarding) {
+    app.post('/api/onboarding/accounts', async (request, response) => {
+      const input = createOnboardingAccountRequestSchema.safeParse(
+        request.body,
+      );
+      if (!input.success) {
+        response.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+
+      const result = await onboarding.createAccount(input.data);
+      response
+        .status(202)
+        .json(createOnboardingAccountResponseSchema.parse(result));
+    });
+  }
   configureRoutes?.(app);
 
   app.use((_request, response) => {

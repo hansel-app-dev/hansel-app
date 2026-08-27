@@ -141,7 +141,7 @@ export class HanselStack extends cdk.Stack {
       },
     );
     api.targetGroup.configureHealthCheck({
-      path: '/health',
+      path: '/api/health',
       healthyHttpCodes: '200',
     });
     api.service.enableDeploymentAlarms(['Api5xxAlarm'], {

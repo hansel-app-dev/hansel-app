@@ -25,6 +25,9 @@ describe('HanselStack [REQ-004]', () => {
       Engine: 'aurora-postgresql',
     });
     output.hasResourceProperties('AWS::ECS::Service', { DesiredCount: 2 });
+    output.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
+      HealthCheckPath: '/api/health',
+    });
   });
 
   it('protects web content and public traffic', () => {
