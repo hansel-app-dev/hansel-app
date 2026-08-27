@@ -63,13 +63,13 @@ test('verification requires a deliberate six-digit submission and supports resen
   );
   await page.goto('/onboarding/verify-email');
   await expect(
-    page.getByRole('heading', { name: 'Verify your account.' }),
+    page.getByRole('heading', { name: 'Verify your account' }),
   ).toBeVisible();
   await page.getByLabel('Verification code').fill('123');
-  await page.getByRole('button', { name: 'Verify account' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByText('Enter all six digits')).toBeVisible();
   await page.getByLabel('Verification code').fill('123456');
-  await page.getByRole('button', { name: 'Verify account' }).click();
-  await page.getByRole('button', { name: 'Resend code' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Request new code' }).click();
   await expect(page.getByText(/address is eligible/)).toBeVisible();
 });

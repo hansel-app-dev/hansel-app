@@ -21,14 +21,19 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
       />,
     );
     expect(
-      screen.getByRole('heading', { name: 'Verify your account.' }),
+      screen.getByRole('heading', { name: 'Verify your account' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Thanks for signing up!/)).toHaveTextContent(
-      'The code will expire in 15 minutes for your security.',
+    expect(screen.getByText(/We emailed you a code/)).toHaveTextContent(
+      'The code is valid for 15 minutes.',
+    );
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back' })).toHaveAttribute(
+      'href',
+      '/onboarding',
     );
     expect(
-      screen.getByRole('button', { name: 'Verify account' }),
-    ).toBeInTheDocument();
+      screen.getByRole('link', { name: 'support@hanselapp.io' }),
+    ).toHaveAttribute('href', 'mailto:support@hanselapp.io');
   });
 
   it('masks the destination and validates six digits before submission', async () => {
@@ -44,7 +49,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
     fireEvent.change(screen.getByLabelText('Verification code'), {
       target: { value: '123' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByText('Enter all six digits')).toBeInTheDocument();
     expect(verify).not.toHaveBeenCalled();
   });
@@ -64,7 +69,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
       target: { value: '012345' },
     });
     expect(verify).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => {
       expect(onVerified).toHaveBeenCalledOnce();
     });
@@ -81,7 +86,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
     fireEvent.change(screen.getByLabelText('Verification code'), {
       target: { value: '123456' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Verify account' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'could not be verified',
     );
@@ -96,7 +101,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
         resend={resend}
       />,
     );
-    expect(screen.getByText('Resend code in 60s')).toBeInTheDocument();
+    expect(screen.getByText('Request new code in 60s')).toBeInTheDocument();
     rerender(
       <VerifyEmail
         email="owner@example.com"
@@ -105,7 +110,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
         resendAvailableInSeconds={0}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Resend code' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request new code' }));
     expect(await screen.findByText(/address is eligible/)).toBeInTheDocument();
   });
 
@@ -118,7 +123,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
         resendAvailableInSeconds={0}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Resend code' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Request new code' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'could not send',
     );
@@ -139,12 +144,12 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
         resendAvailableInSeconds={1}
       />,
     );
-    expect(screen.getByText('Resend code in 1s')).toBeInTheDocument();
+    expect(screen.getByText('Request new code in 1s')).toBeInTheDocument();
     act(() => {
       vi.advanceTimersByTime(1000);
     });
     expect(
-      screen.getByRole('button', { name: 'Resend code' }),
+      screen.getByRole('button', { name: 'Request new code' }),
     ).toBeInTheDocument();
     vi.useRealTimers();
   });

@@ -102,12 +102,11 @@ export function VerifyEmail({
             className="text-2xl font-semibold tracking-tight"
             id="verify-heading"
           >
-            Verify your account.
+            Verify your account
           </h1>
           <p className="text-sm leading-6 text-content-muted">
-            Thanks for signing up! To complete your registration, please verify
-            your account using the code sent to {maskEmail(email)}. The code
-            will expire in 15 minutes for your security.
+            We emailed you a code at {maskEmail(email)}. Enter it below to
+            verify your account and sign in. The code is valid for 15 minutes.
           </p>
         </div>
         <form className="grid gap-4" noValidate onSubmit={submit}>
@@ -129,12 +128,12 @@ export function VerifyEmail({
             disabled={isSubmitting}
             type="submit"
           >
-            Verify account
+            Next
           </Button>
         </form>
         {secondsRemaining > 0 ? (
           <p className="text-center text-sm text-content-muted">
-            Resend code in {secondsRemaining}s
+            Request new code in {secondsRemaining}s
           </p>
         ) : (
           <button
@@ -142,7 +141,7 @@ export function VerifyEmail({
             type="button"
             onClick={() => void requestReplacement()}
           >
-            Resend code
+            Request new code
           </button>
         )}
         {resent ? (
@@ -153,6 +152,16 @@ export function VerifyEmail({
             If the address is eligible, a new code has been sent.
           </p>
         ) : null}
+        <p className="text-sm leading-6 text-content-muted">
+          Can&apos;t find the email? Try looking in your spam folder, or you can
+          request a new code. If you&apos;re still having problems email us at{' '}
+          <a className="underline" href="mailto:support@hanselapp.io">
+            support@hanselapp.io
+          </a>
+        </p>
+        <a className="text-sm underline" href="/onboarding">
+          Back
+        </a>
       </section>
     </main>
   );

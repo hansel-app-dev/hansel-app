@@ -67,7 +67,7 @@ test('email verification is accessible and visually stable [AC-002, REQ-006, REQ
     '/iframe.html?id=onboarding-verify-email--waiting&viewMode=story',
   );
   await expect(
-    page.getByRole('heading', { name: 'Verify your account.' }),
+    page.getByRole('heading', { name: 'Verify your account' }),
   ).toBeVisible();
   await expect(page.getByLabel('Verification code')).toHaveAttribute(
     'autocomplete',
