@@ -34,19 +34,20 @@ The repository identifies one canonical Figma file and records verified page and
 - REQ-008: Each implemented screen MUST have automated unit and E2E coverage plus visual comparison evidence at its specified viewport states before acceptance.
 - REQ-009: Figma changes MUST enter the application through a reviewed specification and code change; a changed Figma file alone MUST NOT change production behavior.
 - REQ-010: Repository specification checks MUST reject missing, malformed, or inconsistent canonical design-source metadata.
-- REQ-011: Until additional nodes are verified, the only registered design node MUST be page `0:1` (`Cover`) and frame `48:25` (`Cover`), and neither node MUST be represented as an application screen.
+- REQ-011: Verified nodes MUST record their observed Figma kind and implementation role; page `0:1` (`Cover`) and frame `48:25` (`Cover`) MUST remain `reference-only` and MUST NOT be represented as application screens.
+- REQ-012: User-supplied but uninspected nodes MUST be registered as `pending-verification`, record their claimed scope and node-specific URL, and MUST NOT authorize UI implementation until Figma design context has been retrieved successfully.
 
 ## Acceptance scenarios
 
-### AC-001 — Canonical design source is discoverable [REQ-001, REQ-010]
+### AC-001 — Canonical design source is discoverable [REQ-001, REQ-010, REQ-011, REQ-012]
 
 - Given a clean repository checkout
 - When specification validation runs
-- Then it verifies the Figma provider, file key, canonical URL, page `0:1`, frame `48:25`, and their non-application classification
+- Then it verifies the Figma provider, file key, canonical URL, the verified cover nodes, the supplied onboarding node `1:2`, email node `131:548`, dashboard node `40:502`, and every node's implementation classification
 
-### AC-002 — Unspecified UI work is blocked [REQ-003, REQ-011]
+### AC-002 — Unspecified UI work is blocked [REQ-003, REQ-011, REQ-012]
 
-- Given a proposed UI implementation references only the file root, a page, the cover frame, or no Figma node
+- Given a proposed UI implementation references only the file root, a page, the cover frame, a pending-verification node, or no Figma node
 - When the implementation is reviewed
 - Then the work is rejected until its feature specification references an accessible approved application-screen frame
 
@@ -74,7 +75,7 @@ Figma is a visual source, not a substitute for accessibility requirements. Each 
 
 ## API and integrations
 
-The canonical source is the Figma design file `Hansel App UI`, file key `2zlJi8PzLXCbHqEGQI7Hn5`. Access occurs through the authenticated Figma plugin in the development environment. The initial verified inventory contains page `0:1` and cover frame `48:25`; no application-screen node is currently available. Production APIs and browser bundles have no Figma integration.
+The canonical source is the Figma design file `Hansel App UI`, file key `2zlJi8PzLXCbHqEGQI7Hn5`. Access occurs through the authenticated Figma plugin in the development environment. The verified inventory contains page `0:1` and cover frame `48:25`. The user has supplied node `1:2` for onboarding, node `131:548` for emails, and node `40:502` for the dashboard. Design-context requests for nodes `1:2` and `40:502` returned a no-selection response despite their explicit node IDs; the request for `131:548` and subsequent metadata requests were blocked by the connected Figma View seat's MCP tool-call limit. All three therefore remain pending verification. Production APIs and browser bundles have no Figma integration.
 
 ## Data and migration
 
@@ -98,8 +99,8 @@ The application build and runtime do not depend on Figma availability. Figma ret
 
 ## Rollout and rollback
 
-Commit the specification, metadata, and contract validator together. Register application frames incrementally only after they become accessible and are approved. Roll back incorrect metadata through a normal revert; the production application is unaffected because it has no runtime Figma dependency.
+Commit the specification, metadata, and contract validator together. Register supplied nodes as pending verification, then promote individual frames to `application-screen` only after their design context becomes accessible and their feature specification is approved. Roll back incorrect metadata through a normal revert; the production application is unaffected because it has no runtime Figma dependency.
 
 ## Open questions
 
-- None. Application-screen registration is intentionally blocked until such frames are added to the connected Figma file and verified through the integration.
+- None. Application-screen registration is intentionally blocked until design context for the supplied nodes is retrieved successfully.

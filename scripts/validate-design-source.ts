@@ -12,6 +12,8 @@ interface DesignSource {
     implementationRole?: string;
     parentId?: string;
     featureSpec?: string;
+    claimedScope?: string;
+    url?: string;
   }[];
 }
 
@@ -61,6 +63,30 @@ const expectedNodes = [
     implementationRole: 'reference-only',
     parentId: '0:1',
   },
+  {
+    id: '1:2',
+    name: 'Onboarding',
+    kind: 'unknown',
+    implementationRole: 'pending-verification',
+    claimedScope: 'onboarding',
+    url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=1-2',
+  },
+  {
+    id: '131:548',
+    name: 'Emails',
+    kind: 'unknown',
+    implementationRole: 'pending-verification',
+    claimedScope: 'emails',
+    url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=131-548',
+  },
+  {
+    id: '40:502',
+    name: 'Dashboard',
+    kind: 'unknown',
+    implementationRole: 'pending-verification',
+    claimedScope: 'dashboard',
+    url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=40-502',
+  },
 ];
 
 if (
@@ -74,7 +100,7 @@ if (
   })
 ) {
   errors.push(
-    'REQ-011: registered nodes must contain only reference-only page 0:1 and cover frame 48:25',
+    'REQ-011, REQ-012: registered nodes must match the verified cover nodes and pending-verification onboarding, email, and dashboard nodes',
   );
 }
 
