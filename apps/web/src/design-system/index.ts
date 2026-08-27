@@ -4,3 +4,7 @@
  */
 export { Button, type ButtonProps } from './Button.js';
 export { TextField, type TextFieldProps } from './TextField.js';
+export {
+  VerificationCodeField,
+  type VerificationCodeFieldProps,
+} from './VerificationCodeField.js';

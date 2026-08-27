@@ -1,8 +1,8 @@
 import { yupResolver } from '@hookform/resolvers/yup';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import * as yup from 'yup';
-import { Button, TextField } from '../design-system/index.js';
+import { Button, VerificationCodeField } from '../design-system/index.js';
 
 const schema = yup.object({
   code: yup
@@ -50,7 +50,7 @@ export function VerifyEmail({
     };
   }, [secondsRemaining]);
   const {
-    register,
+    control,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -110,13 +110,18 @@ export function VerifyEmail({
           </p>
         </div>
         <form className="grid gap-4" noValidate onSubmit={submit}>
-          <TextField
-            autoComplete="one-time-code"
-            error={errors.code?.message}
-            inputMode="numeric"
-            label="Verification code"
-            maxLength={6}
-            {...register('code')}
+          <Controller
+            control={control}
+            name="code"
+            render={({ field }) => (
+              <VerificationCodeField
+                error={errors.code?.message}
+                label="Verification code"
+                value={field.value}
+                onBlur={field.onBlur}
+                onChange={field.onChange}
+              />
+            )}
           />
           {serverError ? (
             <p aria-live="polite" className="text-sm text-danger" role="alert">
