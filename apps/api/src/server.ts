@@ -5,8 +5,10 @@ import { loadConfig } from './config.js';
 import { createConsoleVerificationSender } from './onboarding/console-verification-sender.js';
 import { createAccountRegistration } from './onboarding/create-account.js';
 import { createPrismaPendingAccountStore } from './onboarding/prisma-account-store.js';
+import { createPrismaVerificationStore } from './onboarding/prisma-verification-store.js';
 import { createOnboardingSecurity } from './onboarding/security.js';
 import { createSesVerificationSender } from './onboarding/ses-verification-sender.js';
+import { createEmailVerification } from './onboarding/verify-email.js';
 
 const config = loadConfig();
 const prisma = new PrismaClient();
@@ -19,6 +21,12 @@ if (config.emailDeliveryMode === 'ses') {
 } else {
   sendVerificationCode = createConsoleVerificationSender();
 }
+const verification = createEmailVerification({
+  ...security,
+  ...createPrismaVerificationStore(prisma),
+  sendVerificationCode,
+  now: () => new Date(),
+});
 const onboarding = {
   createAccount: createAccountRegistration({
     ...security,
@@ -26,6 +34,7 @@ const onboarding = {
     sendVerificationCode,
     now: () => new Date(),
   }),
+  ...verification,
 };
 const server = createApp(config, undefined, onboarding).listen(
   config.port,

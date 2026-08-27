@@ -3,6 +3,10 @@ import {
   createOnboardingAccountRequestSchema,
   createOnboardingAccountResponseSchema,
   healthResponseSchema,
+  resendOnboardingVerificationRequestSchema,
+  resendOnboardingVerificationResponseSchema,
+  verifyOnboardingEmailRequestSchema,
+  verifyOnboardingEmailResponseSchema,
 } from './index.js';
 
 describe('healthResponseSchema [REQ-002]', () => {
@@ -14,6 +18,42 @@ describe('healthResponseSchema [REQ-002]', () => {
 
   it('rejects values outside the contract', () => {
     expect(() => healthResponseSchema.parse({ status: 'down' })).toThrow();
+  });
+});
+
+describe('email verification contract [REQ-006, REQ-007, REQ-084]', () => {
+  it('accepts a normalized email and exactly six digits', () => {
+    expect(
+      verifyOnboardingEmailRequestSchema.parse({
+        email: 'OWNER@Example.com',
+        code: '012345',
+      }),
+    ).toEqual({ email: 'owner@example.com', code: '012345' });
+    expect(
+      verifyOnboardingEmailResponseSchema.parse({
+        nextStep: 'personal-profile',
+      }),
+    ).toEqual({ nextStep: 'personal-profile' });
+  });
+
+  it.each(['12345', '1234567', '12345a'])('rejects invalid code %s', (code) => {
+    expect(() =>
+      verifyOnboardingEmailRequestSchema.parse({
+        email: 'owner@example.com',
+        code,
+      }),
+    ).toThrow();
+  });
+
+  it('defines the generic resend contract', () => {
+    expect(
+      resendOnboardingVerificationRequestSchema.parse({
+        email: ' OWNER@Example.com ',
+      }),
+    ).toEqual({ email: 'owner@example.com' });
+    expect(
+      resendOnboardingVerificationResponseSchema.parse({ status: 'accepted' }),
+    ).toEqual({ status: 'accepted' });
   });
 });
 

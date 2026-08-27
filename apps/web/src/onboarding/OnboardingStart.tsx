@@ -88,7 +88,7 @@ const providers = [
 
 export interface OnboardingStartProps {
   createAccount: (input: CreateOnboardingAccountRequest) => Promise<unknown>;
-  onCreated?: () => void;
+  onCreated?: (email: string) => void;
 }
 
 export function OnboardingStart({
@@ -111,7 +111,7 @@ export function OnboardingStart({
       termsVersion: policyVersion,
       privacyVersion: policyVersion,
     });
-    onCreated?.();
+    onCreated?.(values.email);
   });
 
   return (

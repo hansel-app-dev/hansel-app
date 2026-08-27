@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createOnboardingAccount, getHealth } from './api.js';
+import {
+  createOnboardingAccount,
+  getHealth,
+  resendOnboardingVerification,
+  verifyOnboardingEmail,
+} from './api.js';
 
 describe('getHealth [REQ-002]', () => {
   it('parses a successful response', async () => {
@@ -21,6 +26,48 @@ describe('getHealth [REQ-002]', () => {
     await expect(getHealth('', fetcher)).rejects.toThrow(
       'Health request failed with 503',
     );
+  });
+});
+
+describe('verification API [REQ-006, REQ-007]', () => {
+  it('posts verify and resend contracts', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ nextStep: 'personal-profile' }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'accepted' }), { status: 202 }),
+      );
+    await expect(
+      verifyOnboardingEmail(
+        { email: 'owner@example.com', code: '123456' },
+        '',
+        fetcher,
+      ),
+    ).resolves.toEqual({ nextStep: 'personal-profile' });
+    await expect(
+      resendOnboardingVerification({ email: 'owner@example.com' }, '', fetcher),
+    ).resolves.toEqual({ status: 'accepted' });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps failed verify and resend transports to stable errors', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 400 }));
+    await expect(
+      verifyOnboardingEmail(
+        { email: 'owner@example.com', code: '123456' },
+        '',
+        fetcher,
+      ),
+    ).rejects.toThrow('verification_failed');
+    await expect(
+      resendOnboardingVerification({ email: 'owner@example.com' }, '', fetcher),
+    ).rejects.toThrow('resend_failed');
   });
 });
 

@@ -59,3 +59,25 @@ test('onboarding account creation is accessible and visually stable [AC-053, REQ
     maxDiffPixelRatio: 0.001,
   });
 });
+
+test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-verify-email--waiting&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Verify your email' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Verification code')).toHaveAttribute(
+    'autocomplete',
+    'one-time-code',
+  );
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+  await expect(page).toHaveScreenshot('onboarding-verify-email.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});

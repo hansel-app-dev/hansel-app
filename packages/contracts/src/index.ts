@@ -16,7 +16,7 @@ const passwordSchema = z
 
 export const createOnboardingAccountRequestSchema = z
   .object({
-    email: z.email().trim().toLowerCase(),
+    email: z.string().trim().toLowerCase().pipe(z.email()),
     password: passwordSchema,
     acceptsTerms: z.literal(true),
     termsVersion: z.string().trim().min(1).max(100),
@@ -32,4 +32,35 @@ export const createOnboardingAccountResponseSchema = z
   .strict();
 export type CreateOnboardingAccountResponse = z.infer<
   typeof createOnboardingAccountResponseSchema
+>;
+
+export const verifyOnboardingEmailRequestSchema = z
+  .object({
+    email: z.email().trim().toLowerCase(),
+    code: z.string().regex(/^\d{6}$/),
+  })
+  .strict();
+export type VerifyOnboardingEmailRequest = z.infer<
+  typeof verifyOnboardingEmailRequestSchema
+>;
+
+export const verifyOnboardingEmailResponseSchema = z
+  .object({ nextStep: z.literal('personal-profile') })
+  .strict();
+export type VerifyOnboardingEmailResponse = z.infer<
+  typeof verifyOnboardingEmailResponseSchema
+>;
+
+export const resendOnboardingVerificationRequestSchema = z
+  .object({ email: z.string().trim().toLowerCase().pipe(z.email()) })
+  .strict();
+export type ResendOnboardingVerificationRequest = z.infer<
+  typeof resendOnboardingVerificationRequestSchema
+>;
+
+export const resendOnboardingVerificationResponseSchema = z
+  .object({ status: z.literal('accepted') })
+  .strict();
+export type ResendOnboardingVerificationResponse = z.infer<
+  typeof resendOnboardingVerificationResponseSchema
 >;

@@ -37,3 +37,39 @@ test('matches the Figma-derived flow and validates required values [AC-002, AC-0
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);
 });
+
+test('verification requires a deliberate six-digit submission and supports resend [AC-002, REQ-006, REQ-007, REQ-084]', async ({
+  page,
+}) => {
+  await page.route(
+    '**/api/onboarding/email-verification/verify',
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ nextStep: 'personal-profile' }),
+      });
+    },
+  );
+  await page.route(
+    '**/api/onboarding/email-verification/resend',
+    async (route) => {
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'accepted' }),
+      });
+    },
+  );
+  await page.goto('/onboarding/verify-email');
+  await expect(
+    page.getByRole('heading', { name: 'Verify your email' }),
+  ).toBeVisible();
+  await page.getByLabel('Verification code').fill('123');
+  await page.getByRole('button', { name: 'Verify email' }).click();
+  await expect(page.getByText('Enter all six digits')).toBeVisible();
+  await page.getByLabel('Verification code').fill('123456');
+  await page.getByRole('button', { name: 'Verify email' }).click();
+  await page.getByRole('button', { name: 'Resend code' }).click();
+  await expect(page.getByText(/address is eligible/)).toBeVisible();
+});

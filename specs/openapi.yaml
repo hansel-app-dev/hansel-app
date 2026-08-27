@@ -37,6 +37,46 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/onboarding/email-verification/verify:
+    post:
+      operationId: verifyOnboardingEmail
+      summary: Verify the current onboarding email code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOnboardingEmailRequest'
+      responses:
+        '200':
+          description: Email verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyOnboardingEmailResponse'
+        '400':
+          description: Invalid request or generic verification failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/onboarding/email-verification/resend:
+    post:
+      operationId: resendOnboardingVerification
+      summary: Accept a replacement verification-code request generically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResendOnboardingVerificationRequest'
+      responses:
+        '202':
+          description: Request accepted without revealing account state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResendOnboardingVerificationResponse'
 components:
   schemas:
     CreateOnboardingAccountRequest:
@@ -77,6 +117,41 @@ components:
       properties:
         error:
           type: string
+    VerifyOnboardingEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email:
+          type: string
+          format: email
+        code:
+          type: string
+          pattern: '^\d{6}$'
+    VerifyOnboardingEmailResponse:
+      type: object
+      additionalProperties: false
+      required: [nextStep]
+      properties:
+        nextStep:
+          type: string
+          const: personal-profile
+    ResendOnboardingVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    ResendOnboardingVerificationResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: accepted
     HealthResponse:
       type: object
       additionalProperties: false

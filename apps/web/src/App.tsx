@@ -1,5 +1,11 @@
-import { createOnboardingAccount } from './api.js';
+import { useState } from 'react';
+import {
+  createOnboardingAccount,
+  resendOnboardingVerification,
+  verifyOnboardingEmail,
+} from './api.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
+import { VerifyEmail } from './onboarding/VerifyEmail.js';
 import './styles.css';
 
 function Home() {
@@ -17,10 +23,25 @@ export function App({
   apiUrl?: string;
   path?: string;
 }) {
+  const [verificationEmail, setVerificationEmail] = useState('');
   if (path === '/onboarding') {
     return (
       <OnboardingStart
         createAccount={(input) => createOnboardingAccount(input, apiUrl)}
+        onCreated={(email) => {
+          setVerificationEmail(email);
+          window.history.pushState({}, '', '/onboarding/verify-email');
+        }}
+      />
+    );
+  }
+  if (path === '/onboarding/verify-email') {
+    return (
+      <VerifyEmail
+        email={verificationEmail}
+        resendAvailableInSeconds={verificationEmail ? 60 : 0}
+        verify={(input) => verifyOnboardingEmail(input, apiUrl)}
+        resend={(input) => resendOnboardingVerification(input, apiUrl)}
       />
     );
   }
