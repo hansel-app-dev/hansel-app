@@ -1,0 +1,6 @@
+# Replace with real GitHub teams before enabling branch protection.
+* @hansel-engineering
+/specs/ @hansel-product @hansel-engineering
+/apps/api/prisma/ @hansel-engineering @hansel-data
+/infra/ @hansel-platform @hansel-security
+/.github/workflows/ @hansel-platform @hansel-security
