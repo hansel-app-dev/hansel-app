@@ -10,6 +10,7 @@
     "e2e",
     "scripts",
     "playwright.config.ts",
+    "playwright.design-system.config.ts",
     "apps/*/vitest.config.ts",
     "packages/*/vitest.config.ts"
   ]

@@ -14,6 +14,9 @@ interface DesignSource {
     featureSpec?: string;
     claimedScope?: string;
     url?: string;
+    verificationMethod?: string;
+    width?: number;
+    height?: number;
   }[];
 }
 
@@ -66,26 +69,62 @@ const expectedNodes = [
   {
     id: '1:2',
     name: 'Onboarding',
-    kind: 'unknown',
-    implementationRole: 'pending-verification',
+    kind: 'page',
+    implementationRole: 'visual-reference',
     claimedScope: 'onboarding',
+    verificationMethod: 'authenticated-browser',
     url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=1-2',
   },
   {
     id: '131:548',
     name: 'Emails',
-    kind: 'unknown',
-    implementationRole: 'pending-verification',
+    kind: 'page',
+    implementationRole: 'visual-reference',
     claimedScope: 'emails',
+    verificationMethod: 'authenticated-browser',
     url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=131-548',
   },
   {
     id: '40:502',
     name: 'Dashboard',
-    kind: 'unknown',
-    implementationRole: 'pending-verification',
+    kind: 'page',
+    implementationRole: 'visual-reference',
     claimedScope: 'dashboard',
+    verificationMethod: 'authenticated-browser',
     url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=40-502',
+  },
+  {
+    id: '1:3',
+    name: 'Onboarding > New user / New organization > Step 1',
+    kind: 'frame',
+    implementationRole: 'visual-reference',
+    parentId: '1:2',
+    verificationMethod: 'authenticated-browser',
+    width: 1728,
+    height: 1117,
+    url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=1-3',
+  },
+  {
+    id: '131:549',
+    name: 'Welcome',
+    kind: 'frame',
+    implementationRole: 'visual-reference',
+    parentId: '131:548',
+    verificationMethod: 'authenticated-browser',
+    width: 800,
+    height: 1061.05,
+    url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=131-549',
+  },
+  {
+    id: '2019:2296',
+    name: '0.0 Dashboard',
+    kind: 'frame',
+    implementationRole: 'visual-reference',
+    parentId: '40:502',
+    verificationMethod: 'authenticated-browser',
+    width: 1512,
+    height: 982,
+    url: 'https://www.figma.com/design/2zlJi8PzLXCbHqEGQI7Hn5/Hansel-App-UI?node-id=2019-2296',
   },
 ];
 
@@ -100,7 +139,7 @@ if (
   })
 ) {
   errors.push(
-    'REQ-011, REQ-012: registered nodes must match the verified cover nodes and pending-verification onboarding, email, and dashboard nodes',
+    'REQ-011, REQ-012: registered nodes must match the verified cover nodes and browser-verified onboarding, email, and dashboard references',
   );
 }
 

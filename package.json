@@ -17,10 +17,11 @@
     "test": "pnpm -r --if-present test",
     "test:coverage": "pnpm -r --if-present test:coverage",
     "test:e2e": "playwright test",
-    "spec:check": "tsx scripts/validate-specs.ts && tsx scripts/validate-runtime.ts && tsx scripts/validate-tailwind.ts && tsx scripts/validate-design-source.ts",
+    "test:design-system": "playwright test --config playwright.design-system.config.ts",
+    "spec:check": "tsx scripts/validate-specs.ts && tsx scripts/validate-runtime.ts && tsx scripts/validate-tailwind.ts && tsx scripts/validate-design-source.ts && tsx scripts/validate-design-system.ts",
     "db:generate": "pnpm --filter @hansel/api prisma generate",
     "db:migrate:dev": "pnpm --filter @hansel/api prisma migrate dev",
-    "verify": "pnpm spec:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build"
+    "verify": "pnpm spec:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm --filter @hansel/web build:storybook && pnpm test:design-system"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

@@ -1,0 +1,11 @@
+:root,
+body,
+#storybook-root {
+  min-height: 100%;
+}
+
+:root,
+body {
+  color: var(--color-content);
+  background: var(--color-canvas);
+}

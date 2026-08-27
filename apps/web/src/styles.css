@@ -1,6 +1,38 @@
 @import 'tailwindcss';
 
 @theme {
+  /* Verified Figma foundations: design-system-foundation REQ-002. */
+  --color-foundation-brown-500: #634739;
+  --color-foundation-off-white-500: #f7f5eb;
+  --color-foundation-white: #ffffff;
+
+  /* Semantic application tokens. Non-foundation state values are accessibility-derived. */
+  --color-canvas: var(--color-foundation-off-white-500);
+  --color-surface: var(--color-foundation-white);
+  --color-surface-muted: var(--color-foundation-off-white-500);
+  --color-content: #292524;
+  --color-content-muted: #57534e;
+  --color-content-subtle: #78716c;
+  --color-action-primary: var(--color-foundation-brown-500);
+  --color-action-primary-hover: #4f382d;
+  --color-on-action: var(--color-foundation-white);
+  --color-control-border: #d6d3d1;
+  --color-focus: var(--color-foundation-brown-500);
+  --color-danger: #b42318;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --spacing-control-inline: 1rem;
+  --spacing-control-block: 0.5rem;
+  --spacing-field-inline: 0.75rem;
+  --spacing-field-block: 0.5rem;
+  --spacing-field-gap: 0.375rem;
+  --spacing-component-gap: 1rem;
+  --spacing-workbench: 1.5rem;
+  --radius-control: 0.25rem;
+  --border-width-control: 1px;
+  --shadow-control: 0 1px 2px rgb(41 37 36 / 8%);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
   --animate-health-pulse: health-pulse 1.4s ease-in-out infinite;
 
   @keyframes health-pulse {
@@ -14,7 +46,7 @@
   :root {
     color: #f8fafc;
     background: #07111f;
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
     font-synthesis: none;
   }
 
