@@ -49,7 +49,14 @@ describe('HanselStack [REQ-004]', () => {
         Match.objectLike({ MetricNamespace: 'Hansel/Onboarding' }),
       ]),
     });
-    output.resourceCountIs('AWS::CloudWatch::Alarm', 3);
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 4);
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({
+          MetricName: 'OrganizationProfileUnexpectedFailures',
+        }),
+      ]),
+    });
     output.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({
         DefaultCacheBehavior: Match.objectLike({
@@ -59,6 +66,9 @@ describe('HanselStack [REQ-004]', () => {
           Match.objectLike({ PathPattern: 'api/*' }),
           Match.objectLike({ PathPattern: 'onboarding/about-you' }),
           Match.objectLike({ PathPattern: 'onboarding/plan-selection' }),
+          Match.objectLike({
+            PathPattern: 'onboarding/organization-profile',
+          }),
         ]),
       }),
     });

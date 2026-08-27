@@ -41,6 +41,14 @@ describe('onboarding security [REQ-006, REQ-007, REQ-024]', () => {
     expect(security.digestOnboardingCredential('123456')).not.toBe(
       security.digestVerificationCode('123456'),
     );
+    expect(
+      security.deriveOnboardingCredential(credential, 'submission-key'),
+    ).toBe(security.deriveOnboardingCredential(credential, 'submission-key'));
+    expect(
+      security.deriveOnboardingCredential(credential, 'submission-key'),
+    ).not.toBe(
+      security.deriveOnboardingCredential(credential, 'different-key'),
+    );
   });
 
   it('creates session-bound CSRF proof [REQ-029, REQ-086]', () => {

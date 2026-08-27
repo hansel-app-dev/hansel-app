@@ -5,6 +5,16 @@ import { VerificationFailedError } from './onboarding/verify-email.js';
 import { PersonalProfileTransitionError } from './onboarding/personal-profile.js';
 import { PlanSelectionTransitionError } from './onboarding/plan-selection.js';
 import { loadPlanCatalog } from './onboarding/plan-catalog.js';
+import {
+  OrganizationProfileConflictError,
+  OrganizationProfileTransitionError,
+} from './onboarding/organization-profile.js';
+import {
+  countryOptions,
+  industryOptions,
+  organizationSizeOptions,
+  placeServiceOptions,
+} from '@hansel/contracts';
 
 const planPage = {
   firstName: 'Nabin',
@@ -62,6 +72,258 @@ describe('API [REQ-002, REQ-007]', () => {
       correlationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     });
     expect(errorLog).toHaveBeenCalledOnce();
+    errorLog.mockRestore();
+  });
+});
+
+describe('organization-profile routes [onboarding-organization-profile REQ-001, REQ-006, REQ-007, REQ-011, REQ-012, REQ-018]', () => {
+  const page = {
+    submissionKey: 'x'.repeat(43),
+    countries: countryOptions,
+    industries: [...industryOptions],
+    placesByIndustry: Object.fromEntries(
+      Object.entries(placeServiceOptions).map(([key, values]) => [
+        key,
+        [...values],
+      ]),
+    ),
+    sizes: [...organizationSizeOptions],
+  };
+  const input = {
+    organizationName: 'Hansel',
+    country: 'AU',
+    industry: 'healthcare',
+    placeService: 'clinics',
+    organizationSize: 'employees_11_50',
+    submissionKey: page.submissionKey,
+  };
+  const module = (overrides: Record<string, unknown> = {}) => ({
+    createAccount: vi.fn(),
+    verifyEmail: vi.fn(),
+    resendVerification: vi.fn(),
+    submitPersonalProfile: vi.fn(),
+    load: vi.fn().mockResolvedValue(planPage),
+    select: vi.fn(),
+    loadOrganizationProfile: vi.fn().mockResolvedValue(page),
+    submitOrganizationProfile: vi.fn().mockResolvedValue({
+      nextStep: 'discovery',
+      onboardingCredential: 'next',
+      csrfProof: 'next-proof',
+    }),
+    recordOrganizationProfileEvent: vi.fn(),
+    ...overrides,
+  });
+  const create = (overrides: Record<string, unknown> = {}, enabled = true) =>
+    createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        organizationProfileEnabled: enabled,
+      },
+      undefined,
+      module(overrides),
+    );
+
+  it('loads JSON and progressive HTML privately', async () => {
+    const json = await request(create())
+      .get('/api/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(json.body).toEqual(page);
+    expect(json.headers['cache-control']).toBe('private, no-store');
+    const html = await request(create())
+      .get('/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(html.text).toContain('Now your organization');
+    expect(html.text).toContain('Industry or sector');
+    expect(html.text).not.toContain('>Back<');
+  });
+
+  it('submits JSON and native forms with rotated cookies', async () => {
+    const cookies =
+      'hansel_onboarding=credential; hansel_onboarding_csrf=proof';
+    const json = await request(create())
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(200, { nextStep: 'discovery' });
+    expect(String(json.headers['set-cookie'])).toContain(
+      'hansel_onboarding=next',
+    );
+    await request(create())
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send(input)
+      .expect(303)
+      .expect('Location', '/onboarding/discovery');
+  });
+
+  it('rejects disabled, missing, invalid, conflict, and stale requests safely', async () => {
+    await request(create({}, false))
+      .get('/api/onboarding/organization-profile')
+      .expect(404);
+    await request(create({}, false))
+      .get('/onboarding/organization-profile')
+      .expect(404);
+    await request(create({}, false))
+      .post('/api/onboarding/organization-profile')
+      .send(input)
+      .expect(404);
+    await request(create())
+      .get('/api/onboarding/organization-profile')
+      .expect(401);
+    await request(create()).get('/onboarding/organization-profile').expect(401);
+    await request(create())
+      .post('/api/onboarding/organization-profile')
+      .send({})
+      .expect(400);
+    await request(create())
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://evil.example')
+      .send(input)
+      .expect(401);
+    await request(
+      create({
+        submitOrganizationProfile: vi
+          .fn()
+          .mockRejectedValue(new OrganizationProfileConflictError()),
+      }),
+    )
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .send(input)
+      .expect(409, { error: 'organization_profile_conflict' });
+    await request(
+      create({
+        submitOrganizationProfile: vi
+          .fn()
+          .mockRejectedValue(new OrganizationProfileTransitionError()),
+      }),
+    )
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .send(input)
+      .expect(409, { error: 'onboarding_transition_failed' });
+  });
+
+  it('maps unavailable reads and progressive validation recovery', async () => {
+    const unavailable = create({
+      loadOrganizationProfile: vi
+        .fn()
+        .mockRejectedValue(new OrganizationProfileTransitionError()),
+    });
+    await request(unavailable)
+      .get('/api/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(409);
+    await request(unavailable)
+      .get('/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(409);
+    const recovery = await request(create())
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .type('form')
+      .send({ ...input, organizationName: '' })
+      .expect(400);
+    expect(recovery.text).toContain('could not save your organization');
+  });
+
+  it('records validation rejection without profile data', async () => {
+    const feature = module();
+    await request(
+      createApp(
+        {
+          allowedOrigin: 'https://app.example.com',
+          organizationProfileEnabled: true,
+        },
+        undefined,
+        feature,
+      ),
+    )
+      .post('/api/onboarding/organization-profile')
+      .send({})
+      .expect(400);
+    expect(feature.recordOrganizationProfileEvent).toHaveBeenCalledWith(
+      'organization_profile_validation_rejected',
+    );
+  });
+
+  it('uses safe progressive fallbacks and preserves unexpected failures', async () => {
+    const cookies =
+      'hansel_onboarding=credential; hansel_onboarding_csrf=proof';
+    const unavailable = await request(
+      create({
+        loadOrganizationProfile: vi
+          .fn()
+          .mockRejectedValue(new OrganizationProfileTransitionError()),
+      }),
+    )
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, organizationName: '' })
+      .expect(400);
+    expect(unavailable.text).toBe('We could not save your organization.');
+
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const failure = new Error('database unavailable');
+    await request(
+      create({ loadOrganizationProfile: vi.fn().mockRejectedValue(failure) }),
+    )
+      .get('/api/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(500);
+    await request(
+      create({ loadOrganizationProfile: vi.fn().mockRejectedValue(failure) }),
+    )
+      .get('/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(500);
+    await request(
+      create({
+        loadOrganizationProfile: vi.fn().mockRejectedValue(failure),
+      }),
+    )
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, organizationName: '' })
+      .expect(500);
+    await request(
+      create({
+        submitOrganizationProfile: vi.fn().mockRejectedValue(failure),
+      }),
+    )
+      .post('/api/onboarding/organization-profile')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(500);
+    expect(errorLog).toHaveBeenCalledTimes(4);
     errorLog.mockRestore();
   });
 });

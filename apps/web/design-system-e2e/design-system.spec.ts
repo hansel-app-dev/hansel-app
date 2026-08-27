@@ -192,6 +192,49 @@ for (const state of [
   });
 }
 
+test('organization profile matches Figma and remains accessible [onboarding-organization-profile REQ-001, REQ-014]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-organization-profile--normal&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Now your organization' }),
+  ).toBeVisible();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('onboarding-organization-profile.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expect(page).toHaveScreenshot(
+    'onboarding-organization-profile-narrow.png',
+    { animations: 'disabled', fullPage: true, maxDiffPixelRatio: 0.001 },
+  );
+});
+
+for (const state of [
+  'dependent-options',
+  'validation-error',
+  'load-failure',
+  'submitting',
+]) {
+  test(`organization profile ${state} is accessible and visually stable [onboarding-organization-profile REQ-014]`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `/iframe.html?id=onboarding-organization-profile--${state}&viewMode=story`,
+    );
+    await expect(page.getByRole('main')).toBeVisible();
+    expect((await analyzeAccessibility(page)).violations).toEqual([]);
+    await expect(page).toHaveScreenshot(
+      `onboarding-organization-profile-${state}.png`,
+      { animations: 'disabled', fullPage: true, maxDiffPixelRatio: 0.001 },
+    );
+  });
+}
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

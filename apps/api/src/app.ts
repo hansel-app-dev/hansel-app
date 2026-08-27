@@ -14,6 +14,9 @@ import {
   planSelectionPageResponseSchema,
   planSelectionRequestSchema,
   planSelectionResponseSchema,
+  organizationProfilePageResponseSchema,
+  organizationProfileRequestSchema,
+  organizationProfileResponseSchema,
   resendOnboardingVerificationRequestSchema,
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
@@ -29,10 +32,17 @@ import {
   type PlanSelectionPageResponse,
   type PlanSelectionRequest,
   type PlanSelectionResponse,
+  type OrganizationProfilePageResponse,
+  type OrganizationProfileRequest,
+  type OrganizationProfileResponse,
 } from '@hansel/contracts';
 import { VerificationFailedError } from './onboarding/verify-email.js';
 import { PersonalProfileTransitionError } from './onboarding/personal-profile.js';
 import { PlanSelectionTransitionError } from './onboarding/plan-selection.js';
+import {
+  OrganizationProfileConflictError,
+  OrganizationProfileTransitionError,
+} from './onboarding/organization-profile.js';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
@@ -71,6 +81,20 @@ export interface OnboardingModule {
       csrfProof: string;
     }
   >;
+  loadOrganizationProfile?(
+    credential: string,
+  ): Promise<OrganizationProfilePageResponse>;
+  submitOrganizationProfile?(
+    credential: string,
+    csrfProof: string,
+    input: OrganizationProfileRequest,
+  ): Promise<
+    OrganizationProfileResponse & {
+      onboardingCredential: string;
+      csrfProof: string;
+    }
+  >;
+  recordOrganizationProfileEvent?(name: string): void;
 }
 
 const onboardingCookieName = 'hansel_onboarding';
@@ -153,6 +177,21 @@ function renderPlanSelection(
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Choose your plan — Hansel</title><link rel="stylesheet" href="/assets/plan-selection-progressive.css"></head><body><main><a href="/" aria-label="Hansel home"><img class="logo" src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="plan-heading"><h1 id="plan-heading">Welcome ${escapeHtml(state.firstName)}, choose your plan</h1>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<nav aria-label="Billing interval"><a href="?interval=monthly" aria-current="${interval === 'monthly' ? 'page' : 'false'}">Monthly</a><a href="?interval=annual" aria-current="${interval === 'annual' ? 'page' : 'false'}">Annual</a><span>Save 35%</span></nav><div class="plans">${cards}</div><form class="free" action="/api/onboarding/plan-selection" method="post"><input type="hidden" name="priceId" value="free"><button type="submit">Or try it for free</button></form></section><a class="back" href="/onboarding/about-you">Back</a></main></body></html>`;
 }
 
+function renderOrganizationProfile(
+  state: OrganizationProfilePageResponse,
+  values: Record<string, unknown> = {},
+  error = '',
+): string {
+  const places = Object.entries(state.placesByIndustry).flatMap(
+    ([industry, options]) => options.map((option) => ({ ...option, industry })),
+  );
+  const optionList = (
+    options: readonly { id: string; label: string }[],
+    selected: unknown,
+  ) => renderOptions(options, selected);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Now your organization — Hansel</title><link rel="stylesheet" href="/assets/organization-profile-progressive.css"></head><body><main><a href="/" aria-label="Hansel home"><img class="logo" src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="organization-heading"><h1 id="organization-heading">Now your organization</h1><p class="required">All fields are required.</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/onboarding/organization-profile" method="post"><input type="hidden" name="submissionKey" value="${escapeHtml(state.submissionKey)}"><label for="organizationName">Organization</label><input id="organizationName" name="organizationName" required maxlength="200" value="${escapeHtml(values.organizationName)}"><label for="country">Country</label><select id="country" name="country" required>${optionList(state.countries, values.country)}</select><label for="industry">Industry or sector</label><select id="industry" name="industry" required>${optionList(state.industries, values.industry)}</select><label for="placeService">Type of place or service</label><select id="placeService" name="placeService" required><option value="">Select</option>${places.map(({ id, label, industry }) => `<option value="${id}" data-industry="${industry}"${values.placeService === id ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select><label for="organizationSize">Size</label><select id="organizationSize" name="organizationSize" required>${optionList(state.sizes, values.organizationSize)}</select><button type="submit">Next</button></form></section></main></body></html>`;
+}
+
 function readCookie(header: string | undefined, name: string): string | null {
   const value = header
     ?.split(';')
@@ -179,7 +218,10 @@ function hasAllowedFormOrigin(
 }
 
 export function createApp(
-  config: Pick<AppConfig, 'allowedOrigin'> & { planSelectionEnabled?: boolean },
+  config: Pick<AppConfig, 'allowedOrigin'> & {
+    planSelectionEnabled?: boolean;
+    organizationProfileEnabled?: boolean;
+  },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
 ) {
@@ -200,6 +242,16 @@ export function createApp(
   if (onboarding) {
     const planOnboarding = onboarding as OnboardingModule &
       Required<Pick<OnboardingModule, 'load' | 'select'>>;
+    const organizationOnboarding = onboarding as OnboardingModule &
+      Required<
+        Pick<
+          OnboardingModule,
+          'loadOrganizationProfile' | 'submitOrganizationProfile'
+        >
+      >;
+    const recordOrganizationEvent = (name: string) => {
+      onboarding.recordOrganizationProfileEvent?.(name);
+    };
     const readOnboardingCredential = (request: express.Request) =>
       readCookie(request.headers.cookie, onboardingCookieName);
     app.get('/api/onboarding/plan-selection', async (request, response) => {
@@ -490,6 +542,172 @@ export function createApp(
         throw error;
       }
     });
+    app.get(
+      '/api/onboarding/organization-profile',
+      async (request, response) => {
+        if (config.organizationProfileEnabled === false) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        response.set('Cache-Control', 'private, no-store');
+        const credential = readOnboardingCredential(request);
+        if (!credential) {
+          recordOrganizationEvent('organization_profile_transition_rejected');
+          response.status(401).json({ error: 'onboarding_transition_failed' });
+          return;
+        }
+        try {
+          response.json(
+            organizationProfilePageResponseSchema.parse(
+              await organizationOnboarding.loadOrganizationProfile(credential),
+            ),
+          );
+        } catch (error) {
+          if (error instanceof OrganizationProfileTransitionError) {
+            response
+              .status(409)
+              .json({ error: 'onboarding_transition_failed' });
+            return;
+          }
+          recordOrganizationEvent('organization_profile_unexpected_failure');
+          throw error;
+        }
+      },
+    );
+    app.get('/onboarding/organization-profile', async (request, response) => {
+      if (config.organizationProfileEnabled === false) {
+        response.status(404).type('html').send('Not found.');
+        return;
+      }
+      response.set('Cache-Control', 'private, no-store');
+      const credential = readOnboardingCredential(request);
+      if (!credential) {
+        recordOrganizationEvent('organization_profile_transition_rejected');
+        response
+          .status(401)
+          .type('html')
+          .send('Onboarding session unavailable.');
+        return;
+      }
+      try {
+        response
+          .type('html')
+          .send(
+            renderOrganizationProfile(
+              await organizationOnboarding.loadOrganizationProfile(credential),
+            ),
+          );
+      } catch (error) {
+        if (error instanceof OrganizationProfileTransitionError) {
+          response
+            .status(409)
+            .type('html')
+            .send('Onboarding session unavailable.');
+          return;
+        }
+        recordOrganizationEvent('organization_profile_unexpected_failure');
+        throw error;
+      }
+    });
+    app.post(
+      '/api/onboarding/organization-profile',
+      async (request, response) => {
+        if (config.organizationProfileEnabled === false) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        const isHtmlForm = request.is('application/x-www-form-urlencoded');
+        const input = organizationProfileRequestSchema.safeParse(request.body);
+        const credential = readOnboardingCredential(request);
+        const csrfCookie = readCookie(
+          request.headers.cookie,
+          onboardingCsrfCookieName,
+        );
+        const reject = async (status: number, error: string) => {
+          if (isHtmlForm && credential) {
+            try {
+              const state =
+                await organizationOnboarding.loadOrganizationProfile(
+                  credential,
+                );
+              response
+                .status(status)
+                .type('html')
+                .send(
+                  renderOrganizationProfile(
+                    state,
+                    request.body as Record<string, unknown>,
+                    'We could not save your organization. Review the form and try again.',
+                  ),
+                );
+              return;
+            } catch (loadError) {
+              if (!(loadError instanceof OrganizationProfileTransitionError))
+                throw loadError;
+            }
+          }
+          if (isHtmlForm)
+            response
+              .status(status)
+              .type('html')
+              .send('We could not save your organization.');
+          else response.status(status).json({ error });
+        };
+        if (!input.success) {
+          recordOrganizationEvent('organization_profile_validation_rejected');
+          await reject(400, 'invalid_request');
+          return;
+        }
+        if (
+          (isHtmlForm
+            ? !hasAllowedFormOrigin(request, config.allowedOrigin)
+            : request.headers.origin !== config.allowedOrigin) ||
+          !credential ||
+          !csrfCookie ||
+          (!isHtmlForm && request.header('x-hansel-csrf') !== csrfCookie)
+        ) {
+          recordOrganizationEvent('organization_profile_transition_rejected');
+          await reject(401, 'onboarding_transition_failed');
+          return;
+        }
+        try {
+          const { onboardingCredential, csrfProof, ...result } =
+            await organizationOnboarding.submitOrganizationProfile(
+              credential,
+              csrfCookie,
+              input.data,
+            );
+          response.cookie(onboardingCookieName, onboardingCredential, {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: config.allowedOrigin.startsWith('https://'),
+            maxAge: 15 * 60 * 1000,
+            path: '/',
+          });
+          response.cookie(onboardingCsrfCookieName, csrfProof, {
+            httpOnly: false,
+            sameSite: 'strict',
+            secure: config.allowedOrigin.startsWith('https://'),
+            maxAge: 15 * 60 * 1000,
+            path: '/',
+          });
+          const output = organizationProfileResponseSchema.parse(result);
+          if (isHtmlForm) response.redirect(303, '/onboarding/discovery');
+          else response.json(output);
+        } catch (error) {
+          if (error instanceof OrganizationProfileConflictError) {
+            await reject(409, 'organization_profile_conflict');
+            return;
+          }
+          if (error instanceof OrganizationProfileTransitionError) {
+            await reject(409, 'onboarding_transition_failed');
+            return;
+          }
+          recordOrganizationEvent('organization_profile_unexpected_failure');
+          throw error;
+        }
+      },
+    );
   }
   configureRoutes?.(app);
 

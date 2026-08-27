@@ -34,6 +34,14 @@ export function createOnboardingSecurity({
     createOnboardingCredential(): string {
       return randomBytes(32).toString('base64url');
     },
+    deriveOnboardingCredential(
+      credential: string,
+      submissionKey: string,
+    ): string {
+      return createHmac('sha256', verificationDigestKey)
+        .update(`organization-profile:${credential}:${submissionKey}`)
+        .digest('base64url');
+    },
     digestOnboardingCredential(credential: string): string {
       return createHmac('sha256', verificationDigestKey)
         .update(`onboarding:${credential}`)

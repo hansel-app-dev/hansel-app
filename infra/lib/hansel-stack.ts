@@ -217,6 +217,27 @@ export class HanselStack extends cdk.Stack {
       evaluationPeriods: 2,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
+    const organizationUnexpectedFailureFilter = new logs.MetricFilter(
+      this,
+      'OrganizationUnexpectedFailureMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'organization_profile_unexpected_failure',
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName: 'OrganizationProfileUnexpectedFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'OrganizationUnexpectedFailureAlarm', {
+      metric: organizationUnexpectedFailureFilter.metric(),
+      threshold: 5,
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
     const dashboard = new cloudwatch.Dashboard(this, 'OperationsDashboard');
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
@@ -317,6 +338,10 @@ export class HanselStack extends cdk.Stack {
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },
         'onboarding/plan-selection': {
+          ...apiBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+        'onboarding/organization-profile': {
           ...apiBehavior,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },

@@ -152,6 +152,12 @@ await Promise.all(
     'onboarding-plan-selection-enterprise-selected.png',
     'onboarding-plan-selection-submitting-disabled.png',
     'onboarding-plan-selection-load-failure.png',
+    'onboarding-organization-profile.png',
+    'onboarding-organization-profile-narrow.png',
+    'onboarding-organization-profile-dependent-options.png',
+    'onboarding-organization-profile-validation-error.png',
+    'onboarding-organization-profile-load-failure.png',
+    'onboarding-organization-profile-submitting.png',
   ].map((name) =>
     mustExist(`apps/web/design-system-e2e/__screenshots__/${name}`),
   ),

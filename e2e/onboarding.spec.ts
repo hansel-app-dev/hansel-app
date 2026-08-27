@@ -1,6 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { seedPlanSelectionJourney } from '../apps/api/e2e-support/plan-selection.js';
+import { seedOrganizationProfileJourney } from '../apps/api/e2e-support/organization-profile.js';
+import {
+  countryOptions,
+  industryOptions,
+  organizationSizeOptions,
+  placeServiceOptions,
+} from '../packages/contracts/src/index.js';
 
 const plan = (
   priceId: string,
@@ -35,6 +42,13 @@ const planPage = {
     plan('pro_annual', 'pro', 'annual'),
     plan('enterprise', 'enterprise', null, true),
   ],
+};
+const organizationPage = {
+  submissionKey: 'x'.repeat(43),
+  countries: countryOptions,
+  industries: industryOptions,
+  placesByIndustry: placeServiceOptions,
+  sizes: organizationSizeOptions,
 };
 
 async function enterPlanSelection(page: Page) {
@@ -267,6 +281,59 @@ test('plan selection defaults annual, switches monthly, and Free bypasses paymen
   await expect(page).toHaveURL(/\/onboarding\/organization-profile$/);
 });
 
+test('organization profile follows Figma, filters choices, validates, and advances [onboarding-organization-profile REQ-001..REQ-015]', async ({
+  page,
+}) => {
+  let submitted: unknown;
+  await page.route('**/api/onboarding/organization-profile', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(organizationPage),
+      });
+      return;
+    }
+    submitted = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ nextStep: 'discovery' }),
+    });
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/onboarding/organization-profile');
+  await page.evaluate(() => {
+    document.cookie = 'hansel_onboarding_csrf=proof; SameSite=Strict';
+  });
+  await expect(
+    page.getByRole('heading', { name: 'Now your organization' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Next' }).click();
+  const organization = page.getByRole('textbox', { name: 'Organization' });
+  await expect(organization).toBeFocused();
+  await organization.fill('Hansel');
+  await page.getByLabel('Country').selectOption('AU');
+  await page.getByLabel('Industry or sector').selectOption('healthcare');
+  await expect(page.getByRole('option', { name: 'Clinics' })).toBeAttached();
+  await expect(page.getByRole('option', { name: 'Airports' })).toHaveCount(0);
+  await page.getByLabel('Type of place or service').selectOption('clinics');
+  await page.getByLabel('Size').selectOption('employees_11_50');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/discovery$/);
+  expect(submitted).toMatchObject({
+    organizationName: 'Hansel',
+    country: 'AU',
+    industry: 'healthcare',
+    placeService: 'clinics',
+    organizationSize: 'employees_11_50',
+  });
+});
+
 test('personal profile remains functional without JavaScript [REQ-054, REQ-086, REQ-087]', async ({
   browser,
 }) => {
@@ -435,6 +502,50 @@ test('plan selection remains functional without JavaScript [onboarding-plan-sele
   expect(submissionCookies).toContain(`hansel_onboarding=${credential}`);
   expect(submissionCookies).toContain(`hansel_onboarding_csrf=${csrfProof}`);
   await expect(page).toHaveURL(/\/onboarding\/organization-profile$/);
+  await context.close();
+  await disconnect();
+});
+
+test('organization profile remains functional without JavaScript and persists through PostgreSQL [onboarding-organization-profile REQ-012, REQ-016]', async ({
+  browser,
+}) => {
+  const { baseUrl, credential, csrfProof, assertPersisted, disconnect } =
+    await seedOrganizationProfileJourney();
+  const context = await browser.newContext({
+    baseURL: baseUrl,
+    javaScriptEnabled: false,
+  });
+  await context.addCookies([
+    {
+      name: 'hansel_onboarding',
+      value: credential,
+      domain: '127.0.0.1',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+    {
+      name: 'hansel_onboarding_csrf',
+      value: csrfProof,
+      domain: '127.0.0.1',
+      path: '/',
+      sameSite: 'Strict',
+    },
+  ]);
+  const page = await context.newPage();
+  await page.goto('/onboarding/organization-profile');
+  await page.getByRole('textbox', { name: 'Organization' }).fill('Hansel E2E');
+  await page.getByLabel('Country').selectOption('AU');
+  await page.getByLabel('Industry or sector').selectOption('healthcare');
+  await page.getByLabel('Type of place or service').selectOption('clinics');
+  await page.getByLabel('Size').selectOption('employees_11_50');
+  const [submission] = await Promise.all([
+    page.waitForRequest('**/api/onboarding/organization-profile'),
+    page.getByRole('button', { name: 'Next' }).click(),
+  ]);
+  expect((await submission.allHeaders()).origin).toBe('null');
+  await expect(page).toHaveURL(/\/onboarding\/discovery$/);
+  await expect.poll(assertPersisted).toBe('Hansel E2E');
   await context.close();
   await disconnect();
 });

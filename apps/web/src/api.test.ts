@@ -7,7 +7,70 @@ import {
   selectOnboardingPlan,
   verifyOnboardingEmail,
   submitPersonalProfile,
+  loadOrganizationProfile,
+  submitOrganizationProfile,
 } from './api.js';
+import {
+  countryOptions,
+  industryOptions,
+  organizationSizeOptions,
+  placeServiceOptions,
+} from '@hansel/contracts';
+
+describe('organization profile API [onboarding-organization-profile REQ-006, REQ-007, REQ-011]', () => {
+  const page = {
+    submissionKey: 'x'.repeat(43),
+    countries: countryOptions,
+    industries: [...industryOptions],
+    placesByIndustry: Object.fromEntries(
+      Object.entries(placeServiceOptions).map(([key, values]) => [
+        key,
+        [...values],
+      ]),
+    ),
+    sizes: [...organizationSizeOptions],
+  };
+  const input = {
+    organizationName: 'Hansel',
+    country: 'AU',
+    industry: 'healthcare' as const,
+    placeService: 'clinics',
+    organizationSize: 'employees_11_50' as const,
+    submissionKey: page.submissionKey,
+  };
+  it('loads and submits with credentials and CSRF', async () => {
+    document.cookie = 'hansel_onboarding_csrf=proof';
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(page), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ nextStep: 'discovery' }), {
+          status: 200,
+        }),
+      );
+    await expect(loadOrganizationProfile('', fetcher)).resolves.toEqual(page);
+    await expect(
+      submitOrganizationProfile(input, '', fetcher),
+    ).resolves.toEqual({ nextStep: 'discovery' });
+    expect(fetcher).toHaveBeenLastCalledWith(
+      '/api/onboarding/organization-profile',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify(input) }),
+    );
+  });
+  it('maps load and submit failures', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+    await expect(loadOrganizationProfile('', fetcher)).rejects.toThrow(
+      'organization_profile_load_failed',
+    );
+    await expect(submitOrganizationProfile(input, '', fetcher)).rejects.toThrow(
+      'organization_profile_failed',
+    );
+  });
+});
 
 describe('plan selection API [onboarding-plan-selection REQ-006, REQ-007]', () => {
   const plan = (

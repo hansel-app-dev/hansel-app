@@ -6,11 +6,14 @@ import {
   submitPersonalProfile,
   loadPlanSelection,
   selectOnboardingPlan,
+  loadOrganizationProfile,
+  submitOrganizationProfile,
 } from './api.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
 import { PlanSelection } from './onboarding/PlanSelection.js';
+import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -86,6 +89,17 @@ export function App({
           if (result.nextStep === 'contact-sales')
             openExternal(result.destination);
           else navigate(`/onboarding/${result.nextStep}`);
+        }}
+      />
+    );
+  }
+  if (currentPath === '/onboarding/organization-profile') {
+    return (
+      <OrganizationProfile
+        loadProfile={() => loadOrganizationProfile(apiUrl)}
+        submitProfile={(input) => submitOrganizationProfile(input, apiUrl)}
+        onCompleted={() => {
+          navigate('/onboarding/discovery');
         }}
       />
     );

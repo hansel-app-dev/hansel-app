@@ -15,6 +15,12 @@ import { createPrismaPersonalProfileStore } from './onboarding/prisma-personal-p
 import { loadPlanCatalog } from './onboarding/plan-catalog.js';
 import { createPlanSelection } from './onboarding/plan-selection.js';
 import { createPrismaPlanSelectionStore } from './onboarding/prisma-plan-selection-store.js';
+import { randomBytes, randomUUID } from 'node:crypto';
+import {
+  createOrganizationProfile,
+  createOrganizationProfileDigests,
+} from './onboarding/organization-profile.js';
+import { createPrismaOrganizationProfileStore } from './onboarding/prisma-organization-profile-store.js';
 
 const config = loadConfig();
 const logger = new Logger({ serviceName: 'hansel-api' });
@@ -44,6 +50,9 @@ try {
   throw error;
 }
 const planSelectionStore = createPrismaPlanSelectionStore(prisma);
+const organizationProfileDigests = createOrganizationProfileDigests(
+  config.verificationDigestKey,
+);
 const onboarding = {
   createAccount: createAccountRegistration({
     ...security,
@@ -78,6 +87,32 @@ const onboarding = {
       logger.info(name, { ...details });
     },
   }),
+  ...(() => {
+    const feature = createOrganizationProfile({
+      ...createPrismaOrganizationProfileStore(prisma),
+      ...organizationProfileDigests,
+      createSubmissionKey: () => randomBytes(32).toString('base64url'),
+      digestOnboardingCredential: (credential) =>
+        security.digestOnboardingCredential(credential),
+      deriveOnboardingCredential: (credential, submissionKey) =>
+        security.deriveOnboardingCredential(credential, submissionKey),
+      createOnboardingCsrfProof: (credential) =>
+        security.createOnboardingCsrfProof(credential),
+      verifyOnboardingCsrfProof: (credential, proof) =>
+        security.verifyOnboardingCsrfProof(credential, proof),
+      now: () => new Date(),
+      recordEvent: (name) => {
+        logger.info(name, { correlationId: randomUUID() });
+      },
+    });
+    return {
+      loadOrganizationProfile: feature.load.bind(feature),
+      submitOrganizationProfile: feature.submit.bind(feature),
+      recordOrganizationProfileEvent: (name: string) => {
+        logger.info(name, { correlationId: randomUUID() });
+      },
+    };
+  })(),
   ...verification,
 };
 const server = createApp(config, undefined, onboarding).listen(

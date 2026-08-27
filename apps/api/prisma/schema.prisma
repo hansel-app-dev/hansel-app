@@ -34,8 +34,8 @@ enum BillingInterval {
 }
 
 model User {
-  id              String                  @id @default(uuid()) @db.Uuid
-  email           String                  @unique
+  id              String                   @id @default(uuid()) @db.Uuid
+  email           String                   @unique
   emailVerifiedAt DateTime?
   password        PasswordCredential?
   consents        ConsentRecord[]
@@ -45,8 +45,8 @@ model User {
   personalProfile PersonalProfile?
   planSelection   OnboardingPlanSelection?
   continuation    OnboardingContinuation?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
 }
 
 model OnboardingPlanSelection {
@@ -61,9 +61,9 @@ model OnboardingPlanSelection {
   maximumSites    Int?
   catalogVersion  String
   selectedAt      DateTime
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 model PersonalProfile {
@@ -131,24 +131,47 @@ model VerificationChallenge {
 }
 
 model OnboardingJourney {
-  id          String              @id @default(uuid()) @db.Uuid
-  userId      String              @db.Uuid
-  entryPath   OnboardingEntryPath
-  currentStep OnboardingStep
-  completedAt DateTime?
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id                            String                         @id @default(uuid()) @db.Uuid
+  userId                        String                         @db.Uuid
+  entryPath                     OnboardingEntryPath
+  currentStep                   OnboardingStep
+  completedAt                   DateTime?
+  user                          User                           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId                      String?                        @unique @db.Uuid
+  tenant                        Tenant?                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  organizationProfileSubmission OrganizationProfileSubmission?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
 
   @@index([userId, completedAt])
 }
 
 model Tenant {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String
-  memberships Membership[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                String             @id @default(uuid()) @db.Uuid
+  name              String
+  country           String
+  industry          String
+  placeService      String
+  organizationSize  String
+  memberships       Membership[]
+  onboardingJourney OnboardingJourney?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+model OrganizationProfileSubmission {
+  id                   String            @id @default(uuid()) @db.Uuid
+  journeyId            String            @unique @db.Uuid
+  submissionKeyDigest  String            @unique
+  credentialDigest     String
+  requestDigest        String?
+  nextCredentialDigest String?
+  outcome              String?
+  expiresAt            DateTime
+  consumedAt           DateTime?
+  journey              OnboardingJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 }
 
 model Membership {

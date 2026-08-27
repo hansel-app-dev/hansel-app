@@ -15,6 +15,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
+      organizationProfileEnabled: true,
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -36,6 +37,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
+      organizationProfileEnabled: true,
       port: 8080,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -49,6 +51,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     expect(loadConfig({ ...required, NODE_ENV: 'production' })).toMatchObject({
       runtimeEnvironment: 'production',
       planSelectionEnabled: false,
+      organizationProfileEnabled: false,
     });
     expect(
       loadConfig({
@@ -56,6 +59,13 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
         NODE_ENV: 'production',
         PLAN_SELECTION_ENABLED: 'true',
       }).planSelectionEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        ORGANIZATION_PROFILE_ENABLED: 'true',
+      }).organizationProfileEnabled,
     ).toBe(true);
   });
 
@@ -71,6 +81,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
+      organizationProfileEnabled: true,
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',

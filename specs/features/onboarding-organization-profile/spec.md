@@ -1,13 +1,14 @@
 # Feature: Onboarding organization profile
 
 - ID: `onboarding-organization-profile`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-08-27`
 - Design authority: `Figma Hansel App UI, Onboarding frame 11:409`
 - Design evidence: `Browser-inspected 2026-08-27; Figma structured connector was rate-limited`
 - Product approval: `Acceptance criteria approved by user, 2026-08-27`
+- Implementation evidence: `100% frontend/backend unit coverage; PostgreSQL integration; JavaScript and no-JavaScript Playwright; Storybook axe and deterministic desktop/narrow screenshots; independent spec and standards reviews passed, 2026-08-28`
 
 ## Problem
 

@@ -18,7 +18,47 @@ import {
   type PlanPriceId,
   type PlanSelectionPageResponse,
   type PlanSelectionResponse,
+  organizationProfilePageResponseSchema,
+  organizationProfileResponseSchema,
+  type OrganizationProfilePageResponse,
+  type OrganizationProfileRequest,
+  type OrganizationProfileResponse,
 } from '@hansel/contracts';
+
+export async function loadOrganizationProfile(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<OrganizationProfilePageResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/onboarding/organization-profile`,
+    {
+      credentials: 'include',
+    },
+  );
+  if (!response.ok) throw new Error('organization_profile_load_failed');
+  return organizationProfilePageResponseSchema.parse(await response.json());
+}
+
+export async function submitOrganizationProfile(
+  input: OrganizationProfileRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<OrganizationProfileResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/onboarding/organization-profile`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        'x-hansel-csrf': readCsrfProof(),
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error('organization_profile_failed');
+  return organizationProfileResponseSchema.parse(await response.json());
+}
 
 function readCsrfProof(): string {
   const proof = document.cookie

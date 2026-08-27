@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countryOptions,
   departmentOptions,
   jobTitleOptions,
   personalProfileRequestSchema,
@@ -10,11 +11,70 @@ import {
   createOnboardingAccountRequestSchema,
   createOnboardingAccountResponseSchema,
   healthResponseSchema,
+  industryOptions,
+  organizationProfilePageResponseSchema,
+  organizationProfileRequestSchema,
+  organizationProfileResponseSchema,
+  organizationSizeOptions,
+  placeServiceOptions,
   resendOnboardingVerificationRequestSchema,
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
   verifyOnboardingEmailResponseSchema,
 } from './index.js';
+
+describe('organization profile contract [onboarding-organization-profile REQ-002..REQ-006, REQ-011, REQ-016]', () => {
+  it('publishes complete stable catalogs and validates dependent choices', () => {
+    expect(countryOptions).toHaveLength(249);
+    expect(countryOptions).toContainEqual({ id: 'AU', label: 'Australia' });
+    expect(organizationSizeOptions.map(({ id }) => id)).toEqual([
+      'employees_1_10',
+      'employees_11_50',
+      'employees_51_100',
+      'employees_over_100',
+    ]);
+    expect(industryOptions).toHaveLength(10);
+    expect(placeServiceOptions.healthcare.map(({ id }) => id)).toEqual([
+      'hospitals',
+      'clinics',
+      'aged_care_facilities',
+    ]);
+    expect(
+      organizationProfileRequestSchema.parse({
+        organizationName: ' Hanse\u0301l ',
+        country: 'AU',
+        industry: 'healthcare',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+        submissionKey: 'x'.repeat(43),
+      }),
+    ).toMatchObject({ organizationName: 'Hansél', country: 'AU' });
+    expect(() =>
+      organizationProfileRequestSchema.parse({
+        organizationName: 'Hansel',
+        country: 'AU',
+        industry: 'education',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+        submissionKey: 'x'.repeat(43),
+      }),
+    ).toThrow();
+  });
+
+  it('validates the page and discovery response', () => {
+    const page = {
+      submissionKey: 'x'.repeat(43),
+      countries: countryOptions,
+      industries: industryOptions,
+      placesByIndustry: placeServiceOptions,
+      sizes: organizationSizeOptions,
+    };
+    expect(organizationProfilePageResponseSchema.parse(page)).toEqual(page);
+    expect(
+      organizationProfileResponseSchema.parse({ nextStep: 'discovery' }),
+    ).toEqual({ nextStep: 'discovery' });
+  });
+});
 
 describe('plan selection contract [onboarding-plan-selection REQ-002, REQ-006, REQ-007, REQ-008]', () => {
   it('accepts only stable selections and server-authored outcomes', () => {

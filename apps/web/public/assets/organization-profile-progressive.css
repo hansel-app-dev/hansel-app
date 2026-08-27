@@ -1,0 +1,78 @@
+@font-face {
+  font-family: Figtree;
+  src: url('/assets/figtree-latin-wght-normal.woff2');
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #fff;
+  color: #262626;
+  font-family: Figtree, Arial, sans-serif;
+}
+main {
+  min-height: 100vh;
+  padding: 32px;
+}
+.logo {
+  width: auto;
+  height: 20px;
+}
+section {
+  width: 350px;
+  margin: 150px auto 0;
+}
+h1 {
+  margin: 0 0 28px;
+  font-size: 24px;
+  font-weight: 400;
+}
+.required {
+  font-size: 13px;
+  color: #666;
+}
+.error {
+  color: #b42318;
+}
+form {
+  display: grid;
+  gap: 10px;
+}
+label {
+  font-size: 13px;
+}
+input,
+select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #d0d5dd;
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: #fff;
+}
+button {
+  position: fixed;
+  right: 56px;
+  bottom: 56px;
+  min-height: 40px;
+  border: 1px solid #344054;
+  border-radius: 4px;
+  padding: 8px 20px;
+  background: #344054;
+  color: #fff;
+}
+@media (max-width: 480px) {
+  main {
+    padding: 20px;
+  }
+  section {
+    width: 100%;
+    margin-top: 64px;
+  }
+  button {
+    position: static;
+    margin-top: 20px;
+    justify-self: end;
+  }
+}

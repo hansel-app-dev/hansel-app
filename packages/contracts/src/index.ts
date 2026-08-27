@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import countries from 'i18n-iso-countries';
+import englishCountries from 'i18n-iso-countries/langs/en.json' with { type: 'json' };
 
 export const healthResponseSchema = z.object({ status: z.literal('ok') });
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
@@ -204,4 +206,158 @@ export const planSelectionPageResponseSchema = z
   .strict();
 export type PlanSelectionPageResponse = z.infer<
   typeof planSelectionPageResponseSchema
+>;
+
+countries.registerLocale(englishCountries);
+export const countryOptions = Object.entries(
+  countries.getNames('en', { select: 'official' }),
+)
+  .filter(([id]) => id !== 'XK')
+  .map(([id, label]) => ({ id, label }))
+  .sort((left, right) => left.label.localeCompare(right.label));
+
+export const industryOptions = [
+  { id: 'healthcare', label: 'Healthcare' },
+  { id: 'education', label: 'Education' },
+  { id: 'retail', label: 'Retail' },
+  { id: 'corporate_commercial', label: 'Corporate / Commercial' },
+  { id: 'transport_infrastructure', label: 'Transport & Infrastructure' },
+  { id: 'government_civic', label: 'Government & Civic' },
+  { id: 'construction_industrial', label: 'Construction & Industrial' },
+  { id: 'hospitality_tourism', label: 'Hospitality & Tourism' },
+  { id: 'sports_entertainment', label: 'Sports & Entertainment' },
+  { id: 'exhibitions_events', label: 'Exhibitions & Events' },
+] as const;
+
+export const placeServiceOptions = {
+  healthcare: [
+    { id: 'hospitals', label: 'Hospitals' },
+    { id: 'clinics', label: 'Clinics' },
+    { id: 'aged_care_facilities', label: 'Aged care facilities' },
+  ],
+  education: [{ id: 'universities_schools', label: 'University/Schools' }],
+  retail: [
+    { id: 'shopping_malls', label: 'Shopping malls' },
+    { id: 'department_stores', label: 'Department stores' },
+    { id: 'retail_stores', label: 'Retail store' },
+  ],
+  corporate_commercial: [
+    { id: 'office_buildings', label: 'Office buildings' },
+    { id: 'coworking_spaces', label: 'Co-working spaces' },
+    { id: 'business_parks', label: 'Business parks' },
+    { id: 'headquarters', label: 'Headquarters' },
+  ],
+  transport_infrastructure: [
+    { id: 'airports', label: 'Airports' },
+    { id: 'train_metro_bus_ferry', label: 'Train/Metro/Bus/Ferry' },
+    { id: 'parking_structures', label: 'Parking structures' },
+  ],
+  government_civic: [
+    { id: 'council_buildings', label: 'Council buildings' },
+    { id: 'public_libraries', label: 'Public libraries' },
+    { id: 'community_centers', label: 'Community centers' },
+    { id: 'courthouses', label: 'Courthouses' },
+    { id: 'licensing_service_centers', label: 'Licensing or service centers' },
+    { id: 'community_halls', label: 'Community halls' },
+  ],
+  construction_industrial: [
+    { id: 'construction_sites', label: 'Construction sites' },
+    { id: 'warehouses', label: 'Warehouses' },
+    { id: 'manufacturing_plants', label: 'Manufacturing plants' },
+    { id: 'logistics_hubs', label: 'Logistics hubs' },
+    { id: 'mining_operations', label: 'Mining operations' },
+  ],
+  hospitality_tourism: [
+    { id: 'hotels_resorts', label: 'Hotels and resorts' },
+    { id: 'hostels_lodges', label: 'Hostels and lodges' },
+    { id: 'museums_galleries', label: 'Museums and galleries' },
+    { id: 'tourist_attractions', label: 'Tourist attractions' },
+    { id: 'information_centers', label: 'Information centers' },
+  ],
+  sports_entertainment: [
+    { id: 'stadiums_arenas', label: 'Stadiums and arenas' },
+    { id: 'convention_centers', label: 'Convention centers' },
+    { id: 'amusement_parks', label: 'Amusement parks' },
+  ],
+  exhibitions_events: [
+    { id: 'exhibitions', label: 'Exhibitions' },
+    { id: 'trade_shows_conferences', label: 'Trade shows/Conferences' },
+  ],
+} as const;
+
+export const organizationSizeOptions = [
+  { id: 'employees_1_10', label: '1–10' },
+  { id: 'employees_11_50', label: '11–50' },
+  { id: 'employees_51_100', label: '51–100' },
+  { id: 'employees_over_100', label: 'More than 100' },
+] as const;
+
+const organizationNameSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.normalize('NFC'))
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .refine((value) => Array.from(value).length <= 200),
+  );
+const countryIds = countryOptions.map(({ id }) => id) as [string, ...string[]];
+const industryIds = industryOptions.map(({ id }) => id) as [
+  (typeof industryOptions)[number]['id'],
+  ...(typeof industryOptions)[number]['id'][],
+];
+const sizeIds = organizationSizeOptions.map(({ id }) => id) as [
+  (typeof organizationSizeOptions)[number]['id'],
+  ...(typeof organizationSizeOptions)[number]['id'][],
+];
+const allPlaceIds = Object.values(placeServiceOptions)
+  .flat()
+  .map(({ id }) => id) as [string, ...string[]];
+
+export const organizationProfileRequestSchema = z
+  .object({
+    organizationName: organizationNameSchema,
+    country: z.enum(countryIds),
+    industry: z.enum(industryIds),
+    placeService: z.enum(allPlaceIds),
+    organizationSize: z.enum(sizeIds),
+    submissionKey: z.string().min(32).max(200),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    const permitted = placeServiceOptions[input.industry].some(
+      ({ id }) => id === input.placeService,
+    );
+    if (!permitted)
+      context.addIssue({
+        code: 'custom',
+        path: ['placeService'],
+        message: 'Place or service does not belong to industry',
+      });
+  });
+export type OrganizationProfileRequest = z.infer<
+  typeof organizationProfileRequestSchema
+>;
+
+const optionSchema = z
+  .object({ id: z.string().min(1), label: z.string().min(1) })
+  .strict();
+export const organizationProfilePageResponseSchema = z
+  .object({
+    submissionKey: z.string().min(32).max(200),
+    countries: z.array(optionSchema).length(249),
+    industries: z.array(optionSchema).length(industryOptions.length),
+    placesByIndustry: z.record(z.string(), z.array(optionSchema).min(1)),
+    sizes: z.array(optionSchema).length(organizationSizeOptions.length),
+  })
+  .strict();
+export type OrganizationProfilePageResponse = z.infer<
+  typeof organizationProfilePageResponseSchema
+>;
+export const organizationProfileResponseSchema = z
+  .object({ nextStep: z.literal('discovery') })
+  .strict();
+export type OrganizationProfileResponse = z.infer<
+  typeof organizationProfileResponseSchema
 >;

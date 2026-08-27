@@ -8,6 +8,12 @@ import {
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
+import {
+  countryOptions,
+  industryOptions,
+  organizationSizeOptions,
+  placeServiceOptions,
+} from '@hansel/contracts';
 
 const planFixture = (
   priceId:
@@ -66,6 +72,57 @@ afterEach(() => {
 });
 
 describe('App [REQ-002]', () => {
+  it('routes organization profile completion to discovery [onboarding-organization-profile REQ-001, REQ-011]', async () => {
+    document.cookie = 'hansel_onboarding_csrf=proof';
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              submissionKey: 'x'.repeat(43),
+              countries: countryOptions,
+              industries: [...industryOptions],
+              placesByIndustry: Object.fromEntries(
+                Object.entries(placeServiceOptions).map(([key, values]) => [
+                  key,
+                  [...values],
+                ]),
+              ),
+              sizes: [...organizationSizeOptions],
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ nextStep: 'discovery' }), {
+            status: 200,
+          }),
+        ),
+    );
+    render(<App path="/onboarding/organization-profile" />);
+    await screen.findByLabelText('Organization');
+    fireEvent.change(screen.getByLabelText('Organization'), {
+      target: { value: 'Hansel' },
+    });
+    fireEvent.change(screen.getByLabelText('Country'), {
+      target: { value: 'AU' },
+    });
+    fireEvent.change(screen.getByLabelText('Industry or sector'), {
+      target: { value: 'healthcare' },
+    });
+    fireEvent.change(screen.getByLabelText('Type of place or service'), {
+      target: { value: 'clinics' },
+    });
+    fireEvent.change(screen.getByLabelText('Size'), {
+      target: { value: 'employees_11_50' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/onboarding/discovery');
+    });
+  });
   it('shows only Hansel in the middle of the landing page [REQ-006]', () => {
     render(<App />);
     const main = screen.getByRole('main');

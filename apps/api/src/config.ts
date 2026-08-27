@@ -3,6 +3,7 @@ interface BaseAppConfig {
   contactSalesDestination: string;
   runtimeEnvironment: 'test' | 'production';
   planSelectionEnabled: boolean;
+  organizationProfileEnabled: boolean;
   passwordPepper: string;
   port: number;
   verificationDigestKey: string;
@@ -42,6 +43,10 @@ export function loadConfig(
     planSelectionEnabled:
       environment.PLAN_SELECTION_ENABLED === 'true' ||
       (environment.PLAN_SELECTION_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
+    organizationProfileEnabled:
+      environment.ORGANIZATION_PROFILE_ENABLED === 'true' ||
+      (environment.ORGANIZATION_PROFILE_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
     passwordPepper: required(environment, 'PASSWORD_PEPPER'),
     port: parsedPort,
