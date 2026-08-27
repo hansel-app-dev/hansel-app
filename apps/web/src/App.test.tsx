@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -12,6 +13,8 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+  vi.useRealTimers();
+  window.sessionStorage.clear();
 });
 
 describe('App [REQ-002]', () => {
@@ -125,6 +128,41 @@ describe('App [REQ-002]', () => {
       await screen.findByRole('heading', { name: 'Verify your account' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Request new code in 60s')).toBeInTheDocument();
+    expect(window.sessionStorage.getItem('hansel.verificationEmail')).toBe(
+      'owner@example.com',
+    );
     window.history.replaceState({}, '', '/');
+  });
+
+  it('resends to the stored destination after a same-tab reload [REQ-084]', async () => {
+    vi.useFakeTimers();
+    window.sessionStorage.setItem(
+      'hansel.verificationEmail',
+      'owner@example.com',
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: 'accepted' }), { status: 202 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <App apiUrl="https://api.example" path="/onboarding/verify-email" />,
+    );
+    for (let second = 0; second < 60; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Request new code' }));
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://api.example/api/onboarding/email-verification/resend',
+        expect.objectContaining({
+          body: JSON.stringify({ email: 'owner@example.com' }),
+        }),
+      );
+    });
   });
 });
