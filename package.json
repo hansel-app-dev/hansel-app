@@ -17,7 +17,7 @@
     "test": "pnpm -r --if-present test",
     "test:coverage": "pnpm -r --if-present test:coverage",
     "test:e2e": "playwright test",
-    "spec:check": "tsx scripts/validate-specs.ts && tsx scripts/validate-runtime.ts",
+    "spec:check": "tsx scripts/validate-specs.ts && tsx scripts/validate-runtime.ts && tsx scripts/validate-tailwind.ts",
     "db:generate": "pnpm --filter @hansel/api prisma generate",
     "db:migrate:dev": "pnpm --filter @hansel/api prisma migrate dev",
     "verify": "pnpm spec:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build"
