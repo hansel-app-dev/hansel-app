@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@10.15.0",
   "engines": {
-    "node": ">=22 <23"
+    "node": ">=24 <25"
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
@@ -17,7 +17,7 @@
     "test": "pnpm -r --if-present test",
     "test:coverage": "pnpm -r --if-present test:coverage",
     "test:e2e": "playwright test",
-    "spec:check": "tsx scripts/validate-specs.ts",
+    "spec:check": "tsx scripts/validate-specs.ts && tsx scripts/validate-runtime.ts",
     "db:generate": "pnpm --filter @hansel/api prisma generate",
     "db:migrate:dev": "pnpm --filter @hansel/api prisma migrate dev",
     "verify": "pnpm spec:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build"
@@ -25,7 +25,7 @@
   "devDependencies": {
     "@eslint/js": "^9.34.0",
     "@playwright/test": "^1.55.0",
-    "@types/node": "^22.18.0",
+    "@types/node": "^24.0.0",
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.3.0",

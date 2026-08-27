@@ -14,7 +14,7 @@ The authoritative lifecycle is documented in [`docs/spec-driven-development.md`]
 
 ## Quick start
 
-Requirements: Node.js 22, pnpm 10, Docker, and Docker Compose.
+Requirements: Node.js 24 LTS, pnpm 10, Docker, and Docker Compose.
 
 ```bash
 corepack enable
