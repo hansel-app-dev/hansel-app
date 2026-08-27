@@ -3,7 +3,9 @@ import {
   createOnboardingAccount,
   resendOnboardingVerification,
   verifyOnboardingEmail,
+  submitPersonalProfile,
 } from './api.js';
+import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
 import './styles.css';
@@ -28,7 +30,12 @@ export function App({
   const [verificationEmail, setVerificationEmail] = useState(
     () => window.sessionStorage.getItem(verificationEmailKey) ?? '',
   );
-  if (path === '/onboarding') {
+  const [currentPath, setCurrentPath] = useState(path);
+  const navigate = (destination: string) => {
+    window.history.pushState({}, '', destination);
+    setCurrentPath(destination);
+  };
+  if (currentPath === '/onboarding') {
     return (
       <OnboardingStart
         createAccount={(input) => createOnboardingAccount(input, apiUrl)}
@@ -36,12 +43,12 @@ export function App({
           const normalizedEmail = email.trim().toLowerCase();
           window.sessionStorage.setItem(verificationEmailKey, normalizedEmail);
           setVerificationEmail(normalizedEmail);
-          window.history.pushState({}, '', '/onboarding/verify-email');
+          navigate('/onboarding/verify-email');
         }}
       />
     );
   }
-  if (path === '/onboarding/verify-email') {
+  if (currentPath === '/onboarding/verify-email') {
     return (
       <VerifyEmail
         email={verificationEmail}
@@ -50,6 +57,17 @@ export function App({
         resend={(input) => resendOnboardingVerification(input, apiUrl)}
         onVerified={() => {
           window.sessionStorage.removeItem(verificationEmailKey);
+          navigate('/onboarding/about-you');
+        }}
+      />
+    );
+  }
+  if (currentPath === '/onboarding/about-you') {
+    return (
+      <AboutYou
+        submitProfile={(input) => submitPersonalProfile(input, apiUrl)}
+        onCompleted={() => {
+          navigate('/onboarding/plan-selection');
         }}
       />
     );

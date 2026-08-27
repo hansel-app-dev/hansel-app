@@ -9,10 +9,11 @@ const prisma = new PrismaClient({
 });
 
 beforeEach(async () => {
-  await prisma.user.deleteMany();
+  await prisma.user.deleteMany({ where: { email: 'owner@example.com' } });
 });
 
 afterAll(async () => {
+  await prisma.user.deleteMany({ where: { email: 'owner@example.com' } });
   await prisma.$disconnect();
 });
 

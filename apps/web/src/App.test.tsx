@@ -44,6 +44,13 @@ describe('App [REQ-002]', () => {
     ).toBeInTheDocument();
   });
 
+  it('routes the personal profile step', () => {
+    render(<App path="/onboarding/about-you" />);
+    expect(
+      screen.getByRole('heading', { name: 'Tell us about you' }),
+    ).toBeInTheDocument();
+  });
+
   it('connects verification and resend actions to the configured API', async () => {
     vi.stubGlobal(
       'fetch',
@@ -68,6 +75,9 @@ describe('App [REQ-002]', () => {
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledOnce();
     });
+    expect(
+      await screen.findByRole('heading', { name: 'Tell us about you' }),
+    ).toBeInTheDocument();
     cleanup();
     render(
       <App apiUrl="https://api.example" path="/onboarding/verify-email" />,
@@ -76,6 +86,34 @@ describe('App [REQ-002]', () => {
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('submits personal details and advances to plan selection', async () => {
+    window.history.replaceState({}, '', '/onboarding/about-you');
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ nextStep: 'plan-selection' }), {
+        status: 200,
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App apiUrl="https://api.example" />);
+    for (const [label, value] of [
+      ['First name', 'Nabin'],
+      ['Last name', 'Singh'],
+      ['Job title', 'manager'],
+      ['Department', 'marketing_communications'],
+    ] as const)
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(window.location.pathname).toBe('/onboarding/plan-selection');
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.example/api/onboarding/personal-profile',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+    window.history.replaceState({}, '', '/');
   });
 
   it('submits onboarding through the configured API URL', async () => {

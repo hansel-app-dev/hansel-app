@@ -13,6 +13,8 @@ interface VerificationDependencies {
   verify(input: {
     email: string;
     codeDigest: string;
+    onboardingCredentialDigest: string;
+    onboardingCredentialExpiresAt: Date;
     now: Date;
   }): Promise<boolean>;
   resend(input: {
@@ -23,6 +25,9 @@ interface VerificationDependencies {
   }): Promise<boolean>;
   digestVerificationCode(code: string): string;
   createVerificationCode(): string;
+  createOnboardingCredential(): string;
+  digestOnboardingCredential(credential: string): string;
+  createOnboardingCsrfProof(credential: string): string;
   sendVerificationCode(email: string, code: string): Promise<void>;
   now(): Date;
 }
@@ -31,16 +36,28 @@ export function createEmailVerification(
   dependencies: VerificationDependencies,
 ) {
   return {
-    async verifyEmail(
-      input: VerifyOnboardingEmailRequest,
-    ): Promise<VerifyOnboardingEmailResponse> {
+    async verifyEmail(input: VerifyOnboardingEmailRequest): Promise<
+      VerifyOnboardingEmailResponse & {
+        onboardingCredential: string;
+        csrfProof: string;
+      }
+    > {
+      const now = dependencies.now();
+      const onboardingCredential = dependencies.createOnboardingCredential();
       const accepted = await dependencies.verify({
         email: input.email,
         codeDigest: dependencies.digestVerificationCode(input.code),
-        now: dependencies.now(),
+        onboardingCredentialDigest:
+          dependencies.digestOnboardingCredential(onboardingCredential),
+        onboardingCredentialExpiresAt: new Date(now.getTime() + 15 * 60 * 1000),
+        now,
       });
       if (!accepted) throw new VerificationFailedError();
-      return { nextStep: 'personal-profile' };
+      return {
+        nextStep: 'personal-profile',
+        onboardingCredential,
+        csrfProof: dependencies.createOnboardingCsrfProof(onboardingCredential),
+      };
     },
 
     async resendVerification(

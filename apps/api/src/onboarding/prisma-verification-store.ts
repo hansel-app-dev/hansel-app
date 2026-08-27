@@ -10,62 +10,89 @@ function digestsMatch(left: string, right: string): boolean {
   );
 }
 
+class VerificationTransitionRejected extends Error {}
+
 export function createPrismaVerificationStore(prisma: PrismaClient) {
   return {
-    async verify(input: { email: string; codeDigest: string; now: Date }) {
-      return prisma.$transaction(async (transaction) => {
-        const user = await transaction.user.findUnique({
-          where: { email: input.email },
-          select: {
-            id: true,
-            challenges: {
-              where: { purpose: 'ONBOARDING_EMAIL' },
-              orderBy: { sentAt: 'desc' },
-              take: 1,
+    async verify(input: {
+      email: string;
+      codeDigest: string;
+      onboardingCredentialDigest: string;
+      onboardingCredentialExpiresAt: Date;
+      now: Date;
+    }) {
+      try {
+        return await prisma.$transaction(async (transaction) => {
+          const user = await transaction.user.findUnique({
+            where: { email: input.email },
+            select: {
+              id: true,
+              challenges: {
+                where: { purpose: 'ONBOARDING_EMAIL' },
+                orderBy: { sentAt: 'desc' },
+                take: 1,
+              },
             },
-          },
-        });
-        const challenge = user?.challenges[0];
-        if (
-          !user ||
-          !challenge ||
-          challenge.consumedAt ||
-          challenge.expiresAt <= input.now ||
-          challenge.failedAttempts >= 5
-        )
-          return false;
+          });
+          const challenge = user?.challenges[0];
+          if (
+            !user ||
+            !challenge ||
+            challenge.consumedAt ||
+            challenge.expiresAt <= input.now ||
+            challenge.failedAttempts >= 5
+          )
+            return false;
 
-        if (!digestsMatch(challenge.codeDigest, input.codeDigest)) {
-          await transaction.verificationChallenge.updateMany({
+          if (!digestsMatch(challenge.codeDigest, input.codeDigest)) {
+            await transaction.verificationChallenge.updateMany({
+              where: {
+                id: challenge.id,
+                consumedAt: null,
+                failedAttempts: challenge.failedAttempts,
+              },
+              data: { failedAttempts: { increment: 1 } },
+            });
+            return false;
+          }
+
+          const consumed = await transaction.verificationChallenge.updateMany({
             where: {
               id: challenge.id,
+              codeDigest: input.codeDigest,
               consumedAt: null,
-              failedAttempts: challenge.failedAttempts,
             },
-            data: { failedAttempts: { increment: 1 } },
+            data: { consumedAt: input.now },
           });
-          return false;
-        }
-
-        const consumed = await transaction.verificationChallenge.updateMany({
-          where: {
-            id: challenge.id,
-            codeDigest: input.codeDigest,
-            consumedAt: null,
-          },
-          data: { consumedAt: input.now },
+          if (consumed.count !== 1) return false;
+          await transaction.user.update({
+            where: { id: user.id },
+            data: { emailVerifiedAt: input.now },
+          });
+          const transition = await transaction.onboardingJourney.updateMany({
+            where: { userId: user.id, currentStep: 'VERIFY_EMAIL' },
+            data: { currentStep: 'PERSONAL_PROFILE' },
+          });
+          if (transition.count !== 1)
+            throw new VerificationTransitionRejected();
+          await transaction.onboardingContinuation.upsert({
+            where: { userId: user.id },
+            create: {
+              userId: user.id,
+              credentialDigest: input.onboardingCredentialDigest,
+              expiresAt: input.onboardingCredentialExpiresAt,
+            },
+            update: {
+              credentialDigest: input.onboardingCredentialDigest,
+              expiresAt: input.onboardingCredentialExpiresAt,
+            },
+          });
+          return true;
         });
-        if (consumed.count !== 1) return false;
-        await transaction.user.update({
-          where: { id: user.id },
-          data: { emailVerifiedAt: input.now },
-        });
-        await transaction.onboardingJourney.updateMany({
-          where: { userId: user.id, currentStep: 'VERIFY_EMAIL' },
-          data: { currentStep: 'PERSONAL_PROFILE' },
-        });
-        return true;
-      });
+      } catch (error) {
+        if (error instanceof VerificationTransitionRejected) return false;
+        throw error;
+      }
     },
 
     async resend(input: {

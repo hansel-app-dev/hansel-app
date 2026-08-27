@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createPrismaVerificationStore } from './prisma-verification-store.js';
 
 const now = new Date('2026-08-27T01:00:00Z');
+const validVerification = {
+  email: 'owner@example.com',
+  codeDigest: 'good',
+  onboardingCredentialDigest: 'continuation-digest',
+  onboardingCredentialExpiresAt: new Date('2026-08-27T01:15:00Z'),
+  now,
+};
 function challenge(overrides: Record<string, unknown> = {}) {
   return {
     id: 'challenge',
@@ -13,14 +20,17 @@ function challenge(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-function harness(user: unknown, consumedCount = 1) {
+function harness(user: unknown, consumedCount = 1, transitionCount = 1) {
   const transaction = {
     user: { findUnique: vi.fn().mockResolvedValue(user), update: vi.fn() },
     verificationChallenge: {
       updateMany: vi.fn().mockResolvedValue({ count: consumedCount }),
       create: vi.fn(),
     },
-    onboardingJourney: { updateMany: vi.fn() },
+    onboardingJourney: {
+      updateMany: vi.fn().mockResolvedValue({ count: transitionCount }),
+    },
+    onboardingContinuation: { upsert: vi.fn() },
   };
   const prisma = {
     $transaction: vi.fn(
@@ -49,9 +59,7 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
     ],
   ])('rejects %s', async (_name, user) => {
     const { store } = harness(user);
-    await expect(
-      store.verify({ email: 'owner@example.com', codeDigest: 'good', now }),
-    ).resolves.toBe(false);
+    await expect(store.verify(validVerification)).resolves.toBe(false);
   });
 
   it('counts a wrong current code', async () => {
@@ -60,7 +68,7 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
       challenges: [challenge()],
     });
     await expect(
-      store.verify({ email: 'owner@example.com', codeDigest: 'wrong', now }),
+      store.verify({ ...validVerification, codeDigest: 'wrong' }),
     ).resolves.toBe(false);
     expect(transaction.verificationChallenge.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { failedAttempts: { increment: 1 } } }),
@@ -69,9 +77,7 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
 
   it('rejects a code consumed concurrently', async () => {
     const { store } = harness({ id: 'user', challenges: [challenge()] }, 0);
-    await expect(
-      store.verify({ email: 'owner@example.com', codeDigest: 'good', now }),
-    ).resolves.toBe(false);
+    await expect(store.verify(validVerification)).resolves.toBe(false);
   });
 
   it('consumes a valid code and advances the journey', async () => {
@@ -79,11 +85,39 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
       id: 'user',
       challenges: [challenge()],
     });
-    await expect(
-      store.verify({ email: 'owner@example.com', codeDigest: 'good', now }),
-    ).resolves.toBe(true);
+    await expect(store.verify(validVerification)).resolves.toBe(true);
     expect(transaction.user.update).toHaveBeenCalled();
     expect(transaction.onboardingJourney.updateMany).toHaveBeenCalled();
+    expect(transaction.onboardingContinuation.upsert).toHaveBeenCalledWith({
+      where: { userId: 'user' },
+      create: {
+        userId: 'user',
+        credentialDigest: 'continuation-digest',
+        expiresAt: new Date('2026-08-27T01:15:00Z'),
+      },
+      update: {
+        credentialDigest: 'continuation-digest',
+        expiresAt: new Date('2026-08-27T01:15:00Z'),
+      },
+    });
+  });
+
+  it('rejects a missing or duplicate journey transition [REQ-012, REQ-086]', async () => {
+    const { store, transaction } = harness(
+      { id: 'user', challenges: [challenge()] },
+      1,
+      0,
+    );
+    await expect(store.verify(validVerification)).resolves.toBe(false);
+    expect(transaction.onboardingContinuation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('does not mask unexpected verification persistence failures [REQ-017]', async () => {
+    const failure = new Error('database unavailable');
+    const store = createPrismaVerificationStore({
+      $transaction: vi.fn().mockRejectedValue(failure),
+    } as never);
+    await expect(store.verify(validVerification)).rejects.toBe(failure);
   });
 
   it.each([

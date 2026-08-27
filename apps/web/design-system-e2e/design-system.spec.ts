@@ -1,9 +1,32 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function analyzeAccessibility(page: Page) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await new AxeBuilder({ page }).analyze();
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !error.message.includes('Axe is already running') ||
+        attempt === 4
+      )
+        throw error;
+      await page.waitForTimeout(100);
+    }
+  }
+  throw new Error('Accessibility analysis did not complete.');
+}
 
 const stories = [
   ['button-states', 'design-system-button--states', 'button', 'Primary action'],
   ['text-field-states', 'design-system-textfield--states', 'textbox', 'Email'],
+  [
+    'select-field-states',
+    'design-system-selectfield--states',
+    'combobox',
+    'Job title',
+  ],
 ] as const;
 
 for (const [snapshotName, storyId, focusRole, focusName] of stories) {
@@ -21,7 +44,7 @@ for (const [snapshotName, storyId, focusRole, focusName] of stories) {
     await expect(focusedControl).toBeFocused();
     await expect(focusedControl).toHaveCSS('outline-style', 'solid');
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeAccessibility(page);
     expect(accessibility.violations).toEqual([]);
     await expect(page).toHaveScreenshot(`${snapshotName}.png`, {
       animations: 'disabled',
@@ -51,9 +74,28 @@ test('onboarding account creation is accessible and visually stable [AC-053, REQ
     page.getByRole('button', { name: 'Continue with Google' }),
   ).toHaveCSS('column-gap', '8px');
 
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(accessibility.violations).toEqual([]);
   await expect(page).toHaveScreenshot('onboarding-account-creation.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test('personal profile is accessible and visually stable [REQ-086]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-about-you--default&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Tell us about you' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Job title')).toHaveValue('');
+  const accessibility = await analyzeAccessibility(page);
+  expect(accessibility.violations).toEqual([]);
+  await expect(page).toHaveScreenshot('onboarding-about-you.png', {
     animations: 'disabled',
     fullPage: true,
     maxDiffPixelRatio: 0.001,
@@ -73,7 +115,7 @@ test('email verification is accessible and visually stable [AC-002, REQ-006, REQ
     'autocomplete',
     'one-time-code',
   );
-  const accessibility = await new AxeBuilder({ page }).analyze();
+  const accessibility = await analyzeAccessibility(page);
   expect(accessibility.violations).toEqual([]);
   await expect(page).toHaveScreenshot('onboarding-verify-email.png', {
     animations: 'disabled',

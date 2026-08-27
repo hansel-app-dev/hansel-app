@@ -3,6 +3,16 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /onboarding/about-you:
+    get:
+      operationId: renderOnboardingPersonalProfile
+      summary: Render the progressive personal-profile form
+      responses:
+        '200':
+          description: Accessible HTML form that remains usable without JavaScript
+          content:
+            text/html:
+              schema: { type: string }
   /api/onboarding/accounts:
     post:
       operationId: createOnboardingAccount
@@ -77,7 +87,79 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ResendOnboardingVerificationResponse'
+  /api/onboarding/personal-profile:
+    post:
+      operationId: submitOnboardingPersonalProfile
+      summary: Save the verified user's personal profile and advance onboarding
+      description: This server-authoritative transition is single-use. A retry after an accepted or otherwise incompatible transition receives 409, and the client must resume from server-authoritative journey state; an idempotency key is not accepted for this step.
+      security:
+        - onboardingContinuation: []
+          onboardingCsrfCookie: []
+      parameters:
+        - in: header
+          name: X-Hansel-CSRF
+          required: false
+          description: Required for application/json requests and must match the credential-bound CSRF cookie. Native HTML form submissions use that cookie directly.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonalProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PersonalProfileRequest'
+      responses:
+        '200':
+          description: Personal profile saved and plan selection is next
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalProfileResponse'
+        '303':
+          description: Native HTML form submission accepted; continue to plan selection
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                const: /onboarding/plan-selection
+        '400':
+          description: The request does not match the contract
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/html:
+              schema: { type: string }
+        '401':
+          description: The onboarding continuation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/html:
+              schema: { type: string }
+        '409':
+          description: The server-authoritative onboarding transition was rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/html:
+              schema: { type: string }
 components:
+  securitySchemes:
+    onboardingContinuation:
+      type: apiKey
+      in: cookie
+      name: hansel_onboarding
+    onboardingCsrfCookie:
+      type: apiKey
+      in: cookie
+      name: hansel_onboarding_csrf
   schemas:
     CreateOnboardingAccountRequest:
       type: object
@@ -117,6 +199,9 @@ components:
       properties:
         error:
           type: string
+        correlationId:
+          type: string
+          format: uuid
     VerifyOnboardingEmailRequest:
       type: object
       additionalProperties: false
@@ -152,6 +237,52 @@ components:
         status:
           type: string
           const: accepted
+    PersonalProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName, jobTitle, department]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 100 }
+        lastName: { type: string, minLength: 1, maxLength: 100 }
+        jobTitle:
+          type: string
+          enum:
+            [
+              manager,
+              facility_manager,
+              project_manager,
+              in_house_designer,
+              signage_wayfinding_designer,
+              other,
+            ]
+        jobTitleOther: { type: string, minLength: 1, maxLength: 100 }
+        department:
+          type: string
+          enum:
+            [
+              marketing_communications,
+              development_advancement,
+              facilities_management_campus_maintenance,
+              other,
+            ]
+        departmentOther: { type: string, minLength: 1, maxLength: 100 }
+      allOf:
+        - if:
+            properties: { jobTitle: { const: other } }
+          then: { required: [jobTitleOther] }
+          else: { not: { required: [jobTitleOther] } }
+        - if:
+            properties: { department: { const: other } }
+          then: { required: [departmentOther] }
+          else: { not: { required: [departmentOther] } }
+    PersonalProfileResponse:
+      type: object
+      additionalProperties: false
+      required: [nextStep]
+      properties:
+        nextStep:
+          type: string
+          const: plan-selection
     HealthResponse:
       type: object
       additionalProperties: false

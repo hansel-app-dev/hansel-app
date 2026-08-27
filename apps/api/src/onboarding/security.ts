@@ -1,4 +1,9 @@
-import { createHmac, randomInt } from 'node:crypto';
+import {
+  createHmac,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from 'node:crypto';
 import { argon2id, hash } from 'argon2';
 
 export function createOnboardingSecurity({
@@ -25,6 +30,29 @@ export function createOnboardingSecurity({
       return createHmac('sha256', verificationDigestKey)
         .update(code)
         .digest('hex');
+    },
+    createOnboardingCredential(): string {
+      return randomBytes(32).toString('base64url');
+    },
+    digestOnboardingCredential(credential: string): string {
+      return createHmac('sha256', verificationDigestKey)
+        .update(`onboarding:${credential}`)
+        .digest('hex');
+    },
+    createOnboardingCsrfProof(credential: string): string {
+      return createHmac('sha256', verificationDigestKey)
+        .update(`onboarding-csrf:${credential}`)
+        .digest('base64url');
+    },
+    verifyOnboardingCsrfProof(credential: string, proof: string): boolean {
+      const expected = createHmac('sha256', verificationDigestKey)
+        .update(`onboarding-csrf:${credential}`)
+        .digest();
+      const supplied = Buffer.from(proof, 'base64url');
+      return (
+        supplied.length === expected.length &&
+        timingSafeEqual(supplied, expected)
+      );
     },
   };
 }

@@ -11,13 +11,22 @@ describe('email verification [REQ-006, REQ-007, REQ-084]', () => {
       createVerificationCode: () => '654321',
       sendVerificationCode: vi.fn(),
       now: () => new Date('2026-08-27T00:00:00Z'),
+      createOnboardingCredential: () => 'opaque-credential',
+      digestOnboardingCredential: (value) => `onboarding:${value}`,
+      createOnboardingCsrfProof: (value) => `csrf:${value}`,
     });
     await expect(
       service.verifyEmail({ email: 'owner@example.com', code: '123456' }),
-    ).resolves.toEqual({ nextStep: 'personal-profile' });
+    ).resolves.toEqual({
+      nextStep: 'personal-profile',
+      onboardingCredential: 'opaque-credential',
+      csrfProof: 'csrf:opaque-credential',
+    });
     expect(verify).toHaveBeenCalledWith({
       email: 'owner@example.com',
       codeDigest: 'digest:123456',
+      onboardingCredentialDigest: 'onboarding:opaque-credential',
+      onboardingCredentialExpiresAt: new Date('2026-08-27T00:15:00Z'),
       now: new Date('2026-08-27T00:00:00Z'),
     });
   });
@@ -30,6 +39,9 @@ describe('email verification [REQ-006, REQ-007, REQ-084]', () => {
       createVerificationCode: vi.fn(),
       sendVerificationCode: vi.fn(),
       now: () => new Date(),
+      createOnboardingCredential: vi.fn(),
+      digestOnboardingCredential: vi.fn(),
+      createOnboardingCsrfProof: vi.fn(),
     });
     await expect(
       service.verifyEmail({ email: 'owner@example.com', code: '123456' }),
@@ -46,6 +58,9 @@ describe('email verification [REQ-006, REQ-007, REQ-084]', () => {
       createVerificationCode: () => '654321',
       sendVerificationCode: send,
       now: () => new Date('2026-08-27T00:00:00Z'),
+      createOnboardingCredential: vi.fn(),
+      digestOnboardingCredential: vi.fn(),
+      createOnboardingCsrfProof: vi.fn(),
     });
     await expect(
       service.resendVerification({ email: 'owner@example.com' }),
@@ -62,6 +77,9 @@ describe('email verification [REQ-006, REQ-007, REQ-084]', () => {
       createVerificationCode: () => '654321',
       sendVerificationCode: send,
       now: () => new Date(),
+      createOnboardingCredential: vi.fn(),
+      digestOnboardingCredential: vi.fn(),
+      createOnboardingCsrfProof: vi.fn(),
     });
     await expect(
       service.resendVerification({ email: 'owner@example.com' }),

@@ -6,7 +6,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
-    proxy: { '/api': { target: 'http://localhost:3000' } },
+    proxy: {
+      '/api': { target: 'http://localhost:3000' },
+      '/onboarding/about-you': { target: 'http://localhost:3000' },
+    },
   },
   test: {
     environment: 'jsdom',

@@ -64,3 +64,83 @@ export const resendOnboardingVerificationResponseSchema = z
 export type ResendOnboardingVerificationResponse = z.infer<
   typeof resendOnboardingVerificationResponseSchema
 >;
+
+export const jobTitleOptions = [
+  { id: 'manager', label: 'Manager' },
+  { id: 'facility_manager', label: 'Facility manager' },
+  { id: 'project_manager', label: 'Project manager' },
+  { id: 'in_house_designer', label: 'In-house designer' },
+  {
+    id: 'signage_wayfinding_designer',
+    label: 'Signage wayfinding designer',
+  },
+  { id: 'other', label: 'Other' },
+] as const;
+
+export const departmentOptions = [
+  { id: 'marketing_communications', label: 'Marketing & Communications' },
+  {
+    id: 'development_advancement',
+    label: 'Development / Advancement Office',
+  },
+  {
+    id: 'facilities_management_campus_maintenance',
+    label: 'Facilities Management / Campus Maintenance',
+  },
+  { id: 'other', label: 'Other' },
+] as const;
+
+const normalizedProfileText = z
+  .string()
+  .trim()
+  .transform((value) => value.normalize('NFC'))
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .refine((value) => Array.from(value).length <= 100),
+  );
+const jobTitleIds = jobTitleOptions.map(({ id }) => id) as [
+  (typeof jobTitleOptions)[number]['id'],
+  ...(typeof jobTitleOptions)[number]['id'][],
+];
+const departmentIds = departmentOptions.map(({ id }) => id) as [
+  (typeof departmentOptions)[number]['id'],
+  ...(typeof departmentOptions)[number]['id'][],
+];
+
+export const personalProfileRequestSchema = z
+  .object({
+    firstName: normalizedProfileText,
+    lastName: normalizedProfileText,
+    jobTitle: z.enum(jobTitleIds),
+    jobTitleOther: normalizedProfileText.optional(),
+    department: z.enum(departmentIds),
+    departmentOther: normalizedProfileText.optional(),
+  })
+  .strict()
+  .superRefine((profile, context) => {
+    const conditionalFields = [
+      ['jobTitle', 'jobTitleOther'],
+      ['department', 'departmentOther'],
+    ] as const;
+    for (const [selection, other] of conditionalFields) {
+      if ((profile[selection] === 'other') !== Boolean(profile[other])) {
+        context.addIssue({
+          code: 'custom',
+          message: `Invalid ${other}`,
+          path: [other],
+        });
+      }
+    }
+  });
+export type PersonalProfileRequest = z.infer<
+  typeof personalProfileRequestSchema
+>;
+
+export const personalProfileResponseSchema = z
+  .object({ nextStep: z.literal('plan-selection') })
+  .strict();
+export type PersonalProfileResponse = z.infer<
+  typeof personalProfileResponseSchema
+>;

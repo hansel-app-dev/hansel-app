@@ -49,6 +49,10 @@ describe('HanselStack [REQ-004]', () => {
         DefaultCacheBehavior: Match.objectLike({
           ViewerProtocolPolicy: 'redirect-to-https',
         }),
+        CacheBehaviors: Match.arrayWith([
+          Match.objectLike({ PathPattern: 'api/*' }),
+          Match.objectLike({ PathPattern: 'onboarding/about-you' }),
+        ]),
       }),
     });
   });

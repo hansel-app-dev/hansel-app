@@ -1,0 +1,95 @@
+@font-face {
+  font-family: Figtree;
+  src: url('/assets/figtree-latin-wght-normal.woff2') format('woff2');
+  font-weight: 300 900;
+  font-display: swap;
+}
+:root {
+  --canvas: #fff;
+  --content: #242120;
+  --muted: #666;
+  --border: #d1d1d1;
+  --danger: #a40000;
+  --radius: 4px;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: Figtree, sans-serif;
+  color: var(--content);
+  background: var(--canvas);
+}
+main {
+  min-height: 100vh;
+  padding: 30px;
+}
+.logo {
+  width: 114px;
+  height: 20px;
+}
+.panel {
+  width: 360px;
+  max-width: 100%;
+  margin: 105px auto 0;
+}
+.panel h1 {
+  font-size: 24px;
+  margin: 0 0 18px;
+}
+.required {
+  color: var(--muted);
+  font-size: 14px;
+}
+.field {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+label {
+  font-size: 14px;
+  font-weight: 600;
+}
+input,
+select,
+button {
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font: inherit;
+  background: var(--canvas);
+}
+.other {
+  display: none;
+}
+.job:has(option[value='other']:checked) .other,
+.department:has(option[value='other']:checked) .other {
+  display: grid;
+}
+.error {
+  color: var(--danger);
+}
+.next {
+  position: fixed;
+  right: 60px;
+  bottom: 60px;
+  color: var(--canvas);
+  background: var(--content);
+  border-color: var(--content);
+  min-width: 96px;
+}
+@media (max-width: 600px) {
+  main {
+    padding: 24px 20px;
+  }
+  .panel {
+    margin-top: 56px;
+  }
+  .next {
+    position: static;
+    width: 100%;
+    margin-top: 20px;
+  }
+}

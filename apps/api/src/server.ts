@@ -9,6 +9,8 @@ import { createPrismaVerificationStore } from './onboarding/prisma-verification-
 import { createResendVerificationSender } from './onboarding/resend-verification-sender.js';
 import { createOnboardingSecurity } from './onboarding/security.js';
 import { createEmailVerification } from './onboarding/verify-email.js';
+import { createPersonalProfile } from './onboarding/personal-profile.js';
+import { createPrismaPersonalProfileStore } from './onboarding/prisma-personal-profile-store.js';
 
 const config = loadConfig();
 const prisma = new PrismaClient();
@@ -34,6 +36,14 @@ const onboarding = {
     ...security,
     storePendingAccount: createPrismaPendingAccountStore(prisma),
     sendVerificationCode,
+    now: () => new Date(),
+  }),
+  submitPersonalProfile: createPersonalProfile({
+    save: createPrismaPersonalProfileStore(prisma),
+    digestOnboardingCredential: (credential) =>
+      security.digestOnboardingCredential(credential),
+    verifyOnboardingCsrfProof: (credential, proof) =>
+      security.verifyOnboardingCsrfProof(credential, proof),
     now: () => new Date(),
   }),
   ...verification,

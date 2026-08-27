@@ -4,6 +4,7 @@ import {
   getHealth,
   resendOnboardingVerification,
   verifyOnboardingEmail,
+  submitPersonalProfile,
 } from './api.js';
 
 describe('getHealth [REQ-002]', () => {
@@ -26,6 +27,55 @@ describe('getHealth [REQ-002]', () => {
     await expect(getHealth('', fetcher)).rejects.toThrow(
       'Health request failed with 503',
     );
+  });
+});
+
+describe('personal profile API [REQ-086]', () => {
+  const input = {
+    firstName: 'Nabin',
+    lastName: 'Singh',
+    jobTitle: 'manager' as const,
+    department: 'marketing_communications' as const,
+  };
+  it('posts the profile with the continuation cookie', async () => {
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ nextStep: 'plan-selection' }), {
+        status: 200,
+      }),
+    );
+    await expect(
+      submitPersonalProfile(input, 'https://api.example', fetcher),
+    ).resolves.toEqual({ nextStep: 'plan-selection' });
+    expect(fetcher).toHaveBeenCalledWith(
+      'https://api.example/api/onboarding/personal-profile',
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          'x-hansel-csrf': 'csrf-proof',
+        },
+        body: JSON.stringify(input),
+      },
+    );
+  });
+  it('maps unsuccessful responses to a stable error', async () => {
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+    await expect(submitPersonalProfile(input, '', fetcher)).rejects.toThrow(
+      'personal_profile_failed',
+    );
+  });
+  it('does not send a profile without CSRF proof', async () => {
+    document.cookie = 'hansel_onboarding_csrf=; Max-Age=0';
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(submitPersonalProfile(input, '', fetcher)).rejects.toThrow(
+      'csrf_proof_missing',
+    );
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });
 

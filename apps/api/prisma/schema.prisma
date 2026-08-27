@@ -37,8 +37,35 @@ model User {
   challenges      VerificationChallenge[]
   journeys        OnboardingJourney[]
   memberships     Membership[]
+  personalProfile PersonalProfile?
+  continuation    OnboardingContinuation?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
+}
+
+model PersonalProfile {
+  userId          String   @id @db.Uuid
+  firstName       String
+  lastName        String
+  jobTitle        String
+  jobTitleOther   String?
+  department      String
+  departmentOther String?
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model OnboardingContinuation {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  credentialDigest String   @unique
+  expiresAt        DateTime
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model PasswordCredential {

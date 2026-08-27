@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  departmentOptions,
+  jobTitleOptions,
+  personalProfileRequestSchema,
+  personalProfileResponseSchema,
   createOnboardingAccountRequestSchema,
   createOnboardingAccountResponseSchema,
   healthResponseSchema,
@@ -54,6 +58,88 @@ describe('email verification contract [REQ-006, REQ-007, REQ-084]', () => {
     expect(
       resendOnboardingVerificationResponseSchema.parse({ status: 'accepted' }),
     ).toEqual({ status: 'accepted' });
+  });
+});
+
+describe('personal profile contract [REQ-037, REQ-040, REQ-086]', () => {
+  it('publishes the approved catalogs and normalizes valid input', () => {
+    expect(jobTitleOptions.map(({ id }) => id)).toEqual([
+      'manager',
+      'facility_manager',
+      'project_manager',
+      'in_house_designer',
+      'signage_wayfinding_designer',
+      'other',
+    ]);
+    expect(departmentOptions.map(({ id }) => id)).toEqual([
+      'marketing_communications',
+      'development_advancement',
+      'facilities_management_campus_maintenance',
+      'other',
+    ]);
+    expect(
+      personalProfileRequestSchema.parse({
+        firstName: ' Jose\u0301 ',
+        lastName: ' Singh ',
+        jobTitle: 'other',
+        jobTitleOther: ' Founder ',
+        department: 'marketing_communications',
+      }),
+    ).toEqual({
+      firstName: 'José',
+      lastName: 'Singh',
+      jobTitle: 'other',
+      jobTitleOther: 'Founder',
+      department: 'marketing_communications',
+    });
+    expect(
+      personalProfileResponseSchema.parse({ nextStep: 'plan-selection' }),
+    ).toEqual({ nextStep: 'plan-selection' });
+  });
+
+  it('counts personal-profile limits by Unicode character [REQ-037, REQ-086]', () => {
+    const base = {
+      lastName: 'Singh',
+      jobTitle: 'manager',
+      department: 'marketing_communications',
+    };
+    expect(
+      personalProfileRequestSchema.safeParse({
+        ...base,
+        firstName: '😀'.repeat(100),
+      }).success,
+    ).toBe(true);
+    expect(
+      personalProfileRequestSchema.safeParse({
+        ...base,
+        firstName: '😀'.repeat(101),
+      }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    ['empty name', { firstName: '' }],
+    ['unknown job title', { jobTitle: 'chief_executive' }],
+    ['missing job-title other', { jobTitle: 'other' }],
+    [
+      'unexpected job-title other',
+      { jobTitle: 'manager', jobTitleOther: 'Founder' },
+    ],
+    ['missing department other', { department: 'other' }],
+    [
+      'unexpected department other',
+      { department: 'marketing_communications', departmentOther: 'Sales' },
+    ],
+  ])('rejects %s', (_name, override) => {
+    expect(() =>
+      personalProfileRequestSchema.parse({
+        firstName: 'Nabin',
+        lastName: 'Singh',
+        jobTitle: 'manager',
+        department: 'marketing_communications',
+        ...override,
+      }),
+    ).toThrow();
   });
 });
 

@@ -10,7 +10,33 @@ import {
   type ResendOnboardingVerificationResponse,
   type VerifyOnboardingEmailRequest,
   type VerifyOnboardingEmailResponse,
+  personalProfileResponseSchema,
+  type PersonalProfileRequest,
+  type PersonalProfileResponse,
 } from '@hansel/contracts';
+
+export async function submitPersonalProfile(
+  input: PersonalProfileRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PersonalProfileResponse> {
+  const csrfProof = document.cookie
+    .split(';')
+    .map((part) => part.trim().split('='))
+    .find(([name]) => name === 'hansel_onboarding_csrf')?.[1];
+  if (!csrfProof) throw new Error('csrf_proof_missing');
+  const response = await fetcher(`${baseUrl}/api/onboarding/personal-profile`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      'x-hansel-csrf': decodeURIComponent(csrfProof),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error('personal_profile_failed');
+  return personalProfileResponseSchema.parse(await response.json());
+}
 
 export async function getHealth(
   baseUrl: string,

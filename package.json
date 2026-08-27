@@ -24,6 +24,7 @@
     "verify": "pnpm spec:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm --filter @hansel/web build:storybook && pnpm test:design-system"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.34.0",
     "@playwright/test": "^1.55.0",
     "@types/node": "^24.0.0",
