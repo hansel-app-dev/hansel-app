@@ -12,6 +12,9 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   it('uses safe network defaults with explicit security configuration', () => {
     expect(loadConfig(required)).toEqual({
       allowedOrigin: 'http://localhost:5173',
+      contactSalesDestination: 'https://www.hanselapp.io/contact',
+      runtimeEnvironment: 'test',
+      planSelectionEnabled: true,
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -30,6 +33,9 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       }),
     ).toEqual({
       allowedOrigin: 'https://hansel.example',
+      contactSalesDestination: 'https://www.hanselapp.io/contact',
+      runtimeEnvironment: 'test',
+      planSelectionEnabled: true,
       port: 8080,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -37,6 +43,20 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       resendFromEmail: 'Hansel <onboarding@hanselapp.io>',
       emailDeliveryMode: 'resend',
     });
+  });
+
+  it('identifies the production runtime [onboarding-plan-selection REQ-018]', () => {
+    expect(loadConfig({ ...required, NODE_ENV: 'production' })).toMatchObject({
+      runtimeEnvironment: 'production',
+      planSelectionEnabled: false,
+    });
+    expect(
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        PLAN_SELECTION_ENABLED: 'true',
+      }).planSelectionEnabled,
+    ).toBe(true);
   });
 
   it('supports local console email without AWS email configuration', () => {
@@ -48,6 +68,9 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       }),
     ).toEqual({
       allowedOrigin: 'http://localhost:5173',
+      contactSalesDestination: 'https://www.hanselapp.io/contact',
+      runtimeEnvironment: 'test',
+      planSelectionEnabled: true,
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -59,6 +82,15 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     expect(() =>
       loadConfig({ ...required, EMAIL_DELIVERY_MODE: 'unknown' }),
     ).toThrow('EMAIL_DELIVERY_MODE must be console or resend');
+  });
+
+  it('rejects an insecure contact-sales destination [onboarding-plan-selection REQ-008]', () => {
+    expect(() =>
+      loadConfig({
+        ...required,
+        CONTACT_SALES_DESTINATION: 'http://example.com',
+      }),
+    ).toThrow('CONTACT_SALES_DESTINATION must use HTTPS');
   });
 
   it.each(['0', '65536', '1.5', 'invalid'])(

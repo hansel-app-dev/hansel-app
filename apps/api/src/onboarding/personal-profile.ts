@@ -10,10 +10,14 @@ export class PersonalProfileTransitionError extends Error {
 interface PersonalProfileDependencies {
   save(input: {
     credentialDigest: string;
+    nextCredentialDigest: string;
+    nextCredentialExpiresAt: Date;
     now: Date;
     profile: PersonalProfileRequest;
   }): Promise<boolean>;
   digestOnboardingCredential(credential: string): string;
+  createOnboardingCredential(): string;
+  createOnboardingCsrfProof(credential: string): string;
   verifyOnboardingCsrfProof(credential: string, proof: string): boolean;
   now(): Date;
 }
@@ -25,15 +29,29 @@ export function createPersonalProfile(
     credential: string,
     csrfProof: string,
     profile: PersonalProfileRequest,
-  ): Promise<PersonalProfileResponse> {
+  ): Promise<
+    PersonalProfileResponse & {
+      onboardingCredential: string;
+      csrfProof: string;
+    }
+  > {
+    const nextCredential = dependencies.createOnboardingCredential();
+    const now = dependencies.now();
     const accepted =
       dependencies.verifyOnboardingCsrfProof(credential, csrfProof) &&
       (await dependencies.save({
         credentialDigest: dependencies.digestOnboardingCredential(credential),
-        now: dependencies.now(),
+        nextCredentialDigest:
+          dependencies.digestOnboardingCredential(nextCredential),
+        nextCredentialExpiresAt: new Date(now.getTime() + 15 * 60 * 1000),
+        now,
         profile,
       }));
     if (!accepted) throw new PersonalProfileTransitionError();
-    return { nextStep: 'plan-selection' };
+    return {
+      nextStep: 'plan-selection',
+      onboardingCredential: nextCredential,
+      csrfProof: dependencies.createOnboardingCsrfProof(nextCredential),
+    };
   };
 }

@@ -13,6 +13,23 @@ paths:
           content:
             text/html:
               schema: { type: string }
+  /onboarding/plan-selection:
+    get:
+      operationId: renderOnboardingPlanSelection
+      summary: Render the progressive plan-selection form
+      security:
+        - onboardingContinuation: []
+      responses:
+        '200':
+          description: Accessible private HTML form that remains usable without JavaScript
+          content:
+            text/html:
+              schema: { type: string }
+        '401':
+          description: The onboarding continuation is unavailable
+          content:
+            text/html:
+              schema: { type: string }
   /api/onboarding/accounts:
     post:
       operationId: createOnboardingAccount
@@ -126,6 +143,85 @@ paths:
               schema:
                 type: string
                 const: /onboarding/plan-selection
+        '400':
+          description: The request does not match the contract
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/html:
+              schema: { type: string }
+        '401':
+          description: The onboarding continuation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/html:
+              schema: { type: string }
+        '409':
+          description: The server-authoritative onboarding transition was rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+            text/html:
+              schema: { type: string }
+  /api/onboarding/plan-selection:
+    get:
+      operationId: getOnboardingPlanSelection
+      summary: Load the server-authoritative plan catalog and current selection
+      security:
+        - onboardingContinuation: []
+      responses:
+        '200':
+          description: Private plan-selection page state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanSelectionPageResponse'
+        '401':
+          description: The onboarding continuation is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The server-authoritative onboarding transition was rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: selectOnboardingPlan
+      summary: Persist a plan snapshot and advance onboarding
+      security:
+        - onboardingContinuation: []
+          onboardingCsrfCookie: []
+      parameters:
+        - in: header
+          name: X-Hansel-CSRF
+          required: false
+          description: Required for JSON requests; native forms use the credential-bound CSRF cookie.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanSelectionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PlanSelectionRequest'
+      responses:
+        '200':
+          description: Selected plan and server-authored next step
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanSelectionResponse'
+        '303':
+          description: Native form accepted; continue to payment, organization profile, or sales
         '400':
           description: The request does not match the contract
           content:
@@ -283,6 +379,112 @@ components:
         nextStep:
           type: string
           const: plan-selection
+    PlanSelectionRequest:
+      type: object
+      additionalProperties: false
+      required: [priceId]
+      properties:
+        priceId:
+          type: string
+          enum:
+            [
+              free,
+              plus_monthly,
+              plus_annual,
+              pro_monthly,
+              pro_annual,
+              enterprise,
+            ]
+    PlanDisplayEntry:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          priceId,
+          planId,
+          displayName,
+          description,
+          features,
+          billingInterval,
+          currency,
+          amountMinor,
+          monthlyEquivalentMinor,
+          additionalSiteAmountMinor,
+          paymentRequired,
+          maximumSites,
+          contactSales,
+        ]
+      properties:
+        priceId:
+          {
+            type: string,
+            enum:
+              [
+                free,
+                plus_monthly,
+                plus_annual,
+                pro_monthly,
+                pro_annual,
+                enterprise,
+              ],
+          }
+        planId: { type: string, enum: [free, plus, pro, enterprise] }
+        displayName: { type: string }
+        description: { type: string }
+        features:
+          { type: array, minItems: 3, maxItems: 3, items: { type: string } }
+        billingInterval:
+          { type: [string, 'null'], enum: [monthly, annual, null] }
+        currency: { type: string, const: USD }
+        amountMinor: { type: [integer, 'null'], minimum: 0 }
+        monthlyEquivalentMinor: { type: [integer, 'null'], minimum: 0 }
+        additionalSiteAmountMinor: { type: [integer, 'null'], minimum: 0 }
+        paymentRequired: { type: boolean }
+        maximumSites: { type: [integer, 'null'], minimum: 1 }
+        contactSales: { type: boolean }
+    PlanSelectionPageResponse:
+      type: object
+      additionalProperties: false
+      required: [firstName, selectedInterval, selectedPriceId, plans]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 100 }
+        selectedInterval: { type: string, enum: [monthly, annual] }
+        selectedPriceId:
+          {
+            type: [string, 'null'],
+            enum:
+              [
+                free,
+                plus_monthly,
+                plus_annual,
+                pro_monthly,
+                pro_annual,
+                enterprise,
+                null,
+              ],
+          }
+        plans:
+          type: array
+          minItems: 6
+          maxItems: 6
+          items: { $ref: '#/components/schemas/PlanDisplayEntry' }
+    PlanSelectionResponse:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [nextStep]
+          properties: { nextStep: { type: string, const: payment } }
+        - type: object
+          additionalProperties: false
+          required: [nextStep]
+          properties:
+            { nextStep: { type: string, const: organization-profile } }
+        - type: object
+          additionalProperties: false
+          required: [nextStep, destination]
+          properties:
+            nextStep: { type: string, const: contact-sales }
+            destination: { type: string, format: uri, pattern: '^https://' }
     HealthResponse:
       type: object
       additionalProperties: false

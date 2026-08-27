@@ -5,6 +5,7 @@
 export { Button, type ButtonProps } from './Button.js';
 export { TextField, type TextFieldProps } from './TextField.js';
 export { SelectField, type SelectFieldProps } from './SelectField.js';
+export { PlanCard } from './PlanCard.js';
 export {
   VerificationCodeField,
   type VerificationCodeFieldProps,

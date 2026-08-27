@@ -3,6 +3,23 @@ import request from 'supertest';
 import { createApp } from './app.js';
 import { VerificationFailedError } from './onboarding/verify-email.js';
 import { PersonalProfileTransitionError } from './onboarding/personal-profile.js';
+import { PlanSelectionTransitionError } from './onboarding/plan-selection.js';
+import { loadPlanCatalog } from './onboarding/plan-catalog.js';
+
+const planPage = {
+  firstName: 'Nabin',
+  selectedInterval: 'annual' as const,
+  selectedPriceId: null,
+  plans: loadPlanCatalog('test').entries.map(
+    ({
+      active: _active,
+      selfService: _selfService,
+      displayOrder: _order,
+      stripePriceLookupKey: _key,
+      ...plan
+    }) => plan,
+  ),
+};
 
 const app = createApp({ allowedOrigin: 'https://app.example.com' });
 
@@ -427,5 +444,292 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
     expect(recovery.text).toContain(
       'name="departmentOther" maxlength="100" required value="Strategy"',
     );
+  });
+});
+
+describe('plan-selection routes [onboarding-plan-selection REQ-006, REQ-007, REQ-008, REQ-011, REQ-012, REQ-013]', () => {
+  const module = (overrides: Record<string, unknown> = {}) => ({
+    createAccount: vi.fn(),
+    verifyEmail: vi.fn(),
+    resendVerification: vi.fn(),
+    submitPersonalProfile: vi.fn(),
+    load: vi.fn().mockResolvedValue(planPage),
+    select: vi.fn().mockResolvedValue({
+      nextStep: 'payment',
+      onboardingCredential: 'next-credential',
+      csrfProof: 'next-proof',
+    }),
+    ...overrides,
+  });
+  const create = (overrides: Record<string, unknown> = {}) =>
+    createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      module(overrides),
+    );
+
+  it('keeps every plan-selection route behind the rollout flag [onboarding-plan-selection REQ-018]', async () => {
+    const app = createApp(
+      { allowedOrigin: 'https://app.example.com', planSelectionEnabled: false },
+      undefined,
+      module(),
+    );
+    await request(app)
+      .get('/api/onboarding/plan-selection')
+      .expect(404, { error: 'not_found' });
+    await request(app)
+      .get('/onboarding/plan-selection')
+      .expect(404, /Not found/);
+    await request(app)
+      .post('/api/onboarding/plan-selection')
+      .send({ priceId: 'free' })
+      .expect(404, { error: 'not_found' });
+  });
+
+  it('loads private JSON and progressive HTML with annual and monthly views', async () => {
+    const onboarding = module();
+    const app = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      onboarding,
+    );
+    const json = await request(app)
+      .get('/api/onboarding/plan-selection')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(json.headers['cache-control']).toBe('private, no-store');
+    expect(json.body).toEqual(planPage);
+    const html = await request(app)
+      .get('/onboarding/plan-selection?interval=monthly')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(html.headers['cache-control']).toBe('private, no-store');
+    expect(html.text).toContain('Welcome Nabin, choose your plan');
+    expect(html.text).toContain('value="plus_monthly"');
+    expect(html.text).not.toContain('value="plus_annual"');
+    expect(html.text).toContain('Or try it for free');
+    await request(app)
+      .get('/onboarding/plan-selection')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200, /value="plus_annual"/);
+  });
+
+  it('rejects missing or invalid read continuations generically', async () => {
+    await request(create())
+      .get('/api/onboarding/plan-selection')
+      .expect(401, { error: 'onboarding_transition_failed' });
+    await request(create())
+      .get('/onboarding/plan-selection')
+      .expect(401, /session unavailable/i);
+    const rejected = create({
+      load: vi.fn().mockRejectedValue(new PlanSelectionTransitionError()),
+    });
+    await request(rejected)
+      .get('/api/onboarding/plan-selection')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(409, { error: 'onboarding_transition_failed' });
+    await request(rejected)
+      .get('/onboarding/plan-selection')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(409, /session unavailable/i);
+  });
+
+  it('passes unexpected plan read failures to the global handler', async () => {
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const app = create({
+      load: vi.fn().mockRejectedValue(new Error('secret')),
+    });
+    await request(app)
+      .get('/api/onboarding/plan-selection')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(500);
+    await request(app)
+      .get('/onboarding/plan-selection')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(500);
+    expect(errorLog).toHaveBeenCalledTimes(2);
+    errorLog.mockRestore();
+  });
+
+  it.each([
+    ['plus_annual', { nextStep: 'payment' }, '/onboarding/payment'],
+    [
+      'free',
+      { nextStep: 'organization-profile' },
+      '/onboarding/organization-profile',
+    ],
+    [
+      'enterprise',
+      {
+        nextStep: 'contact-sales',
+        destination: 'https://sales.example.com/hansel',
+      },
+      'https://sales.example.com/hansel',
+    ],
+  ] as const)(
+    'submits %s for JSON and native form clients',
+    async (priceId, result, destination) => {
+      const select = vi.fn().mockResolvedValue({
+        ...result,
+        onboardingCredential: 'next-credential',
+        csrfProof: 'next-proof',
+      });
+      const app = create({ select });
+      const cookies =
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof';
+      const response = await request(app)
+        .post('/api/onboarding/plan-selection')
+        .set('Origin', 'https://app.example.com')
+        .set('x-hansel-csrf', 'proof')
+        .set('Cookie', cookies)
+        .send({ priceId })
+        .expect(200, result);
+      expect(String(response.headers['set-cookie'])).toContain(
+        'hansel_onboarding=next-credential',
+      );
+      await request(app)
+        .post('/api/onboarding/plan-selection')
+        .set('Origin', 'https://app.example.com')
+        .set('Cookie', cookies)
+        .type('form')
+        .send({ priceId })
+        .expect(303)
+        .expect('Location', destination);
+      expect(select).toHaveBeenCalledWith('credential', 'proof', { priceId });
+    },
+  );
+
+  it('rejects malformed, unauthenticated, and rejected transitions while preserving the HTML form', async () => {
+    const select = vi
+      .fn()
+      .mockRejectedValue(new PlanSelectionTransitionError());
+    const app = create({ select });
+    await request(app)
+      .post('/api/onboarding/plan-selection')
+      .send({ priceId: 'unknown' })
+      .expect(400, { error: 'invalid_request' });
+    await request(app)
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://evil.example.com')
+      .send({ priceId: 'free' })
+      .expect(401, { error: 'onboarding_transition_failed' });
+    const recovery = await request(app)
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://app.example.com')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .type('form')
+      .send({ priceId: 'plus_annual' })
+      .expect(409);
+    expect(recovery.text).toContain('We could not save your plan');
+    expect(recovery.text).toContain('value="plus_annual"');
+    expect(recovery.text).toContain(
+      '<article class="plan" aria-current="true"><h2>Plus</h2>',
+    );
+  });
+
+  it('accepts an opaque browser origin only for a same-origin native form', async () => {
+    const cookies =
+      'hansel_onboarding=credential; hansel_onboarding_csrf=proof';
+    await request(create())
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'null')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .set('Host', 'app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ priceId: 'free' })
+      .expect(303);
+    await request(create())
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'null')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .set('Host', 'app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ priceId: 'free' })
+      .expect(401);
+    await request(create())
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'null')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .set('Host', 'evil.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ priceId: 'free' })
+      .expect(401);
+    await request(create())
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://evil.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ priceId: 'free' })
+      .expect(401);
+  });
+
+  it('recovers native-form failures when state cannot be reloaded and propagates unexpected selections', async () => {
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const unavailable = create({
+      load: vi.fn().mockRejectedValue(new PlanSelectionTransitionError()),
+      select: vi.fn().mockRejectedValue(new PlanSelectionTransitionError()),
+    });
+    await request(unavailable)
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://app.example.com')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .type('form')
+      .send({ priceId: 'free' })
+      .expect(409, /could not save your plan/i);
+    await request(create())
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ priceId: 'unknown' })
+      .expect(400, /could not save your plan/i);
+    await request(create())
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://app.example.com')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .type('form')
+      .send({ priceId: 'unknown' })
+      .expect(400, /Welcome Nabin, choose your plan/);
+    await request(
+      create({ load: vi.fn().mockRejectedValue(new Error('load secret')) }),
+    )
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://app.example.com')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .type('form')
+      .send({ priceId: 'unknown' })
+      .expect(500);
+    await request(
+      create({ select: vi.fn().mockRejectedValue(new Error('secret')) }),
+    )
+      .post('/api/onboarding/plan-selection')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set(
+        'Cookie',
+        'hansel_onboarding=credential; hansel_onboarding_csrf=proof',
+      )
+      .send({ priceId: 'free' })
+      .expect(500);
+    expect(errorLog).toHaveBeenCalledTimes(2);
+    errorLog.mockRestore();
   });
 });

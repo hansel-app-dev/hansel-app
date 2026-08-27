@@ -13,24 +13,62 @@ import {
   personalProfileResponseSchema,
   type PersonalProfileRequest,
   type PersonalProfileResponse,
+  planSelectionPageResponseSchema,
+  planSelectionResponseSchema,
+  type PlanPriceId,
+  type PlanSelectionPageResponse,
+  type PlanSelectionResponse,
 } from '@hansel/contracts';
+
+function readCsrfProof(): string {
+  const proof = document.cookie
+    .split(';')
+    .map((part) => part.trim().split('='))
+    .find(([name]) => name === 'hansel_onboarding_csrf')?.[1];
+  if (!proof) throw new Error('csrf_proof_missing');
+  return decodeURIComponent(proof);
+}
+
+export async function loadPlanSelection(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PlanSelectionPageResponse> {
+  const response = await fetcher(`${baseUrl}/api/onboarding/plan-selection`, {
+    credentials: 'include',
+  });
+  if (!response.ok) throw new Error('plan_selection_load_failed');
+  return planSelectionPageResponseSchema.parse(await response.json());
+}
+
+export async function selectOnboardingPlan(
+  priceId: PlanPriceId,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PlanSelectionResponse> {
+  const response = await fetcher(`${baseUrl}/api/onboarding/plan-selection`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      'x-hansel-csrf': readCsrfProof(),
+    },
+    body: JSON.stringify({ priceId }),
+  });
+  if (!response.ok) throw new Error('plan_selection_failed');
+  return planSelectionResponseSchema.parse(await response.json());
+}
 
 export async function submitPersonalProfile(
   input: PersonalProfileRequest,
   baseUrl: string,
   fetcher: typeof fetch = fetch,
 ): Promise<PersonalProfileResponse> {
-  const csrfProof = document.cookie
-    .split(';')
-    .map((part) => part.trim().split('='))
-    .find(([name]) => name === 'hansel_onboarding_csrf')?.[1];
-  if (!csrfProof) throw new Error('csrf_proof_missing');
   const response = await fetcher(`${baseUrl}/api/onboarding/personal-profile`, {
     method: 'POST',
     credentials: 'include',
     headers: {
       'content-type': 'application/json',
-      'x-hansel-csrf': decodeURIComponent(csrfProof),
+      'x-hansel-csrf': readCsrfProof(),
     },
     body: JSON.stringify(input),
   });

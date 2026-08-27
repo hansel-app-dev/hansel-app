@@ -1,5 +1,71 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { seedPlanSelectionJourney } from '../apps/api/e2e-support/plan-selection.js';
+
+const plan = (
+  priceId: string,
+  planId: string,
+  billingInterval: string | null,
+  contactSales = false,
+) => ({
+  priceId,
+  planId,
+  displayName: planId.charAt(0).toUpperCase() + planId.slice(1),
+  description: 'Dummy plan',
+  features: ['Feature one', 'Feature two', 'Feature three'],
+  billingInterval,
+  currency: 'USD',
+  amountMinor: contactSales ? null : 0,
+  monthlyEquivalentMinor: contactSales ? null : 0,
+  additionalSiteAmountMinor:
+    planId === 'plus' || planId === 'pro' ? 1500 : null,
+  paymentRequired: planId === 'plus' || planId === 'pro',
+  maximumSites: planId === 'free' ? 1 : null,
+  contactSales,
+});
+const planPage = {
+  firstName: 'Nabin',
+  selectedInterval: 'annual',
+  selectedPriceId: null,
+  plans: [
+    plan('free', 'free', null),
+    plan('plus_monthly', 'plus', 'monthly'),
+    plan('plus_annual', 'plus', 'annual'),
+    plan('pro_monthly', 'pro', 'monthly'),
+    plan('pro_annual', 'pro', 'annual'),
+    plan('enterprise', 'enterprise', null, true),
+  ],
+};
+
+async function enterPlanSelection(page: Page) {
+  await page.route('**/api/onboarding/email-verification/verify', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ nextStep: 'personal-profile' }),
+    }),
+  );
+  await page.route('**/api/onboarding/personal-profile', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ nextStep: 'plan-selection' }),
+    }),
+  );
+  await page.goto('/onboarding/verify-email');
+  await page.getByLabel('Verification code').fill('123456');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.evaluate(() => {
+    document.cookie = 'hansel_onboarding_csrf=proof; SameSite=Strict';
+  });
+  await page.getByLabel('First name').fill('Nabin');
+  await page.getByLabel('Last name').fill('Singh');
+  await page.getByLabel('Job title', { exact: true }).selectOption('manager');
+  await page
+    .getByLabel('Department', { exact: true })
+    .selectOption('marketing_communications');
+  await page.getByRole('button', { name: 'Next' }).click();
+}
 
 test('matches the Figma-derived flow and validates required values [AC-002, AC-035, AC-052, REQ-005, REQ-016, REQ-082]', async ({
   page,
@@ -97,6 +163,13 @@ test('personal profile matches the approved catalogs and advances [REQ-086]', as
       body: JSON.stringify({ nextStep: 'plan-selection' }),
     }),
   );
+  await page.route('**/api/onboarding/plan-selection', async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(planPage),
+    }),
+  );
   await page.goto('/onboarding/verify-email');
   await page.getByLabel('Verification code').fill('123456');
   await page.getByRole('button', { name: 'Next' }).click();
@@ -117,6 +190,81 @@ test('personal profile matches the approved catalogs and advances [REQ-086]', as
     .selectOption('marketing_communications');
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page).toHaveURL(/\/onboarding\/plan-selection$/);
+  await expect(
+    page.getByRole('heading', { name: 'Welcome Nabin, choose your plan' }),
+  ).toBeVisible();
+});
+
+test('plan selection defaults annual, switches monthly, and Free bypasses payment [onboarding-plan-selection AC-001, AC-003, AC-004]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.route('**/api/onboarding/email-verification/verify', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ nextStep: 'personal-profile' }),
+    }),
+  );
+  await page.route('**/api/onboarding/personal-profile', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ nextStep: 'plan-selection' }),
+    }),
+  );
+  await page.route('**/api/onboarding/plan-selection', async (route) => {
+    if (route.request().method() === 'GET')
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(planPage),
+      });
+    else
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ nextStep: 'organization-profile' }),
+      });
+  });
+  await page.goto('/onboarding/verify-email');
+  await page.getByLabel('Verification code').fill('123456');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.evaluate(() => {
+    document.cookie = 'hansel_onboarding_csrf=proof; SameSite=Strict';
+  });
+  await page.getByLabel('First name').fill('Nabin');
+  await page.getByLabel('Last name').fill('Singh');
+  await page.getByLabel('Job title', { exact: true }).selectOption('manager');
+  await page
+    .getByLabel('Department', { exact: true })
+    .selectOption('marketing_communications');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('button', { name: 'Annual' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByRole('link', { name: 'Back' })).toHaveAttribute(
+    'href',
+    '/onboarding/about-you',
+  );
+  await page.getByRole('button', { name: 'Annual' }).focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByText('Save 35%')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  await page.getByRole('button', { name: 'Monthly' }).click();
+  await expect(page.getByRole('button', { name: 'Monthly' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.evaluate(() => {
+    document.cookie = 'hansel_onboarding_csrf=proof; SameSite=Strict';
+  });
+  await page.getByRole('button', { name: 'Or try it for free' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/organization-profile$/);
 });
 
 test('personal profile remains functional without JavaScript [REQ-054, REQ-086, REQ-087]', async ({
@@ -158,6 +306,76 @@ test('personal profile remains functional without JavaScript [REQ-054, REQ-086, 
   await context.close();
 });
 
+test('paid and Enterprise plan outcomes are server-authored [onboarding-plan-selection REQ-006, REQ-008]', async ({
+  page,
+}) => {
+  let outcome: 'payment' | 'contact-sales' = 'payment';
+  await page.route('**/api/onboarding/plan-selection', (route) => {
+    if (route.request().method() === 'GET')
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(planPage),
+      });
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        outcome === 'payment'
+          ? { nextStep: 'payment' }
+          : {
+              nextStep: 'contact-sales',
+              destination: 'https://sales.example.com/hansel',
+            },
+      ),
+    });
+  });
+  await enterPlanSelection(page);
+  await page.getByRole('button', { name: 'Choose Plus' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/payment$/);
+
+  await enterPlanSelection(page);
+  await page.getByRole('button', { name: 'Choose Pro' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/payment$/);
+
+  outcome = 'contact-sales';
+  await page.route('https://sales.example.com/**', (route) =>
+    route.fulfill({ status: 200, body: 'Sales' }),
+  );
+  await enterPlanSelection(page);
+  await page.getByRole('button', { name: 'Schedule a call' }).click();
+  await expect(page).toHaveURL('https://sales.example.com/hansel');
+});
+
+test('a failed plan choice stays selected and Back returns to personal profile [onboarding-plan-selection REQ-012, REQ-013]', async ({
+  page,
+}) => {
+  await page.route('**/api/onboarding/plan-selection', (route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(planPage),
+        })
+      : route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'onboarding_transition_failed' }),
+        }),
+  );
+  await enterPlanSelection(page);
+  await page.getByRole('button', { name: 'Choose Plus' }).click();
+  await expect(page.getByRole('alert')).toContainText(
+    'could not save your plan',
+  );
+  await expect(page.getByLabel('Plus plan, selected')).toBeVisible();
+  await page.getByRole('link', { name: 'Back' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/about-you$/);
+  await expect(
+    page.getByRole('heading', { name: 'Tell us about you' }),
+  ).toBeVisible();
+});
+
 test('server-rendered personal profile matches its visual and accessibility contract [REQ-054, REQ-086]', async ({
   page,
 }) => {
@@ -170,4 +388,53 @@ test('server-rendered personal profile matches its visual and accessibility cont
   await expect(page).toHaveScreenshot('onboarding-about-you-progressive.png', {
     fullPage: true,
   });
+});
+
+test('plan selection remains functional without JavaScript [onboarding-plan-selection REQ-012, REQ-017]', async ({
+  browser,
+}) => {
+  const { baseUrl, credential, csrfProof, disconnect } =
+    await seedPlanSelectionJourney();
+  const context = await browser.newContext({
+    baseURL: baseUrl,
+    javaScriptEnabled: false,
+  });
+  await context.addCookies([
+    {
+      name: 'hansel_onboarding',
+      value: credential,
+      domain: '127.0.0.1',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+    {
+      name: 'hansel_onboarding_csrf',
+      value: csrfProof,
+      domain: '127.0.0.1',
+      path: '/',
+      sameSite: 'Strict',
+    },
+  ]);
+  const page = await context.newPage();
+  const response = await page.goto('/onboarding/plan-selection');
+  expect((await response?.request().allHeaders())?.cookie).toContain(
+    'hansel_onboarding=',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Welcome Nabin, choose your plan' }),
+  ).toBeVisible();
+  const [submission] = await Promise.all([
+    page.waitForRequest('**/api/onboarding/plan-selection'),
+    page.getByRole('button', { name: 'Or try it for free' }).click(),
+  ]);
+  const submissionHeaders = await submission.allHeaders();
+  expect(submissionHeaders.origin).toBe('null');
+  expect(submissionHeaders['sec-fetch-site']).toBe('same-origin');
+  const submissionCookies = submissionHeaders.cookie ?? '';
+  expect(submissionCookies).toContain(`hansel_onboarding=${credential}`);
+  expect(submissionCookies).toContain(`hansel_onboarding_csrf=${csrfProof}`);
+  await expect(page).toHaveURL(/\/onboarding\/organization-profile$/);
+  await context.close();
+  await disconnect();
 });

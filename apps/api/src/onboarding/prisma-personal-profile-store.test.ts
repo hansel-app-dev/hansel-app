@@ -8,12 +8,16 @@ const profile = {
   jobTitle: 'manager' as const,
   department: 'marketing_communications' as const,
 };
+const rotation = {
+  nextCredentialDigest: 'next-digest',
+  nextCredentialExpiresAt: new Date('2026-08-27T02:15:00Z'),
+};
 
 function harness(continuation: unknown, advanced = 1) {
   const transaction = {
     onboardingContinuation: {
       findUnique: vi.fn().mockResolvedValue(continuation),
-      delete: vi.fn(),
+      update: vi.fn(),
     },
     onboardingJourney: {
       updateMany: vi.fn().mockResolvedValue({ count: advanced }),
@@ -42,7 +46,7 @@ describe('Prisma personal-profile store [REQ-086]', () => {
   ])('rejects %s', async (_name, continuation) => {
     const { save } = harness(continuation);
     await expect(
-      save({ credentialDigest: 'digest', now, profile }),
+      save({ credentialDigest: 'digest', now, profile, ...rotation }),
     ).resolves.toBe(false);
   });
 
@@ -52,7 +56,7 @@ describe('Prisma personal-profile store [REQ-086]', () => {
       0,
     );
     await expect(
-      save({ credentialDigest: 'digest', now, profile }),
+      save({ credentialDigest: 'digest', now, profile, ...rotation }),
     ).resolves.toBe(false);
     expect(transaction.personalProfile.upsert).not.toHaveBeenCalled();
   });
@@ -63,7 +67,7 @@ describe('Prisma personal-profile store [REQ-086]', () => {
       expiresAt: new Date('2026-08-27T02:15:00Z'),
     });
     await expect(
-      save({ credentialDigest: 'digest', now, profile }),
+      save({ credentialDigest: 'digest', now, profile, ...rotation }),
     ).resolves.toBe(true);
     expect(transaction.personalProfile.upsert).toHaveBeenCalledWith({
       where: { userId: 'user' },
@@ -79,8 +83,12 @@ describe('Prisma personal-profile store [REQ-086]', () => {
         departmentOther: null,
       },
     });
-    expect(transaction.onboardingContinuation.delete).toHaveBeenCalledWith({
+    expect(transaction.onboardingContinuation.update).toHaveBeenCalledWith({
       where: { userId: 'user' },
+      data: {
+        credentialDigest: 'next-digest',
+        expiresAt: new Date('2026-08-27T02:15:00Z'),
+      },
     });
   });
 
@@ -90,7 +98,7 @@ describe('Prisma personal-profile store [REQ-086]', () => {
       $transaction: vi.fn().mockRejectedValue(failure),
     } as never);
     await expect(
-      save({ credentialDigest: 'digest', now, profile }),
+      save({ credentialDigest: 'digest', now, profile, ...rotation }),
     ).rejects.toBe(failure);
   });
 });

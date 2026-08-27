@@ -80,7 +80,17 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
     await expect(
       store({ ...input, passwordHash: 'replacement-hash' }),
     ).resolves.toEqual({ shouldSend: false });
-    await expect(prisma.passwordCredential.findFirstOrThrow()).resolves.toEqual(
+    await expect(
+      prisma.passwordCredential.findUniqueOrThrow({
+        where: {
+          userId: (
+            await prisma.user.findUniqueOrThrow({
+              where: { email: input.email },
+            })
+          ).id,
+        },
+      }),
+    ).resolves.toEqual(
       expect.objectContaining({ passwordHash: 'original-hash' }),
     );
   });

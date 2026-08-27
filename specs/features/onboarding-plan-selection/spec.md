@@ -1,12 +1,13 @@
 # Feature: Onboarding plan selection
 
 - ID: `onboarding-plan-selection`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-08-27`
 - Product decision: `No trials; Free is limited to one site, 2026-08-27`
 - Product approval: `Acceptance criteria approved by user, 2026-08-27`
+- Implementation evidence: `Full verification, PostgreSQL integration, Playwright E2E, and independent specification/standards reviews passed, 2026-08-27`
 - Design authority: `Figma Hansel App UI, Onboarding frame 52:608`
 
 ## Problem

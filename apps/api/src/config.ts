@@ -1,5 +1,8 @@
 interface BaseAppConfig {
   allowedOrigin: string;
+  contactSalesDestination: string;
+  runtimeEnvironment: 'test' | 'production';
+  planSelectionEnabled: boolean;
   passwordPepper: string;
   port: number;
   verificationDigestKey: string;
@@ -25,15 +28,27 @@ export function loadConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): AppConfig {
   const parsedPort = Number(environment.PORT ?? '3000');
+  const runtimeEnvironment: 'test' | 'production' =
+    environment.NODE_ENV === 'production' ? 'production' : 'test';
   if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65_535) {
     throw new Error('PORT must be an integer between 1 and 65535');
   }
   const base = {
     allowedOrigin: environment.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+    contactSalesDestination:
+      environment.CONTACT_SALES_DESTINATION ??
+      'https://www.hanselapp.io/contact',
+    runtimeEnvironment,
+    planSelectionEnabled:
+      environment.PLAN_SELECTION_ENABLED === 'true' ||
+      (environment.PLAN_SELECTION_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
     passwordPepper: required(environment, 'PASSWORD_PEPPER'),
     port: parsedPort,
     verificationDigestKey: required(environment, 'VERIFICATION_DIGEST_KEY'),
   };
+  if (!base.contactSalesDestination.startsWith('https://'))
+    throw new Error('CONTACT_SALES_DESTINATION must use HTTPS');
   const emailDeliveryMode = environment.EMAIL_DELIVERY_MODE ?? 'resend';
   if (emailDeliveryMode !== 'console' && emailDeliveryMode !== 'resend') {
     throw new Error('EMAIL_DELIVERY_MODE must be console or resend');

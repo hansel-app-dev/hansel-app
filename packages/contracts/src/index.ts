@@ -144,3 +144,64 @@ export const personalProfileResponseSchema = z
 export type PersonalProfileResponse = z.infer<
   typeof personalProfileResponseSchema
 >;
+
+export const planPriceIds = [
+  'free',
+  'plus_monthly',
+  'plus_annual',
+  'pro_monthly',
+  'pro_annual',
+  'enterprise',
+] as const;
+export const planPriceIdSchema = z.enum(planPriceIds);
+export type PlanPriceId = z.infer<typeof planPriceIdSchema>;
+export const billingIntervalSchema = z.enum(['monthly', 'annual']);
+export type BillingInterval = z.infer<typeof billingIntervalSchema>;
+
+export const planSelectionRequestSchema = z
+  .object({ priceId: planPriceIdSchema })
+  .strict();
+export type PlanSelectionRequest = z.infer<typeof planSelectionRequestSchema>;
+
+export const planSelectionResponseSchema = z.discriminatedUnion('nextStep', [
+  z.object({ nextStep: z.literal('payment') }).strict(),
+  z.object({ nextStep: z.literal('organization-profile') }).strict(),
+  z
+    .object({
+      nextStep: z.literal('contact-sales'),
+      destination: z.url().startsWith('https://'),
+    })
+    .strict(),
+]);
+export type PlanSelectionResponse = z.infer<typeof planSelectionResponseSchema>;
+
+export const planDisplayEntrySchema = z
+  .object({
+    priceId: planPriceIdSchema,
+    planId: z.enum(['free', 'plus', 'pro', 'enterprise']),
+    displayName: z.string().min(1),
+    description: z.string().min(1),
+    features: z.array(z.string().min(1)).length(3),
+    billingInterval: billingIntervalSchema.nullable(),
+    currency: z.literal('USD'),
+    amountMinor: z.number().int().nonnegative().nullable(),
+    monthlyEquivalentMinor: z.number().int().nonnegative().nullable(),
+    additionalSiteAmountMinor: z.number().int().nonnegative().nullable(),
+    paymentRequired: z.boolean(),
+    maximumSites: z.number().int().positive().nullable(),
+    contactSales: z.boolean(),
+  })
+  .strict();
+export type PlanDisplayEntry = z.infer<typeof planDisplayEntrySchema>;
+
+export const planSelectionPageResponseSchema = z
+  .object({
+    firstName: z.string().min(1).max(100),
+    selectedInterval: billingIntervalSchema,
+    selectedPriceId: planPriceIdSchema.nullable(),
+    plans: z.array(planDisplayEntrySchema).length(6),
+  })
+  .strict();
+export type PlanSelectionPageResponse = z.infer<
+  typeof planSelectionPageResponseSchema
+>;

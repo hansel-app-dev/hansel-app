@@ -97,6 +97,10 @@ export class HanselStack extends cdk.Stack {
       vpc,
       containerInsightsV2: ecs.ContainerInsights.ENABLED,
     });
+    const apiLogGroup = new logs.LogGroup(this, 'ApiLogGroup', {
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy,
+    });
     const api = new ecsPatterns.ApplicationLoadBalancedFargateService(
       this,
       'Api',
@@ -125,7 +129,10 @@ export class HanselStack extends cdk.Stack {
             },
           ),
           containerPort: 3000,
-          enableLogging: true,
+          logDriver: ecs.LogDrivers.awsLogs({
+            logGroup: apiLogGroup,
+            streamPrefix: 'api',
+          }),
           environment: { PORT: '3000' },
           secrets: {
             DB_USERNAME: ecs.Secret.fromSecretsManager(
@@ -164,6 +171,48 @@ export class HanselStack extends cdk.Stack {
       metric: api.loadBalancer.metrics.httpCodeElb(
         elbv2.HttpCodeElb.ELB_5XX_COUNT,
       ),
+      threshold: 5,
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    const catalogFailureFilter = new logs.MetricFilter(
+      this,
+      'PlanCatalogFailureMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'plan_catalog_validation_failed',
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName: 'PlanCatalogValidationFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'PlanCatalogFailureAlarm', {
+      metric: catalogFailureFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    const planUnexpectedFailureFilter = new logs.MetricFilter(
+      this,
+      'PlanUnexpectedFailureMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'plan_selection_unexpected_failure',
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName: 'PlanSelectionUnexpectedFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'PlanUnexpectedFailureAlarm', {
+      metric: planUnexpectedFailureFilter.metric(),
       threshold: 5,
       evaluationPeriods: 2,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
@@ -264,6 +313,10 @@ export class HanselStack extends cdk.Stack {
       additionalBehaviors: {
         'api/*': apiBehavior,
         'onboarding/about-you': {
+          ...apiBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+        'onboarding/plan-selection': {
           ...apiBehavior,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },

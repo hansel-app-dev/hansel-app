@@ -3,6 +3,8 @@ import type { PersonalProfileRequest } from '@hansel/contracts';
 
 interface SavePersonalProfileInput {
   credentialDigest: string;
+  nextCredentialDigest: string;
+  nextCredentialExpiresAt: Date;
   now: Date;
   profile: PersonalProfileRequest;
 }
@@ -45,8 +47,12 @@ export function createPrismaPersonalProfileStore(prisma: PrismaClient) {
           create: { userId: continuation.userId, ...profile },
           update: profile,
         });
-        await transaction.onboardingContinuation.delete({
+        await transaction.onboardingContinuation.update({
           where: { userId: continuation.userId },
+          data: {
+            credentialDigest: input.nextCredentialDigest,
+            expiresAt: input.nextCredentialExpiresAt,
+          },
         });
         return true;
       });

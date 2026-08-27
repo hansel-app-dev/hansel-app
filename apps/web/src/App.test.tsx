@@ -9,6 +9,54 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
 
+const planFixture = (
+  priceId:
+    | 'free'
+    | 'plus_monthly'
+    | 'plus_annual'
+    | 'pro_monthly'
+    | 'pro_annual'
+    | 'enterprise',
+) => {
+  const planId =
+    priceId === 'free'
+      ? 'free'
+      : priceId.startsWith('plus')
+        ? 'plus'
+        : priceId.startsWith('pro')
+          ? 'pro'
+          : 'enterprise';
+  return {
+    priceId,
+    planId,
+    displayName: planId.charAt(0).toUpperCase() + planId.slice(1),
+    description: 'Plan',
+    features: ['Feature one', 'Feature two', 'Feature three'],
+    billingInterval: priceId.endsWith('monthly')
+      ? 'monthly'
+      : priceId.endsWith('annual')
+        ? 'annual'
+        : null,
+    currency: 'USD',
+    amountMinor: priceId === 'enterprise' ? null : 0,
+    monthlyEquivalentMinor: priceId === 'enterprise' ? null : 0,
+    additionalSiteAmountMinor: null,
+    paymentRequired: planId === 'plus' || planId === 'pro',
+    maximumSites: planId === 'free' ? 1 : null,
+    contactSales: planId === 'enterprise',
+  };
+};
+const planFixtures = (
+  [
+    'free',
+    'plus_monthly',
+    'plus_annual',
+    'pro_monthly',
+    'pro_annual',
+    'enterprise',
+  ] as const
+).map(planFixture);
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -114,6 +162,85 @@ describe('App [REQ-002]', () => {
       expect.objectContaining({ credentials: 'include' }),
     );
     window.history.replaceState({}, '', '/');
+  });
+
+  it.each([
+    ['plus_annual', 'payment', '/onboarding/payment'],
+    ['free', 'organization-profile', '/onboarding/organization-profile'],
+  ] as const)(
+    'routes a selected %s plan to %s [onboarding-plan-selection REQ-006, REQ-007]',
+    async (priceId, nextStep, destination) => {
+      window.history.replaceState({}, '', '/onboarding/plan-selection');
+      document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              firstName: 'Nabin',
+              selectedInterval: 'annual',
+              selectedPriceId: null,
+              plans: planFixtures,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ nextStep }), { status: 200 }),
+        );
+      vi.stubGlobal('fetch', fetchMock);
+      render(<App />);
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: priceId === 'free' ? 'Or try it for free' : 'Choose Plus',
+        }),
+      );
+      await waitFor(() => {
+        expect(window.location.pathname).toBe(destination);
+      });
+      window.history.replaceState({}, '', '/');
+    },
+  );
+
+  it('opens the configured Enterprise sales destination [onboarding-plan-selection REQ-008]', async () => {
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    const openExternal = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              firstName: 'Nabin',
+              selectedInterval: 'annual',
+              selectedPriceId: null,
+              plans: planFixtures,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              nextStep: 'contact-sales',
+              destination: 'https://sales.example.com/hansel',
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+    render(
+      <App path="/onboarding/plan-selection" openExternal={openExternal} />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Schedule a call' }),
+    );
+    await waitFor(() => {
+      expect(openExternal).toHaveBeenCalledWith(
+        'https://sales.example.com/hansel',
+      );
+    });
   });
 
   it('submits onboarding through the configured API URL', async () => {

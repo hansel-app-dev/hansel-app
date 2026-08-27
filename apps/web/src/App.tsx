@@ -4,10 +4,13 @@ import {
   resendOnboardingVerification,
   verifyOnboardingEmail,
   submitPersonalProfile,
+  loadPlanSelection,
+  selectOnboardingPlan,
 } from './api.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
+import { PlanSelection } from './onboarding/PlanSelection.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -23,9 +26,11 @@ function Home() {
 export function App({
   apiUrl = '',
   path = window.location.pathname,
+  openExternal = window.location.assign.bind(window.location),
 }: {
   apiUrl?: string;
   path?: string;
+  openExternal?: (destination: string) => void;
 }) {
   const [verificationEmail, setVerificationEmail] = useState(
     () => window.sessionStorage.getItem(verificationEmailKey) ?? '',
@@ -68,6 +73,19 @@ export function App({
         submitProfile={(input) => submitPersonalProfile(input, apiUrl)}
         onCompleted={() => {
           navigate('/onboarding/plan-selection');
+        }}
+      />
+    );
+  }
+  if (currentPath === '/onboarding/plan-selection') {
+    return (
+      <PlanSelection
+        loadPlans={() => loadPlanSelection(apiUrl)}
+        selectPlan={(priceId) => selectOnboardingPlan(priceId, apiUrl)}
+        onCompleted={(result) => {
+          if (result.nextStep === 'contact-sales')
+            openExternal(result.destination);
+          else navigate(`/onboarding/${result.nextStep}`);
         }}
       />
     );

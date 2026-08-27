@@ -3,9 +3,115 @@ import {
   createOnboardingAccount,
   getHealth,
   resendOnboardingVerification,
+  loadPlanSelection,
+  selectOnboardingPlan,
   verifyOnboardingEmail,
   submitPersonalProfile,
 } from './api.js';
+
+describe('plan selection API [onboarding-plan-selection REQ-006, REQ-007]', () => {
+  const plan = (
+    priceId:
+      | 'free'
+      | 'plus_monthly'
+      | 'plus_annual'
+      | 'pro_monthly'
+      | 'pro_annual'
+      | 'enterprise',
+  ) => ({
+    priceId,
+    planId:
+      priceId === 'free'
+        ? ('free' as const)
+        : priceId.startsWith('plus')
+          ? ('plus' as const)
+          : priceId.startsWith('pro')
+            ? ('pro' as const)
+            : ('enterprise' as const),
+    displayName: 'Plan',
+    description: 'Description',
+    features: ['Feature one', 'Feature two', 'Feature three'],
+    billingInterval: priceId.endsWith('monthly')
+      ? ('monthly' as const)
+      : priceId.endsWith('annual')
+        ? ('annual' as const)
+        : null,
+    currency: 'USD' as const,
+    amountMinor: priceId === 'enterprise' ? null : 0,
+    monthlyEquivalentMinor: priceId === 'enterprise' ? null : 0,
+    additionalSiteAmountMinor: null,
+    paymentRequired: priceId !== 'free' && priceId !== 'enterprise',
+    maximumSites: priceId === 'free' ? 1 : null,
+    contactSales: priceId === 'enterprise',
+  });
+  const page = {
+    firstName: 'Nabin',
+    selectedInterval: 'annual' as const,
+    selectedPriceId: null,
+    plans: (
+      [
+        'free',
+        'plus_monthly',
+        'plus_annual',
+        'pro_monthly',
+        'pro_annual',
+        'enterprise',
+      ] as const
+    ).map(plan),
+  };
+
+  it('loads private plan state and submits a CSRF-protected selection', async () => {
+    document.cookie = 'hansel_onboarding_csrf=proof%20value';
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(page), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ nextStep: 'payment' }), { status: 200 }),
+      );
+    await expect(
+      loadPlanSelection('https://api.example', fetcher),
+    ).resolves.toEqual(page);
+    await expect(
+      selectOnboardingPlan('plus_annual', 'https://api.example', fetcher),
+    ).resolves.toEqual({ nextStep: 'payment' });
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      'https://api.example/api/onboarding/plan-selection',
+      { credentials: 'include' },
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      'https://api.example/api/onboarding/plan-selection',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: expect.objectContaining({ 'x-hansel-csrf': 'proof value' }),
+        body: JSON.stringify({ priceId: 'plus_annual' }),
+      }),
+    );
+  });
+
+  it('maps load, submit, and missing-CSRF failures to stable errors', async () => {
+    const failed = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+    await expect(loadPlanSelection('', failed)).rejects.toThrow(
+      'plan_selection_load_failed',
+    );
+    document.cookie = 'hansel_onboarding_csrf=proof';
+    await expect(selectOnboardingPlan('free', '', failed)).rejects.toThrow(
+      'plan_selection_failed',
+    );
+    document.cookie = 'hansel_onboarding_csrf=; Max-Age=0';
+    const unused = vi.fn<typeof fetch>();
+    await expect(selectOnboardingPlan('free', '', unused)).rejects.toThrow(
+      'csrf_proof_missing',
+    );
+    expect(unused).not.toHaveBeenCalled();
+  });
+});
 
 describe('getHealth [REQ-002]', () => {
   it('parses a successful response', async () => {

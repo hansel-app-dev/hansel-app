@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { Logger } from '@aws-lambda-powertools/logger';
 import { Resend } from 'resend';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
@@ -11,8 +12,12 @@ import { createOnboardingSecurity } from './onboarding/security.js';
 import { createEmailVerification } from './onboarding/verify-email.js';
 import { createPersonalProfile } from './onboarding/personal-profile.js';
 import { createPrismaPersonalProfileStore } from './onboarding/prisma-personal-profile-store.js';
+import { loadPlanCatalog } from './onboarding/plan-catalog.js';
+import { createPlanSelection } from './onboarding/plan-selection.js';
+import { createPrismaPlanSelectionStore } from './onboarding/prisma-plan-selection-store.js';
 
 const config = loadConfig();
+const logger = new Logger({ serviceName: 'hansel-api' });
 const prisma = new PrismaClient();
 const security = createOnboardingSecurity(config);
 let sendVerificationCode: (email: string, code: string) => Promise<void>;
@@ -31,6 +36,14 @@ const verification = createEmailVerification({
   sendVerificationCode,
   now: () => new Date(),
 });
+let planCatalog;
+try {
+  planCatalog = loadPlanCatalog(config.runtimeEnvironment);
+} catch (error) {
+  logger.error('plan_catalog_validation_failed', { error });
+  throw error;
+}
+const planSelectionStore = createPrismaPlanSelectionStore(prisma);
 const onboarding = {
   createAccount: createAccountRegistration({
     ...security,
@@ -42,9 +55,28 @@ const onboarding = {
     save: createPrismaPersonalProfileStore(prisma),
     digestOnboardingCredential: (credential) =>
       security.digestOnboardingCredential(credential),
+    createOnboardingCredential: () => security.createOnboardingCredential(),
+    createOnboardingCsrfProof: (credential) =>
+      security.createOnboardingCsrfProof(credential),
     verifyOnboardingCsrfProof: (credential, proof) =>
       security.verifyOnboardingCsrfProof(credential, proof),
     now: () => new Date(),
+  }),
+  ...createPlanSelection({
+    catalog: planCatalog,
+    contactSalesDestination: config.contactSalesDestination,
+    ...planSelectionStore,
+    createOnboardingCredential: () => security.createOnboardingCredential(),
+    digestOnboardingCredential: (credential) =>
+      security.digestOnboardingCredential(credential),
+    createOnboardingCsrfProof: (credential) =>
+      security.createOnboardingCsrfProof(credential),
+    verifyOnboardingCsrfProof: (credential, proof) =>
+      security.verifyOnboardingCsrfProof(credential, proof),
+    now: () => new Date(),
+    recordEvent: (name, details) => {
+      logger.info(name, { ...details });
+    },
   }),
   ...verification,
 };

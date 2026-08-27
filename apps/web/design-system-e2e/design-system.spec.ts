@@ -102,6 +102,96 @@ test('personal profile is accessible and visually stable [REQ-086]', async ({
   });
 });
 
+test('plan card is accessible and visually stable [onboarding-plan-selection REQ-015]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=design-system-plancard--normal&viewMode=story',
+  );
+  await expect(page.getByRole('button', { name: 'Choose Plus' })).toBeVisible();
+  const accessibility = await analyzeAccessibility(page);
+  expect(accessibility.violations).toEqual([]);
+  await expect(page).toHaveScreenshot('plan-card-normal.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+for (const state of ['selected', 'disabled', 'free', 'enterprise']) {
+  test(`plan card ${state} state is accessible and visually stable [onboarding-plan-selection REQ-015, REQ-017]`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `/iframe.html?id=design-system-plancard--${state}&viewMode=story`,
+    );
+    await expect(page.getByRole('article')).toBeVisible();
+    const accessibility = await analyzeAccessibility(page);
+    expect(accessibility.violations).toEqual([]);
+    await expect(page).toHaveScreenshot(`plan-card-${state}.png`, {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    });
+  });
+}
+
+test('plan selection is accessible and visually stable [onboarding-plan-selection REQ-001, REQ-015]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-plan-selection--annual&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Welcome Nabin, choose your plan' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Annual' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  const accessibility = await analyzeAccessibility(page);
+  expect(accessibility.violations).toEqual([]);
+  await expect(page).toHaveScreenshot('onboarding-plan-selection.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expect(page).toHaveScreenshot('onboarding-plan-selection-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+for (const state of [
+  'monthly',
+  'selected',
+  'free-selected',
+  'enterprise-selected',
+  'submitting-disabled',
+  'load-failure',
+]) {
+  test(`plan selection ${state} state is accessible and visually stable [onboarding-plan-selection REQ-015, REQ-017]`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `/iframe.html?id=onboarding-plan-selection--${state}&viewMode=story`,
+    );
+    await expect(page.getByRole('main')).toBeVisible();
+    const accessibility = await analyzeAccessibility(page);
+    expect(accessibility.violations).toEqual([]);
+    await expect(page).toHaveScreenshot(
+      `onboarding-plan-selection-${state}.png`,
+      {
+        animations: 'disabled',
+        fullPage: true,
+        maxDiffPixelRatio: 0.001,
+      },
+    );
+  });
+}
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

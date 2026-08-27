@@ -9,6 +9,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:3000' },
       '/onboarding/about-you': { target: 'http://localhost:3000' },
+      '/onboarding/plan-selection': { target: 'http://localhost:3000' },
     },
   },
   test: {

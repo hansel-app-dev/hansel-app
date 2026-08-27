@@ -4,6 +4,9 @@ import {
   jobTitleOptions,
   personalProfileRequestSchema,
   personalProfileResponseSchema,
+  planSelectionPageResponseSchema,
+  planSelectionRequestSchema,
+  planSelectionResponseSchema,
   createOnboardingAccountRequestSchema,
   createOnboardingAccountResponseSchema,
   healthResponseSchema,
@@ -12,6 +15,76 @@ import {
   verifyOnboardingEmailRequestSchema,
   verifyOnboardingEmailResponseSchema,
 } from './index.js';
+
+describe('plan selection contract [onboarding-plan-selection REQ-002, REQ-006, REQ-007, REQ-008]', () => {
+  it('accepts only stable selections and server-authored outcomes', () => {
+    expect(
+      planSelectionRequestSchema.parse({ priceId: 'plus_annual' }),
+    ).toEqual({ priceId: 'plus_annual' });
+    expect(
+      planSelectionResponseSchema.parse({
+        nextStep: 'organization-profile',
+      }),
+    ).toEqual({ nextStep: 'organization-profile' });
+    expect(planSelectionResponseSchema.parse({ nextStep: 'payment' })).toEqual({
+      nextStep: 'payment',
+    });
+    expect(
+      planSelectionResponseSchema.parse({
+        nextStep: 'contact-sales',
+        destination: 'https://sales.example.com/hansel',
+      }),
+    ).toEqual({
+      nextStep: 'contact-sales',
+      destination: 'https://sales.example.com/hansel',
+    });
+    expect(() =>
+      planSelectionResponseSchema.parse({
+        nextStep: 'contact-sales',
+        destination: 'http://sales.example.com/hansel',
+      }),
+    ).toThrow();
+    expect(() =>
+      planSelectionRequestSchema.parse({
+        priceId: 'plus_annual',
+        amount: 1,
+      }),
+    ).toThrow();
+  });
+
+  it('validates the complete server-authored plan page', () => {
+    const plans = [
+      ['free', 'free', null],
+      ['plus_monthly', 'plus', 'monthly'],
+      ['plus_annual', 'plus', 'annual'],
+      ['pro_monthly', 'pro', 'monthly'],
+      ['pro_annual', 'pro', 'annual'],
+      ['enterprise', 'enterprise', null],
+    ].map(([priceId, planId, billingInterval]) => ({
+      priceId,
+      planId,
+      displayName: String(planId),
+      description: 'Dummy description',
+      features: ['Dummy one', 'Dummy two', 'Dummy three'],
+      billingInterval,
+      currency: 'USD',
+      amountMinor: priceId === 'enterprise' ? null : 0,
+      monthlyEquivalentMinor: priceId === 'enterprise' ? null : 0,
+      additionalSiteAmountMinor: null,
+      paymentRequired: String(planId) === 'plus' || String(planId) === 'pro',
+      maximumSites: priceId === 'free' ? 1 : null,
+      contactSales: priceId === 'enterprise',
+    }));
+    expect(
+      planSelectionPageResponseSchema.parse({
+        firstName: 'Nabin',
+        selectedInterval: 'annual',
+        selectedPriceId: null,
+        plans,
+      }),
+    ).toMatchObject({ firstName: 'Nabin', plans });
+  });
+});
 
 describe('healthResponseSchema [REQ-002]', () => {
   it('accepts the specified health response', () => {

@@ -44,6 +44,12 @@ describe('HanselStack [REQ-004]', () => {
       },
     });
     output.resourceCountIs('AWS::WAFv2::WebACL', 1);
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({ MetricNamespace: 'Hansel/Onboarding' }),
+      ]),
+    });
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 3);
     output.hasResourceProperties('AWS::CloudFront::Distribution', {
       DistributionConfig: Match.objectLike({
         DefaultCacheBehavior: Match.objectLike({
@@ -52,6 +58,7 @@ describe('HanselStack [REQ-004]', () => {
         CacheBehaviors: Match.arrayWith([
           Match.objectLike({ PathPattern: 'api/*' }),
           Match.objectLike({ PathPattern: 'onboarding/about-you' }),
+          Match.objectLike({ PathPattern: 'onboarding/plan-selection' }),
         ]),
       }),
     });

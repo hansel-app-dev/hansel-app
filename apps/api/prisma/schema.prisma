@@ -28,6 +28,11 @@ enum VerificationPurpose {
   PASSWORD_RECOVERY
 }
 
+enum BillingInterval {
+  MONTHLY
+  ANNUAL
+}
+
 model User {
   id              String                  @id @default(uuid()) @db.Uuid
   email           String                  @unique
@@ -38,9 +43,27 @@ model User {
   journeys        OnboardingJourney[]
   memberships     Membership[]
   personalProfile PersonalProfile?
+  planSelection   OnboardingPlanSelection?
   continuation    OnboardingContinuation?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
+}
+
+model OnboardingPlanSelection {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @unique @db.Uuid
+  planId          String
+  priceId         String
+  billingInterval BillingInterval?
+  amountMinor     Int?
+  currency        String
+  paymentRequired Boolean
+  maximumSites    Int?
+  catalogVersion  String
+  selectedAt      DateTime
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model PersonalProfile {

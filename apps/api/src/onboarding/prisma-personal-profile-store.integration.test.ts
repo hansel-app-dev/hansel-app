@@ -21,6 +21,10 @@ const profile = {
   jobTitle: 'manager' as const,
   department: 'marketing_communications' as const,
 };
+const rotation = () => ({
+  nextCredentialDigest: `next-${randomUUID()}`,
+  nextCredentialExpiresAt: new Date(Date.now() + 60_000),
+});
 
 integration('PostgreSQL personal-profile transition [REQ-018, REQ-086]', () => {
   afterAll(async () => {
@@ -50,8 +54,8 @@ integration('PostgreSQL personal-profile transition [REQ-018, REQ-086]', () => {
     });
     const save = createPrismaPersonalProfileStore(prisma);
     const results = await Promise.all([
-      save({ credentialDigest, now: new Date(), profile }),
-      save({ credentialDigest, now: new Date(), profile }),
+      save({ credentialDigest, now: new Date(), profile, ...rotation() }),
+      save({ credentialDigest, now: new Date(), profile, ...rotation() }),
     ]);
     expect(results.sort()).toEqual([false, true]);
     await expect(
@@ -64,7 +68,7 @@ integration('PostgreSQL personal-profile transition [REQ-018, REQ-086]', () => {
     ).resolves.toBe(1);
     await expect(
       prisma.onboardingContinuation.count({ where: { userId: user.id } }),
-    ).resolves.toBe(0);
+    ).resolves.toBe(1);
   });
 
   it('rolls back every journey update when the invariant is violated [REQ-018]', async () => {
@@ -90,7 +94,7 @@ integration('PostgreSQL personal-profile transition [REQ-018, REQ-086]', () => {
     });
     const save = createPrismaPersonalProfileStore(prisma);
     await expect(
-      save({ credentialDigest, now: new Date(), profile }),
+      save({ credentialDigest, now: new Date(), profile, ...rotation() }),
     ).resolves.toBe(false);
     await expect(
       prisma.onboardingJourney.count({

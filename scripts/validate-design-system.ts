@@ -33,6 +33,7 @@ const styles = await read('apps/web/src/styles.css');
 const button = await read('apps/web/src/design-system/Button.tsx');
 const textField = await read('apps/web/src/design-system/TextField.tsx');
 const selectField = await read('apps/web/src/design-system/SelectField.tsx');
+const planCard = await read('apps/web/src/design-system/PlanCard.tsx');
 const publicInterface = await read('apps/web/src/design-system/index.ts');
 const storybookConfig = await read('apps/web/.storybook/main.ts');
 const storybookPreview = await read('apps/web/.storybook/preview.ts');
@@ -74,19 +75,22 @@ for (const exported of [
   'Button, type ButtonProps',
   'TextField, type TextFieldProps',
   'SelectField, type SelectFieldProps',
+  'PlanCard',
 ]) {
   if (!publicInterface.includes(exported)) {
     errors.push(`REQ-003: design-system interface must export ${exported}`);
   }
 }
 
-const designSystemSource = `${button}\n${textField}\n${selectField}\n${publicInterface}`;
-for (const nodeId of ['1:3', '131:549', '2019:2296']) {
+const designSystemSource = `${button}\n${textField}\n${selectField}\n${planCard}\n${publicInterface}`;
+for (const nodeId of ['1:3', '131:549', '2019:2296', '52:608']) {
   if (!designSystemSource.includes(nodeId)) {
     errors.push(`REQ-011: design-system source must cite Figma node ${nodeId}`);
   }
 }
-if (/#[\da-f]{3,8}/i.test(`${button}\n${textField}\n${selectField}`)) {
+if (
+  /#[\da-f]{3,8}/i.test(`${button}\n${textField}\n${selectField}\n${planCard}`)
+) {
   errors.push(
     'REQ-001: reusable design-system components must not contain raw color values',
   );
@@ -135,6 +139,19 @@ await Promise.all(
     'text-field-states.png',
     'select-field-states.png',
     'onboarding-about-you.png',
+    'plan-card-normal.png',
+    'plan-card-selected.png',
+    'plan-card-disabled.png',
+    'plan-card-free.png',
+    'plan-card-enterprise.png',
+    'onboarding-plan-selection.png',
+    'onboarding-plan-selection-narrow.png',
+    'onboarding-plan-selection-monthly.png',
+    'onboarding-plan-selection-selected.png',
+    'onboarding-plan-selection-free-selected.png',
+    'onboarding-plan-selection-enterprise-selected.png',
+    'onboarding-plan-selection-submitting-disabled.png',
+    'onboarding-plan-selection-load-failure.png',
   ].map((name) =>
     mustExist(`apps/web/design-system-e2e/__screenshots__/${name}`),
   ),
