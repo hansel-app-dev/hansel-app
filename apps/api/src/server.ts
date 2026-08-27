@@ -1,23 +1,25 @@
-import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { PrismaClient } from '@prisma/client';
+import { Resend } from 'resend';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createConsoleVerificationSender } from './onboarding/console-verification-sender.js';
 import { createAccountRegistration } from './onboarding/create-account.js';
 import { createPrismaPendingAccountStore } from './onboarding/prisma-account-store.js';
 import { createPrismaVerificationStore } from './onboarding/prisma-verification-store.js';
+import { createResendVerificationSender } from './onboarding/resend-verification-sender.js';
 import { createOnboardingSecurity } from './onboarding/security.js';
-import { createSesVerificationSender } from './onboarding/ses-verification-sender.js';
 import { createEmailVerification } from './onboarding/verify-email.js';
 
 const config = loadConfig();
 const prisma = new PrismaClient();
 const security = createOnboardingSecurity(config);
-let ses: SESv2Client | undefined;
 let sendVerificationCode: (email: string, code: string) => Promise<void>;
-if (config.emailDeliveryMode === 'ses') {
-  ses = new SESv2Client({ region: config.awsRegion });
-  sendVerificationCode = createSesVerificationSender(ses, config.sesFromEmail);
+if (config.emailDeliveryMode === 'resend') {
+  const resend = new Resend(config.resendApiKey);
+  sendVerificationCode = createResendVerificationSender(
+    resend,
+    config.resendFromEmail,
+  );
 } else {
   sendVerificationCode = createConsoleVerificationSender();
 }
@@ -55,7 +57,6 @@ function shutdown(signal: string): void {
   );
   server.close((error) => {
     void prisma.$disconnect().finally(() => {
-      ses?.destroy();
       process.exitCode = error ? 1 : 0;
     });
   });

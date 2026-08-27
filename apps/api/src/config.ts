@@ -8,7 +8,11 @@ interface BaseAppConfig {
 export type AppConfig = BaseAppConfig &
   (
     | { emailDeliveryMode: 'console' }
-    | { emailDeliveryMode: 'ses'; awsRegion: string; sesFromEmail: string }
+    | {
+        emailDeliveryMode: 'resend';
+        resendApiKey: string;
+        resendFromEmail: string;
+      }
   );
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
@@ -30,17 +34,17 @@ export function loadConfig(
     port: parsedPort,
     verificationDigestKey: required(environment, 'VERIFICATION_DIGEST_KEY'),
   };
-  const emailDeliveryMode = environment.EMAIL_DELIVERY_MODE ?? 'ses';
-  if (emailDeliveryMode !== 'console' && emailDeliveryMode !== 'ses') {
-    throw new Error('EMAIL_DELIVERY_MODE must be console or ses');
+  const emailDeliveryMode = environment.EMAIL_DELIVERY_MODE ?? 'resend';
+  if (emailDeliveryMode !== 'console' && emailDeliveryMode !== 'resend') {
+    throw new Error('EMAIL_DELIVERY_MODE must be console or resend');
   }
   if (emailDeliveryMode === 'console') {
     return { ...base, emailDeliveryMode: 'console' };
   }
   return {
     ...base,
-    emailDeliveryMode: 'ses',
-    awsRegion: required(environment, 'AWS_REGION'),
-    sesFromEmail: required(environment, 'SES_FROM_EMAIL'),
+    emailDeliveryMode: 'resend',
+    resendApiKey: required(environment, 'RESEND_API_KEY'),
+    resendFromEmail: required(environment, 'RESEND_FROM_EMAIL'),
   };
 }

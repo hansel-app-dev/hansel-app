@@ -5,8 +5,8 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   const required = {
     PASSWORD_PEPPER: 'password-pepper',
     VERIFICATION_DIGEST_KEY: 'verification-digest-key',
-    SES_FROM_EMAIL: 'no-reply@hanselapp.io',
-    AWS_REGION: 'ap-southeast-2',
+    RESEND_API_KEY: 're_test',
+    RESEND_FROM_EMAIL: 'Hansel <onboarding@hanselapp.io>',
   };
 
   it('uses safe network defaults with explicit security configuration', () => {
@@ -15,9 +15,9 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
-      sesFromEmail: 'no-reply@hanselapp.io',
-      awsRegion: 'ap-southeast-2',
-      emailDeliveryMode: 'ses',
+      resendApiKey: 're_test',
+      resendFromEmail: 'Hansel <onboarding@hanselapp.io>',
+      emailDeliveryMode: 'resend',
     });
   });
 
@@ -33,9 +33,9 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       port: 8080,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
-      sesFromEmail: 'no-reply@hanselapp.io',
-      awsRegion: 'ap-southeast-2',
-      emailDeliveryMode: 'ses',
+      resendApiKey: 're_test',
+      resendFromEmail: 'Hansel <onboarding@hanselapp.io>',
+      emailDeliveryMode: 'resend',
     });
   });
 
@@ -58,7 +58,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   it('rejects an unsupported email delivery mode', () => {
     expect(() =>
       loadConfig({ ...required, EMAIL_DELIVERY_MODE: 'unknown' }),
-    ).toThrow('EMAIL_DELIVERY_MODE must be console or ses');
+    ).toThrow('EMAIL_DELIVERY_MODE must be console or resend');
   });
 
   it.each(['0', '65536', '1.5', 'invalid'])(
@@ -73,8 +73,8 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   it.each([
     'PASSWORD_PEPPER',
     'VERIFICATION_DIGEST_KEY',
-    'SES_FROM_EMAIL',
-    'AWS_REGION',
+    'RESEND_API_KEY',
+    'RESEND_FROM_EMAIL',
   ])('rejects missing %s', (name) => {
     expect(() => loadConfig({ ...required, [name]: '' })).toThrow(
       `${name} is required`,

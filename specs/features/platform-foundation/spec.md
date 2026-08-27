@@ -28,7 +28,7 @@ Every product change is traceable to an approved specification and CI rejects in
 - REQ-005: CI/CD MUST authenticate to AWS through GitHub OIDC and use protected deployment environments.
 - REQ-006: The root web route MUST render only the word `Hansel` as a centered level-one heading within the main landmark. It MUST NOT show marketing copy, navigation, or API health status.
 - REQ-007: Every environment MUST expose application HTTP routes beneath `/api`; the health endpoint MUST be `GET /api/health`. Local web development MUST proxy `/api` requests from the Vite origin to the Express origin so browser code uses the same relative route contract as CloudFront in deployed environments.
-- REQ-008: The API development command MUST load a gitignored root `.env.local` file when present, and the repository MUST provide a non-secret `.env.local.example`. Local development MUST use an explicit `console` verification-email adapter that writes the recipient and verification code to the API process output without contacting AWS. Staging and production MUST use the SES adapter and MUST reject unsupported delivery modes. Secrets and usable credentials MUST NOT be committed.
+- REQ-008: The API development command MUST load a gitignored root `.env.local` file when present, and the repository MUST provide a non-secret `.env.local.example`. `EMAIL_DELIVERY_MODE=console` MUST remain available for deterministic development and tests without external delivery. `EMAIL_DELIVERY_MODE=resend` MUST send transactional verification email through the official Resend Node.js SDK using `RESEND_API_KEY` and `RESEND_FROM_EMAIL`; it is the required staging and production adapter and MAY be selected locally when explicitly configured. Unsupported delivery modes and missing Resend configuration MUST be rejected. Secrets and usable credentials MUST NOT be committed.
 
 ## Acceptance scenarios
 
@@ -62,7 +62,7 @@ Every product change is traceable to an approved specification and CI rejects in
 - When a browser requests `GET /api/health` through the Vite origin
 - Then Vite proxies the request to Express and returns the specified healthy response without CORS configuration or an absolute frontend API URL
 - When onboarding sends a verification email in `console` mode
-- Then the API process outputs the recipient and code locally without constructing or calling an SES client
+- Then the API process outputs the recipient and code locally without constructing or calling a Resend client
 
 ## UX and accessibility
 
