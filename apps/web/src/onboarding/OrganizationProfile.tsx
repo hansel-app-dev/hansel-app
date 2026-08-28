@@ -60,7 +60,14 @@ export function OrganizationProfile({
     void loadProfile()
       .then((result) => {
         setState(result);
-        reset((values) => ({ ...values, submissionKey: result.submissionKey }));
+        reset({
+          organizationName: result.profile?.organizationName ?? '',
+          country: result.profile?.country ?? '',
+          industry: result.profile?.industry ?? '',
+          placeService: result.profile?.placeService ?? '',
+          organizationSize: result.profile?.organizationSize ?? '',
+          submissionKey: result.submissionKey,
+        });
       })
       .catch(() => {
         setServerError(
@@ -69,13 +76,15 @@ export function OrganizationProfile({
       });
   }, [loadProfile, reset]);
   const industry = watch('industry');
+  const placeService = watch('placeService');
   const places = useMemo(
     () => state?.placesByIndustry[industry] ?? [],
     [industry, state],
   );
   useEffect(() => {
-    setValue('placeService', '');
-  }, [industry, setValue]);
+    if (placeService && !places.some(({ id }) => id === placeService))
+      setValue('placeService', '');
+  }, [placeService, places, setValue]);
   return (
     <main className="min-h-screen bg-canvas p-8 text-content max-sm:p-5">
       <a href="/" aria-label="Hansel home">

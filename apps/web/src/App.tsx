@@ -9,6 +9,8 @@ import {
   selectOnboardingPlan,
   loadOrganizationProfile,
   submitOrganizationProfile,
+  loadDiscovery,
+  completeDiscovery,
   OnboardingSessionExpiredError,
 } from './api.js';
 import { AboutYou } from './onboarding/AboutYou.js';
@@ -16,6 +18,7 @@ import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
 import { PlanSelection } from './onboarding/PlanSelection.js';
 import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
+import { Discovery } from './onboarding/Discovery.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -142,6 +145,22 @@ export function App({
         submitProfile={(input) => submitOrganizationProfile(input, apiUrl)}
         onCompleted={() => {
           navigate('/onboarding/discovery');
+        }}
+      />
+    );
+  }
+  if (currentPath === '/onboarding/discovery') {
+    return (
+      <Discovery
+        loadDiscovery={() => loadDiscovery(apiUrl).catch(handleSessionExpiry)}
+        completeDiscovery={(input) =>
+          completeDiscovery(input, apiUrl).catch(handleSessionExpiry)
+        }
+        onBack={() => {
+          navigate('/onboarding/organization-profile');
+        }}
+        onCompleted={(result) => {
+          openExternal(result.destination);
         }}
       />
     );

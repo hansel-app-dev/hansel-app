@@ -149,6 +149,37 @@ describe('OrganizationProfile [onboarding-organization-profile REQ-001..REQ-019]
     expect(screen.getByLabelText('Type of place or service')).toHaveValue('');
   });
 
+  it('restores accepted values when returning from discovery [onboarding-discovery REQ-012]', async () => {
+    render(
+      <OrganizationProfile
+        loadProfile={() =>
+          Promise.resolve({
+            ...page,
+            profile: {
+              organizationName: 'Hansel',
+              country: 'AU',
+              industry: 'healthcare',
+              placeService: 'clinics',
+              organizationSize: 'employees_11_50',
+            },
+          })
+        }
+        submitProfile={vi.fn()}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText('Organization')).toHaveValue('Hansel'),
+    );
+    expect(screen.getByLabelText('Country')).toHaveValue('AU');
+    expect(screen.getByLabelText('Industry or sector')).toHaveValue(
+      'healthcare',
+    );
+    expect(screen.getByLabelText('Type of place or service')).toHaveValue(
+      'clinics',
+    );
+    expect(screen.getByLabelText('Size')).toHaveValue('employees_11_50');
+  });
+
   it('announces load and submit failures and disables while submitting', async () => {
     const deferred = new Promise<never>(() => undefined);
     const view = render(

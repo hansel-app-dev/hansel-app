@@ -2,8 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { seedPlanSelectionJourney } from '../apps/api/e2e-support/plan-selection.js';
 import { seedOrganizationProfileJourney } from '../apps/api/e2e-support/organization-profile.js';
+import { seedDiscoveryJourney } from '../apps/api/e2e-support/discovery.js';
 import {
   countryOptions,
+  discoveryManagementOptions,
   industryOptions,
   organizationSizeOptions,
   placeServiceOptions,
@@ -50,11 +52,16 @@ const organizationPage = {
   placesByIndustry: placeServiceOptions,
   sizes: organizationSizeOptions,
 };
+const discoveryPage = {
+  submissionKey: 'd'.repeat(43),
+  methods: discoveryManagementOptions,
+};
 
 async function enterPlanSelection(
   page: Page,
   profile: Record<string, string> | null = null,
 ) {
+  await page.context().clearCookies();
   await page.route('**/api/onboarding/email-verification/verify', (route) =>
     route.fulfill({
       status: 200,
@@ -148,6 +155,13 @@ test('verification requires a deliberate six-digit submission and supports resen
         body: JSON.stringify({ status: 'accepted' }),
       });
     },
+  );
+  await page.route('**/api/onboarding/personal-profile', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ profile: null }),
+    }),
   );
   await page.goto('/onboarding/verify-email');
   await expect(
@@ -345,43 +359,127 @@ test('organization profile follows Figma, filters choices, validates, and advanc
   });
 });
 
-test('personal profile remains functional without JavaScript [REQ-054, REQ-086, REQ-087]', async ({
-  browser,
+test('discovery follows Figma, validates conditional Other, restores organization details, and completes [onboarding-discovery REQ-001..REQ-017]', async ({
+  page,
 }) => {
-  const context = await browser.newContext({
-    baseURL: 'http://127.0.0.1:5173',
-    javaScriptEnabled: false,
-  });
-  const page = await context.newPage();
-  await page.route('**/api/onboarding/personal-profile', async (route) => {
-    const body = new URLSearchParams(route.request().postData() ?? '');
-    if (body.get('jobTitle') === 'other' && !body.get('jobTitleOther')) {
-      await route.continue();
+  let submitted: unknown;
+  await page.route('**/api/onboarding/discovery', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(discoveryPage),
+      });
       return;
     }
+    submitted = route.request().postDataJSON();
     await route.fulfill({
-      status: 303,
-      headers: { location: '/onboarding/plan-selection' },
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        nextStep: 'dashboard',
+        destination: '/dashboard',
+      }),
     });
   });
-  await page.goto('/onboarding/about-you');
+  await page.route('**/api/onboarding/organization-profile', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...organizationPage,
+        profile: {
+          organizationName: 'Hansel saved',
+          country: 'AU',
+          industry: 'healthcare',
+          placeService: 'clinics',
+          organizationSize: 'employees_11_50',
+        },
+      }),
+    }),
+  );
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/onboarding/discovery');
+  await page.evaluate(() => {
+    document.cookie = 'hansel_onboarding_csrf=proof; SameSite=Strict';
+  });
   await expect(
-    page.getByRole('heading', { name: 'Tell us about you' }),
+    page.getByRole('heading', { name: 'Could you tell us more?' }),
   ).toBeVisible();
-  await page.getByLabel('First name').fill('Nabin');
-  await page.getByLabel('Last name').fill('Singh');
-  await page.getByLabel('Job title', { exact: true }).selectOption('other');
-  await expect(page.getByLabel('Other job title')).toBeVisible();
+  const management = page.getByLabel(
+    'How do you manage your signage currently?',
+  );
+  await expect(management).toHaveValue('');
+  await expect(management.getByRole('option')).toHaveText([
+    'Select',
+    'PDF',
+    'Spreadsheet',
+    'Other',
+  ]);
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(management).toBeFocused();
+  await management.selectOption('other');
+  await page.getByLabel('Other tools').fill('Custom CMS');
+  await management.selectOption('spreadsheet');
+  await expect(page.getByLabel('Other tools')).toHaveCount(0);
+  await page.getByLabel('Biggest challenges your team faces').fill('Updates');
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    320,
+  );
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/organization-profile$/);
+  await expect(page.getByRole('textbox', { name: 'Organization' })).toHaveValue(
+    'Hansel saved',
+  );
+  await page.goto('/onboarding/discovery');
+  await management.selectOption('spreadsheet');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  expect(submitted).toEqual({
+    action: 'submit',
+    currentManagement: 'spreadsheet',
+    submissionKey: discoveryPage.submissionKey,
+  });
+});
+
+test('discovery skip ignores visible answers [onboarding-discovery REQ-005, REQ-010]', async ({
+  page,
+}) => {
+  let submitted: unknown;
+  await page.route('**/api/onboarding/discovery', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(discoveryPage),
+      });
+      return;
+    }
+    submitted = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        nextStep: 'dashboard',
+        destination: '/dashboard',
+      }),
+    });
+  });
+  await page.goto('/onboarding/discovery');
+  await page.evaluate(() => {
+    document.cookie = 'hansel_onboarding_csrf=proof; SameSite=Strict';
+  });
   await page
-    .getByLabel('Department', { exact: true })
-    .selectOption('marketing_communications');
-  await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByLabel('First name')).toHaveValue('Nabin');
-  await expect(page.getByLabel('Other job title')).toHaveAttribute('required');
-  await page.getByLabel('Other job title').fill('Founder');
-  await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page).toHaveURL(/\/onboarding\/plan-selection$/);
-  await context.close();
+    .getByLabel('How do you manage your signage currently?')
+    .selectOption('pdf');
+  await page.getByLabel('Biggest challenges your team faces').fill('Ignored');
+  await page.getByRole('button', { name: 'Skip for now' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  expect(submitted).toEqual({
+    action: 'skip',
+    submissionKey: discoveryPage.submissionKey,
+  });
 });
 
 test('paid and Enterprise plan outcomes are server-authored [onboarding-plan-selection REQ-006, REQ-008]', async ({
@@ -636,6 +734,59 @@ test('organization profile remains functional without JavaScript and persists th
   expect((await submission.allHeaders()).origin).toBe('null');
   await expect(page).toHaveURL(/\/onboarding\/discovery$/);
   await expect.poll(assertPersisted).toBe('Hansel E2E');
+  await context.close();
+  await disconnect();
+});
+
+test('discovery remains functional without JavaScript and completes through PostgreSQL [onboarding-discovery REQ-008, REQ-011, REQ-017]', async ({
+  browser,
+}) => {
+  const { baseUrl, credential, csrfProof, assertPersisted, disconnect } =
+    await seedDiscoveryJourney();
+  const context = await browser.newContext({
+    baseURL: baseUrl,
+    javaScriptEnabled: false,
+  });
+  await context.addCookies([
+    {
+      name: 'hansel_onboarding',
+      value: credential,
+      domain: '127.0.0.1',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+    {
+      name: 'hansel_onboarding_csrf',
+      value: csrfProof,
+      domain: '127.0.0.1',
+      path: '/',
+      sameSite: 'Strict',
+    },
+  ]);
+  const page = await context.newPage();
+  await page.goto('/onboarding/discovery');
+  await page
+    .getByLabel('How do you manage your signage currently?')
+    .selectOption('pdf');
+  await page
+    .getByLabel('Biggest challenges your team faces')
+    .fill('Content updates');
+  const [submission] = await Promise.all([
+    page.waitForRequest('**/api/onboarding/discovery'),
+    page.getByRole('button', { name: 'Next' }).click(),
+  ]);
+  expect((await submission.allHeaders()).origin).toBe('null');
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect.poll(assertPersisted).toMatchObject({
+    currentStep: 'COMPLETE',
+    discoveryResponse: {
+      outcome: 'submitted',
+      currentManagement: 'pdf',
+      currentManagementOther: null,
+      challenges: 'Content updates',
+    },
+  });
   await context.close();
   await disconnect();
 });

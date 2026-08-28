@@ -328,14 +328,13 @@ const allPlaceIds = Object.values(placeServiceOptions)
   .flat()
   .map(({ id }) => id) as [string, ...string[]];
 
-export const organizationProfileRequestSchema = z
+export const organizationProfileValuesSchema = z
   .object({
     organizationName: organizationNameSchema,
     country: z.enum(countryIds),
     industry: z.enum(industryIds),
     placeService: z.enum(allPlaceIds),
     organizationSize: z.enum(sizeIds),
-    submissionKey: z.string().min(32).max(200),
   })
   .strict()
   .superRefine((input, context) => {
@@ -348,6 +347,10 @@ export const organizationProfileRequestSchema = z
         path: ['placeService'],
         message: 'Place or service does not belong to industry',
       });
+  });
+export const organizationProfileRequestSchema =
+  organizationProfileValuesSchema.safeExtend({
+    submissionKey: z.string().min(32).max(200),
   });
 export type OrganizationProfileRequest = z.infer<
   typeof organizationProfileRequestSchema
@@ -363,6 +366,7 @@ export const organizationProfilePageResponseSchema = z
     industries: z.array(optionSchema).length(industryOptions.length),
     placesByIndustry: z.record(z.string(), z.array(optionSchema).min(1)),
     sizes: z.array(optionSchema).length(organizationSizeOptions.length),
+    profile: organizationProfileValuesSchema.optional(),
   })
   .strict();
 export type OrganizationProfilePageResponse = z.infer<
@@ -374,3 +378,81 @@ export const organizationProfileResponseSchema = z
 export type OrganizationProfileResponse = z.infer<
   typeof organizationProfileResponseSchema
 >;
+
+export const discoveryManagementOptions = [
+  { id: 'pdf', label: 'PDF' },
+  { id: 'spreadsheet', label: 'Spreadsheet' },
+  { id: 'other', label: 'Other' },
+] as const;
+const discoveryManagementIds = discoveryManagementOptions.map(
+  ({ id }) => id,
+) as [
+  (typeof discoveryManagementOptions)[number]['id'],
+  ...(typeof discoveryManagementOptions)[number]['id'][],
+];
+const normalizedDiscoveryText = (maximum: number) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => value.normalize('NFC'))
+    .pipe(
+      z
+        .string()
+        .min(1)
+        .refine((value) => Array.from(value).length <= maximum),
+    );
+const optionalChallengesSchema = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  normalizedDiscoveryText(1_000).optional(),
+);
+const discoverySubmitRequestSchema = z
+  .object({
+    action: z.literal('submit'),
+    currentManagement: z.enum(discoveryManagementIds),
+    currentManagementOther: normalizedDiscoveryText(100).optional(),
+    challenges: optionalChallengesSchema,
+    submissionKey: z.string().min(32).max(200),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    if (
+      (input.currentManagement === 'other') !==
+      Boolean(input.currentManagementOther)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Invalid currentManagementOther',
+        path: ['currentManagementOther'],
+      });
+  })
+  .transform(({ challenges, ...input }) =>
+    challenges === undefined ? input : { ...input, challenges },
+  );
+const discoverySkipRequestSchema = z
+  .object({
+    action: z.literal('skip'),
+    submissionKey: z.string().min(32).max(200),
+  })
+  .strict();
+export const discoveryRequestSchema = z.discriminatedUnion('action', [
+  discoverySubmitRequestSchema,
+  discoverySkipRequestSchema,
+]);
+export type DiscoveryRequest = z.infer<typeof discoveryRequestSchema>;
+
+export const discoveryPageResponseSchema = z
+  .object({
+    submissionKey: z.string().min(32).max(200),
+    methods: z.array(optionSchema).length(discoveryManagementOptions.length),
+  })
+  .strict();
+export type DiscoveryPageResponse = z.infer<typeof discoveryPageResponseSchema>;
+
+export const discoveryResponseSchema = z
+  .object({
+    nextStep: z.literal('dashboard'),
+    destination: z.literal('/dashboard'),
+  })
+  .strict();
+export type DiscoveryResponse = z.infer<typeof discoveryResponseSchema>;

@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   countryOptions,
   departmentOptions,
+  discoveryManagementOptions,
+  discoveryPageResponseSchema,
+  discoveryRequestSchema,
+  discoveryResponseSchema,
   jobTitleOptions,
   personalProfileRequestSchema,
   personalProfilePageResponseSchema,
@@ -23,6 +27,107 @@ import {
   verifyOnboardingEmailRequestSchema,
   verifyOnboardingEmailResponseSchema,
 } from './index.js';
+
+describe('discovery contract [onboarding-discovery REQ-002..REQ-010, REQ-017]', () => {
+  const submissionKey = 'x'.repeat(43);
+
+  it('publishes the approved methods and normalizes submitted answers', () => {
+    expect(discoveryManagementOptions).toEqual([
+      { id: 'pdf', label: 'PDF' },
+      { id: 'spreadsheet', label: 'Spreadsheet' },
+      { id: 'other', label: 'Other' },
+    ]);
+    expect(
+      discoveryRequestSchema.parse({
+        action: 'submit',
+        currentManagement: 'other',
+        currentManagementOther: '  Signag\u0065\u0301 platform  ',
+        challenges: '   ',
+        submissionKey,
+      }),
+    ).toEqual({
+      action: 'submit',
+      currentManagement: 'other',
+      currentManagementOther: 'Signagé platform',
+      submissionKey,
+    });
+    expect(
+      discoveryRequestSchema.parse({
+        action: 'submit',
+        currentManagement: 'pdf',
+        challenges: '  Version control  ',
+        submissionKey,
+      }),
+    ).toEqual({
+      action: 'submit',
+      currentManagement: 'pdf',
+      challenges: 'Version control',
+      submissionKey,
+    });
+  });
+
+  it('accepts a strict skip and server-owned dashboard response', () => {
+    expect(
+      discoveryRequestSchema.parse({ action: 'skip', submissionKey }),
+    ).toEqual({ action: 'skip', submissionKey });
+    expect(
+      discoveryPageResponseSchema.parse({
+        submissionKey,
+        methods: discoveryManagementOptions,
+      }),
+    ).toEqual({ submissionKey, methods: discoveryManagementOptions });
+    expect(
+      discoveryResponseSchema.parse({
+        nextStep: 'dashboard',
+        destination: '/dashboard',
+      }),
+    ).toEqual({ nextStep: 'dashboard', destination: '/dashboard' });
+  });
+
+  it.each([
+    [
+      'missing Other explanation',
+      { action: 'submit', currentManagement: 'other', submissionKey },
+    ],
+    [
+      'unexpected Other explanation',
+      {
+        action: 'submit',
+        currentManagement: 'pdf',
+        currentManagementOther: 'Tool',
+        submissionKey,
+      },
+    ],
+    [
+      'overlong Other explanation',
+      {
+        action: 'submit',
+        currentManagement: 'other',
+        currentManagementOther: '😀'.repeat(101),
+        submissionKey,
+      },
+    ],
+    [
+      'overlong challenges',
+      {
+        action: 'submit',
+        currentManagement: 'pdf',
+        challenges: '😀'.repeat(1001),
+        submissionKey,
+      },
+    ],
+    [
+      'answers on skip',
+      {
+        action: 'skip',
+        currentManagement: 'pdf',
+        submissionKey,
+      },
+    ],
+  ])('rejects %s', (_name, input) => {
+    expect(() => discoveryRequestSchema.parse(input)).toThrow();
+  });
+});
 
 describe('organization profile contract [onboarding-organization-profile REQ-002..REQ-006, REQ-011, REQ-016]', () => {
   it('publishes complete stable catalogs and validates dependent choices', () => {
@@ -71,6 +176,24 @@ describe('organization profile contract [onboarding-organization-profile REQ-002
       sizes: organizationSizeOptions,
     };
     expect(organizationProfilePageResponseSchema.parse(page)).toEqual(page);
+    expect(
+      organizationProfilePageResponseSchema.parse({
+        ...page,
+        profile: {
+          organizationName: 'Hansel',
+          country: 'AU',
+          industry: 'healthcare',
+          placeService: 'clinics',
+          organizationSize: 'employees_11_50',
+        },
+      }).profile,
+    ).toEqual({
+      organizationName: 'Hansel',
+      country: 'AU',
+      industry: 'healthcare',
+      placeService: 'clinics',
+      organizationSize: 'employees_11_50',
+    });
     expect(
       organizationProfileResponseSchema.parse({ nextStep: 'discovery' }),
     ).toEqual({ nextStep: 'discovery' });

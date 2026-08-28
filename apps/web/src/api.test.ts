@@ -11,13 +11,90 @@ import {
   loadOrganizationProfile,
   OnboardingSessionExpiredError,
   submitOrganizationProfile,
+  loadDiscovery,
+  completeDiscovery,
 } from './api.js';
 import {
   countryOptions,
+  discoveryManagementOptions,
   industryOptions,
   organizationSizeOptions,
   placeServiceOptions,
 } from '@hansel/contracts';
+
+describe('discovery API [onboarding-discovery REQ-006, REQ-007, REQ-010, REQ-013]', () => {
+  const page = {
+    submissionKey: 'x'.repeat(43),
+    methods: [...discoveryManagementOptions],
+  };
+  const input = {
+    action: 'submit' as const,
+    currentManagement: 'pdf' as const,
+    challenges: 'Version control',
+    submissionKey: page.submissionKey,
+  };
+
+  it('loads and completes with credentials and CSRF', async () => {
+    document.cookie = 'hansel_onboarding_csrf=proof%20value';
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(page), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            nextStep: 'dashboard',
+            destination: '/dashboard',
+          }),
+          { status: 200 },
+        ),
+      );
+    await expect(loadDiscovery('', fetcher)).resolves.toEqual(page);
+    await expect(completeDiscovery(input, '', fetcher)).resolves.toEqual({
+      nextStep: 'dashboard',
+      destination: '/dashboard',
+    });
+    expect(fetcher).toHaveBeenLastCalledWith('/api/onboarding/discovery', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        'x-hansel-csrf': 'proof value',
+      },
+      body: JSON.stringify(input),
+    });
+  });
+
+  it('maps load, completion, missing-CSRF, and expired-session failures', async () => {
+    const failed = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+    await expect(loadDiscovery('', failed)).rejects.toThrow(
+      'discovery_load_failed',
+    );
+    document.cookie = 'hansel_onboarding_csrf=proof';
+    await expect(completeDiscovery(input, '', failed)).rejects.toThrow(
+      'discovery_failed',
+    );
+    document.cookie = 'hansel_onboarding_csrf=; Max-Age=0';
+    const unused = vi.fn<typeof fetch>();
+    await expect(completeDiscovery(input, '', unused)).rejects.toBeInstanceOf(
+      OnboardingSessionExpiredError,
+    );
+    expect(unused).not.toHaveBeenCalled();
+    const expired = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    await expect(loadDiscovery('', expired)).rejects.toBeInstanceOf(
+      OnboardingSessionExpiredError,
+    );
+    document.cookie = 'hansel_onboarding_csrf=proof';
+    await expect(completeDiscovery(input, '', expired)).rejects.toBeInstanceOf(
+      OnboardingSessionExpiredError,
+    );
+  });
+});
 
 describe('personal profile API [REQ-011, REQ-014]', () => {
   it('loads the accepted profile with credentials', async () => {

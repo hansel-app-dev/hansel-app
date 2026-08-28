@@ -1,6 +1,7 @@
 interface BaseAppConfig {
   allowedOrigin: string;
   contactSalesDestination: string;
+  discoveryEnabled: boolean;
   runtimeEnvironment: 'test' | 'production';
   planSelectionEnabled: boolean;
   organizationProfileEnabled: boolean;
@@ -39,6 +40,10 @@ export function loadConfig(
     contactSalesDestination:
       environment.CONTACT_SALES_DESTINATION ??
       'https://www.hanselapp.io/contact',
+    discoveryEnabled:
+      environment.DISCOVERY_ENABLED === 'true' ||
+      (environment.DISCOVERY_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
     runtimeEnvironment,
     planSelectionEnabled:
       environment.PLAN_SELECTION_ENABLED === 'true' ||

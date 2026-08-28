@@ -1,5 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
-import type { OrganizationProfileRequest } from '@hansel/contracts';
+import {
+  organizationProfileValuesSchema,
+  type OrganizationProfileRequest,
+} from '@hansel/contracts';
 
 type SaveResult =
   'created' | 'replay-initial' | 'replay-current' | 'conflict' | 'rejected';
@@ -12,7 +15,12 @@ export function createPrismaOrganizationProfileStore(prisma: PrismaClient) {
       submissionKeyDigest: string;
       now: Date;
       expiresAt: Date;
-    }): Promise<boolean> {
+    }): Promise<
+      | boolean
+      | {
+          profile: Omit<OrganizationProfileRequest, 'submissionKey'>;
+        }
+    > {
       try {
         return await prisma.$transaction(async (transaction) => {
           const continuation =
@@ -26,11 +34,34 @@ export function createPrismaOrganizationProfileStore(prisma: PrismaClient) {
             where: {
               userId: continuation.userId,
               entryPath: 'NEW_ORGANIZATION',
-              currentStep: 'ORGANIZATION_PROFILE',
-              tenantId: null,
               user: { planSelection: { isNot: null } },
+              completedAt: null,
+              OR: [
+                { currentStep: 'ORGANIZATION_PROFILE', tenantId: null },
+                {
+                  currentStep: 'DISCOVERY',
+                  tenant: {
+                    memberships: {
+                      some: { userId: continuation.userId, roleId: 'owner' },
+                    },
+                  },
+                },
+              ],
             },
-            select: { id: true },
+            select: {
+              id: true,
+              currentStep: true,
+              tenantId: true,
+              tenant: {
+                select: {
+                  name: true,
+                  country: true,
+                  industry: true,
+                  placeService: true,
+                  organizationSize: true,
+                },
+              },
+            },
           });
           if (!journey) throw new Rejected();
           await transaction.organizationProfileSubmission.upsert({
@@ -51,7 +82,17 @@ export function createPrismaOrganizationProfileStore(prisma: PrismaClient) {
               expiresAt: input.expiresAt,
             },
           });
-          return true;
+          return journey.currentStep === 'DISCOVERY' && journey.tenant
+            ? {
+                profile: organizationProfileValuesSchema.parse({
+                  organizationName: journey.tenant.name,
+                  country: journey.tenant.country,
+                  industry: journey.tenant.industry,
+                  placeService: journey.tenant.placeService,
+                  organizationSize: journey.tenant.organizationSize,
+                }),
+              }
+            : true;
         });
       } catch (error) {
         if (error instanceof Rejected) return false;
@@ -101,34 +142,68 @@ export function createPrismaOrganizationProfileStore(prisma: PrismaClient) {
             });
           if (!continuation || continuation.expiresAt <= input.now)
             throw new Rejected();
-          const transition = await transaction.onboardingJourney.updateMany({
-            where: {
-              id: submission.journeyId,
-              userId: continuation.userId,
-              entryPath: 'NEW_ORGANIZATION',
-              currentStep: 'ORGANIZATION_PROFILE',
-              tenantId: null,
-            },
-            data: { currentStep: 'DISCOVERY' },
-          });
-          if (transition.count !== 1) throw new Rejected();
-          const tenant = await transaction.tenant.create({
-            data: {
-              name: input.profile.organizationName,
-              country: input.profile.country,
-              industry: input.profile.industry,
-              placeService: input.profile.placeService,
-              organizationSize: input.profile.organizationSize,
-              memberships: {
-                create: { userId: continuation.userId, roleId: 'owner' },
-              },
-            },
-            select: { id: true },
-          });
-          await transaction.onboardingJourney.update({
+          const journey = await transaction.onboardingJourney.findUnique({
             where: { id: submission.journeyId },
-            data: { tenantId: tenant.id },
+            select: { currentStep: true, tenantId: true },
           });
+          if (!journey) throw new Rejected();
+          if (journey.currentStep === 'ORGANIZATION_PROFILE') {
+            const transition = await transaction.onboardingJourney.updateMany({
+              where: {
+                id: submission.journeyId,
+                userId: continuation.userId,
+                entryPath: 'NEW_ORGANIZATION',
+                currentStep: 'ORGANIZATION_PROFILE',
+                tenantId: null,
+              },
+              data: { currentStep: 'DISCOVERY' },
+            });
+            if (transition.count !== 1) throw new Rejected();
+            const tenant = await transaction.tenant.create({
+              data: {
+                name: input.profile.organizationName,
+                country: input.profile.country,
+                industry: input.profile.industry,
+                placeService: input.profile.placeService,
+                organizationSize: input.profile.organizationSize,
+                memberships: {
+                  create: { userId: continuation.userId, roleId: 'owner' },
+                },
+              },
+              select: { id: true },
+            });
+            await transaction.onboardingJourney.update({
+              where: { id: submission.journeyId },
+              data: { tenantId: tenant.id },
+            });
+          } else if (journey.currentStep === 'DISCOVERY' && journey.tenantId) {
+            const transition = await transaction.onboardingJourney.updateMany({
+              where: {
+                id: submission.journeyId,
+                userId: continuation.userId,
+                entryPath: 'NEW_ORGANIZATION',
+                currentStep: 'DISCOVERY',
+                tenantId: journey.tenantId,
+                tenant: {
+                  memberships: {
+                    some: { userId: continuation.userId, roleId: 'owner' },
+                  },
+                },
+              },
+              data: { currentStep: 'DISCOVERY' },
+            });
+            if (transition.count !== 1) throw new Rejected();
+            await transaction.tenant.update({
+              where: { id: journey.tenantId },
+              data: {
+                name: input.profile.organizationName,
+                country: input.profile.country,
+                industry: input.profile.industry,
+                placeService: input.profile.placeService,
+                organizationSize: input.profile.organizationSize,
+              },
+            });
+          } else throw new Rejected();
           await transaction.organizationProfileSubmission.update({
             where: { journeyId: submission.journeyId },
             data: {

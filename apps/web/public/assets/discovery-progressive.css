@@ -1,0 +1,100 @@
+@font-face {
+  font-family: Figtree;
+  src: url('/assets/figtree-latin-wght-normal.woff2');
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #fff;
+  color: #262626;
+  font-family: Figtree, Arial, sans-serif;
+}
+main {
+  min-height: 100vh;
+  padding: 32px;
+}
+.logo {
+  width: auto;
+  height: 20px;
+}
+section {
+  width: 350px;
+  max-width: 100%;
+  margin: 310px auto 100px;
+}
+h1 {
+  margin: 0 0 28px;
+  font-size: 24px;
+  font-weight: 400;
+}
+.error {
+  color: #b42318;
+}
+form {
+  display: grid;
+  gap: 10px;
+}
+label {
+  font-size: 14px;
+}
+input,
+select,
+button,
+.back {
+  min-height: 40px;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+input,
+select {
+  width: 100%;
+  padding: 8px 12px;
+}
+.other {
+  display: grid;
+  gap: 8px;
+}
+.back,
+.actions {
+  position: fixed;
+  bottom: 56px;
+}
+.back {
+  left: 56px;
+  padding: 9px 16px;
+  text-decoration: none;
+}
+.actions {
+  right: 56px;
+  display: flex;
+  gap: 16px;
+}
+button {
+  padding: 9px 16px;
+  cursor: pointer;
+}
+button[value='submit'] {
+  border-color: #4f5968;
+  background: #4f5968;
+  color: #fff;
+}
+@media (max-width: 480px) {
+  main {
+    padding: 20px;
+  }
+  section {
+    margin-top: 64px;
+  }
+  .back,
+  .actions {
+    position: static;
+  }
+  .actions {
+    display: grid;
+  }
+}

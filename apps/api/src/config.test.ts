@@ -13,6 +13,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     expect(loadConfig(required)).toEqual({
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
+      discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
       organizationProfileEnabled: true,
@@ -35,6 +36,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     ).toEqual({
       allowedOrigin: 'https://hansel.example',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
+      discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
       organizationProfileEnabled: true,
@@ -50,6 +52,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   it('identifies the production runtime [onboarding-plan-selection REQ-018]', () => {
     expect(loadConfig({ ...required, NODE_ENV: 'production' })).toMatchObject({
       runtimeEnvironment: 'production',
+      discoveryEnabled: false,
       planSelectionEnabled: false,
       organizationProfileEnabled: false,
     });
@@ -67,6 +70,13 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
         ORGANIZATION_PROFILE_ENABLED: 'true',
       }).organizationProfileEnabled,
     ).toBe(true);
+    expect(
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        DISCOVERY_ENABLED: 'true',
+      }).discoveryEnabled,
+    ).toBe(true);
   });
 
   it('supports local console email without AWS email configuration', () => {
@@ -79,6 +89,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     ).toEqual({
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
+      discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
       organizationProfileEnabled: true,

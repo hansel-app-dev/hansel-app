@@ -13,6 +13,7 @@ import {
   industryOptions,
   organizationSizeOptions,
   placeServiceOptions,
+  discoveryManagementOptions,
 } from '@hansel/contracts';
 
 const planFixture = (
@@ -70,9 +71,98 @@ afterEach(() => {
   vi.useRealTimers();
   window.sessionStorage.clear();
   document.cookie = 'hansel_onboarding_csrf=; Max-Age=0; path=/';
+  window.history.replaceState({}, '', '/');
 });
 
 describe('App [REQ-002]', () => {
+  it('renders discovery and follows only the server-owned dashboard destination [onboarding-discovery REQ-001, REQ-010]', async () => {
+    document.cookie = 'hansel_onboarding_csrf=proof; path=/';
+    const openExternal = vi.fn();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              submissionKey: 'x'.repeat(43),
+              methods: discoveryManagementOptions,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              nextStep: 'dashboard',
+              destination: '/dashboard',
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+    render(<App path="/onboarding/discovery" openExternal={openExternal} />);
+    fireEvent.change(
+      await screen.findByLabelText('How do you manage your signage currently?'),
+      { target: { value: 'pdf' } },
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(openExternal).toHaveBeenCalledWith('/dashboard');
+    });
+  });
+
+  it('returns from discovery to the saved organization profile [onboarding-discovery REQ-012]', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              submissionKey: 'x'.repeat(43),
+              methods: discoveryManagementOptions,
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              submissionKey: 'o'.repeat(43),
+              countries: countryOptions,
+              industries: industryOptions,
+              placesByIndustry: placeServiceOptions,
+              sizes: organizationSizeOptions,
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+    window.history.replaceState({}, '', '/onboarding/discovery');
+    render(<App />);
+    await screen.findByLabelText('How do you manage your signage currently?');
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(window.location.pathname).toBe('/onboarding/organization-profile');
+  });
+
+  it('returns an expired discovery session to onboarding [onboarding-discovery REQ-013]', async () => {
+    window.history.replaceState({}, '', '/onboarding/discovery');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'onboarding_session_expired' }), {
+          status: 401,
+        }),
+      ),
+    );
+    render(<App />);
+    expect(
+      await screen.findByRole('heading', { name: "Let's get started" }),
+    ).toBeVisible();
+    expect(window.location.pathname).toBe('/onboarding');
+    window.history.replaceState({}, '', '/');
+  });
   it('routes organization profile completion to discovery [onboarding-organization-profile REQ-001, REQ-011]', async () => {
     document.cookie = 'hansel_onboarding_csrf=proof; path=/';
     vi.stubGlobal(

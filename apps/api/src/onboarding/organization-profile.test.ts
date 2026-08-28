@@ -60,6 +60,25 @@ describe('organization profile [onboarding-organization-profile REQ-006..REQ-010
     );
   });
 
+  it('loads the accepted organization values when returning from discovery [onboarding-discovery REQ-012]', async () => {
+    const { module, prepare } = setup();
+    prepare.mockResolvedValue({
+      profile: {
+        organizationName: 'Hansel',
+        country: 'AU',
+        industry: 'healthcare',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+      },
+    });
+    await expect(module.load('credential')).resolves.toMatchObject({
+      profile: {
+        organizationName: 'Hansel',
+        placeService: 'clinics',
+      },
+    });
+  });
+
   it('rejects an unavailable page and invalid CSRF proof', async () => {
     const unavailable = setup();
     unavailable.prepare.mockResolvedValue(false);

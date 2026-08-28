@@ -235,6 +235,58 @@ for (const state of [
   });
 }
 
+test('discovery matches Figma and remains accessible [onboarding-discovery REQ-001, REQ-015..REQ-017]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-discovery--normal&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Could you tell us more?' }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel('How do you manage your signage currently?'),
+  ).toHaveValue('');
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('onboarding-discovery.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  await expect(page).toHaveScreenshot('onboarding-discovery-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+for (const state of [
+  'other-selected',
+  'validation-error',
+  'submitting',
+  'load-failure',
+  'server-failure',
+]) {
+  test(`discovery ${state} is accessible and visually stable [onboarding-discovery REQ-015..REQ-017]`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `/iframe.html?id=onboarding-discovery--${state}&viewMode=story`,
+    );
+    await expect(page.getByRole('main')).toBeVisible();
+    expect((await analyzeAccessibility(page)).violations).toEqual([]);
+    await expect(page).toHaveScreenshot(`onboarding-discovery-${state}.png`, {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    });
+  });
+}
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

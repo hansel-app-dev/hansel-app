@@ -120,6 +120,42 @@ integration(
         userId: seeded.user.id,
         roleId: 'owner',
       });
+      if (!journey.tenant) throw new Error('Expected organization tenant');
+
+      const rotated = await prisma.onboardingContinuation.findUniqueOrThrow({
+        where: { userId: seeded.user.id },
+      });
+      const correctionKey = `key-${randomUUID()}`;
+      await expect(
+        store.prepare({
+          credentialDigest: rotated.credentialDigest,
+          submissionKeyDigest: correctionKey,
+          now: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+        }),
+      ).resolves.toMatchObject({ profile });
+      await expect(
+        store.save({
+          ...saveInput(rotated.credentialDigest, correctionKey),
+          profile: { ...profile, organizationName: 'Hansel corrected' },
+        }),
+      ).resolves.toBe('created');
+      await expect(
+        prisma.tenant.findUniqueOrThrow({
+          where: { id: journey.tenant.id },
+          include: { memberships: true },
+        }),
+      ).resolves.toMatchObject({
+        name: 'Hansel corrected',
+        memberships: [
+          expect.objectContaining({ userId: seeded.user.id, roleId: 'owner' }),
+        ],
+      });
+      await expect(
+        prisma.tenant.count({
+          where: { memberships: { some: { userId: seeded.user.id } } },
+        }),
+      ).resolves.toBe(1);
     });
     it('replays the same digest and conflicts on changed input', async () => {
       const seeded = await seed();

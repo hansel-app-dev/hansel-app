@@ -25,6 +25,15 @@ describe('HanselStack [REQ-004]', () => {
       Engine: 'aurora-postgresql',
     });
     output.hasResourceProperties('AWS::ECS::Service', { DesiredCount: 2 });
+    output.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'DISCOVERY_ENABLED', Value: 'false' },
+          ]),
+        }),
+      ]),
+    });
     output.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
       HealthCheckPath: '/api/health',
     });
@@ -49,12 +58,17 @@ describe('HanselStack [REQ-004]', () => {
         Match.objectLike({ MetricNamespace: 'Hansel/Onboarding' }),
       ]),
     });
-    output.resourceCountIs('AWS::CloudWatch::Alarm', 4);
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 5);
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({
           MetricName: 'OrganizationProfileUnexpectedFailures',
         }),
+      ]),
+    });
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({ MetricName: 'DiscoveryUnexpectedFailures' }),
       ]),
     });
     output.hasResourceProperties('AWS::CloudFront::Distribution', {
@@ -69,6 +83,7 @@ describe('HanselStack [REQ-004]', () => {
           Match.objectLike({
             PathPattern: 'onboarding/organization-profile',
           }),
+          Match.objectLike({ PathPattern: 'onboarding/discovery' }),
         ]),
       }),
     });

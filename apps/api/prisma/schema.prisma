@@ -140,6 +140,8 @@ model OnboardingJourney {
   tenantId                      String?                        @unique @db.Uuid
   tenant                        Tenant?                        @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   organizationProfileSubmission OrganizationProfileSubmission?
+  discoveryResponse             OnboardingDiscoveryResponse?
+  discoverySubmission           OnboardingDiscoverySubmission?
   createdAt                     DateTime                       @default(now())
   updatedAt                     DateTime                       @updatedAt
 
@@ -172,6 +174,32 @@ model OrganizationProfileSubmission {
   journey              OnboardingJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+}
+
+model OnboardingDiscoveryResponse {
+  id                     String            @id @default(uuid()) @db.Uuid
+  journeyId              String            @unique @db.Uuid
+  outcome                String
+  currentManagement      String?
+  currentManagementOther String?
+  challenges             String?
+  journey                OnboardingJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+}
+
+model OnboardingDiscoverySubmission {
+  id                  String            @id @default(uuid()) @db.Uuid
+  journeyId           String            @unique @db.Uuid
+  submissionKeyDigest String            @unique
+  credentialDigest    String
+  requestDigest       String?
+  outcome             String?
+  expiresAt           DateTime
+  consumedAt          DateTime?
+  journey             OnboardingJourney @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 }
 
 model Membership {

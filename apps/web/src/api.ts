@@ -25,10 +25,46 @@ import {
   type OrganizationProfilePageResponse,
   type OrganizationProfileRequest,
   type OrganizationProfileResponse,
+  discoveryPageResponseSchema,
+  discoveryResponseSchema,
+  type DiscoveryPageResponse,
+  type DiscoveryRequest,
+  type DiscoveryResponse,
 } from '@hansel/contracts';
 
 export class OnboardingSessionExpiredError extends Error {
   readonly code = 'onboarding_session_expired';
+}
+
+export async function loadDiscovery(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DiscoveryPageResponse> {
+  const response = await fetcher(`${baseUrl}/api/onboarding/discovery`, {
+    credentials: 'include',
+  });
+  if (response.status === 401) throw new OnboardingSessionExpiredError();
+  if (!response.ok) throw new Error('discovery_load_failed');
+  return discoveryPageResponseSchema.parse(await response.json());
+}
+
+export async function completeDiscovery(
+  input: DiscoveryRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DiscoveryResponse> {
+  const response = await fetcher(`${baseUrl}/api/onboarding/discovery`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      'x-hansel-csrf': readCsrfProof(new OnboardingSessionExpiredError()),
+    },
+    body: JSON.stringify(input),
+  });
+  if (response.status === 401) throw new OnboardingSessionExpiredError();
+  if (!response.ok) throw new Error('discovery_failed');
+  return discoveryResponseSchema.parse(await response.json());
 }
 
 export async function loadPersonalProfile(

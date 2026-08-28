@@ -18,7 +18,12 @@ interface OrganizationProfileDependencies {
     submissionKeyDigest: string;
     now: Date;
     expiresAt: Date;
-  }): Promise<boolean>;
+  }): Promise<
+    | boolean
+    | {
+        profile: Omit<OrganizationProfileRequest, 'submissionKey'>;
+      }
+  >;
   save(input: {
     credentialDigest: string;
     submissionKeyDigest: string;
@@ -81,6 +86,7 @@ export function createOrganizationProfile(
           ]),
         ),
         sizes: [...organizationSizeOptions],
+        ...(prepared === true ? {} : prepared),
       };
     },
     async submit(

@@ -27,6 +27,11 @@ import {
   createOrganizationProfileDigests,
 } from './onboarding/organization-profile.js';
 import { createPrismaOrganizationProfileStore } from './onboarding/prisma-organization-profile-store.js';
+import {
+  createDiscovery,
+  createDiscoveryDigests,
+} from './onboarding/discovery.js';
+import { createPrismaDiscoveryStore } from './onboarding/prisma-discovery-store.js';
 
 const config = loadConfig();
 const logger = new Logger({ serviceName: 'hansel-api' });
@@ -59,6 +64,7 @@ const planSelectionStore = createPrismaPlanSelectionStore(prisma);
 const organizationProfileDigests = createOrganizationProfileDigests(
   config.verificationDigestKey,
 );
+const discoveryDigests = createDiscoveryDigests(config.verificationDigestKey);
 const onboarding = {
   createAccount: createAccountRegistration({
     ...security,
@@ -121,6 +127,28 @@ const onboarding = {
       loadOrganizationProfile: feature.load.bind(feature),
       submitOrganizationProfile: feature.submit.bind(feature),
       recordOrganizationProfileEvent: (name: string) => {
+        logger.info(name, { correlationId: randomUUID() });
+      },
+    };
+  })(),
+  ...(() => {
+    const feature = createDiscovery({
+      ...createPrismaDiscoveryStore(prisma),
+      ...discoveryDigests,
+      createSubmissionKey: () => randomBytes(32).toString('base64url'),
+      digestOnboardingCredential: (credential) =>
+        security.digestOnboardingCredential(credential),
+      verifyOnboardingCsrfProof: (credential, proof) =>
+        security.verifyOnboardingCsrfProof(credential, proof),
+      now: () => new Date(),
+      recordEvent: (name) => {
+        logger.info(name, { correlationId: randomUUID() });
+      },
+    });
+    return {
+      loadDiscovery: feature.load.bind(feature),
+      completeDiscovery: feature.complete.bind(feature),
+      recordDiscoveryEvent: (name: string) => {
         logger.info(name, { correlationId: randomUUID() });
       },
     };

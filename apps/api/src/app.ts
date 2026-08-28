@@ -6,6 +6,9 @@ import { randomUUID } from 'node:crypto';
 import {
   createOnboardingAccountRequestSchema,
   createOnboardingAccountResponseSchema,
+  discoveryPageResponseSchema,
+  discoveryRequestSchema,
+  discoveryResponseSchema,
   healthResponseSchema,
   departmentOptions,
   jobTitleOptions,
@@ -24,6 +27,9 @@ import {
   verifyOnboardingEmailResponseSchema,
   type CreateOnboardingAccountRequest,
   type CreateOnboardingAccountResponse,
+  type DiscoveryPageResponse,
+  type DiscoveryRequest,
+  type DiscoveryResponse,
   type ResendOnboardingVerificationRequest,
   type ResendOnboardingVerificationResponse,
   type VerifyOnboardingEmailRequest,
@@ -45,6 +51,10 @@ import {
   OrganizationProfileConflictError,
   OrganizationProfileTransitionError,
 } from './onboarding/organization-profile.js';
+import {
+  DiscoveryConflictError,
+  DiscoveryTransitionError,
+} from './onboarding/discovery.js';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
@@ -100,6 +110,13 @@ export interface OnboardingModule {
     }
   >;
   recordOrganizationProfileEvent?(name: string): void;
+  loadDiscovery?(credential: string): Promise<DiscoveryPageResponse>;
+  completeDiscovery?(
+    credential: string,
+    csrfProof: string,
+    input: DiscoveryRequest,
+  ): Promise<DiscoveryResponse>;
+  recordDiscoveryEvent?(name: string): void;
 }
 
 const onboardingCookieName = 'hansel_onboarding';
@@ -187,6 +204,9 @@ function renderOrganizationProfile(
   values: Record<string, unknown> = {},
   error = '',
 ): string {
+  const formValues = Object.keys(values).length
+    ? values
+    : (state.profile ?? {});
   const places = Object.entries(state.placesByIndustry).flatMap(
     ([industry, options]) => options.map((option) => ({ ...option, industry })),
   );
@@ -194,7 +214,28 @@ function renderOrganizationProfile(
     options: readonly { id: string; label: string }[],
     selected: unknown,
   ) => renderOptions(options, selected);
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Now your organization — Hansel</title><link rel="stylesheet" href="/assets/organization-profile-progressive.css"></head><body><main><a href="/" aria-label="Hansel home"><img class="logo" src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="organization-heading"><h1 id="organization-heading">Now your organization</h1><p class="required">All fields are required.</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/onboarding/organization-profile" method="post"><input type="hidden" name="submissionKey" value="${escapeHtml(state.submissionKey)}"><label for="organizationName">Organization</label><input id="organizationName" name="organizationName" required maxlength="200" value="${escapeHtml(values.organizationName)}"><label for="country">Country</label><select id="country" name="country" required>${optionList(state.countries, values.country)}</select><label for="industry">Industry or sector</label><select id="industry" name="industry" required>${optionList(state.industries, values.industry)}</select><label for="placeService">Type of place or service</label><select id="placeService" name="placeService" required><option value="">Select</option>${places.map(({ id, label, industry }) => `<option value="${id}" data-industry="${industry}"${values.placeService === id ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select><label for="organizationSize">Size</label><select id="organizationSize" name="organizationSize" required>${optionList(state.sizes, values.organizationSize)}</select><button type="submit">Next</button></form></section></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Now your organization — Hansel</title><link rel="stylesheet" href="/assets/organization-profile-progressive.css"></head><body><main><a href="/" aria-label="Hansel home"><img class="logo" src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="organization-heading"><h1 id="organization-heading">Now your organization</h1><p class="required">All fields are required.</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/onboarding/organization-profile" method="post"><input type="hidden" name="submissionKey" value="${escapeHtml(state.submissionKey)}"><label for="organizationName">Organization</label><input id="organizationName" name="organizationName" required maxlength="200" value="${escapeHtml(formValues.organizationName)}"><label for="country">Country</label><select id="country" name="country" required>${optionList(state.countries, formValues.country)}</select><label for="industry">Industry or sector</label><select id="industry" name="industry" required>${optionList(state.industries, formValues.industry)}</select><label for="placeService">Type of place or service</label><select id="placeService" name="placeService" required><option value="">Select</option>${places.map(({ id, label, industry }) => `<option value="${id}" data-industry="${industry}"${formValues.placeService === id ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select><label for="organizationSize">Size</label><select id="organizationSize" name="organizationSize" required>${optionList(state.sizes, formValues.organizationSize)}</select><button type="submit">Next</button></form></section></main></body></html>`;
+}
+
+function renderDiscovery(
+  state: DiscoveryPageResponse,
+  values: Record<string, unknown> = {},
+  error = '',
+): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Could you tell us more? — Hansel</title><link rel="stylesheet" href="/assets/discovery-progressive.css"></head><body><main><a href="/" aria-label="Hansel home"><img class="logo" src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="discovery-heading"><h1 id="discovery-heading">Could you tell us more?</h1>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/onboarding/discovery" method="post"><input type="hidden" name="submissionKey" value="${escapeHtml(state.submissionKey)}"><label for="currentManagement">How do you manage your signage currently?</label><select id="currentManagement" name="currentManagement" required>${renderOptions(state.methods, values.currentManagement)}</select><div class="other"><label for="currentManagementOther">Other tools</label><input id="currentManagementOther" name="currentManagementOther" maxlength="100"${values.currentManagement === 'other' ? ' required' : ''} value="${escapeHtml(values.currentManagementOther)}"></div><label for="challenges">Biggest challenges your team faces</label><input id="challenges" name="challenges" maxlength="1000" placeholder="Challenges" value="${escapeHtml(values.challenges)}"><a class="back" href="/onboarding/organization-profile">Back</a><div class="actions"><button type="submit" name="action" value="submit">Next</button><button type="submit" name="action" value="skip" formnovalidate>Skip for now</button></div></form></section></main></body></html>`;
+}
+
+function normalizeDiscoveryForm(
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  if (body.action === 'skip')
+    return { action: 'skip', submissionKey: body.submissionKey };
+  return Object.fromEntries(
+    Object.entries(body).filter(
+      ([key, value]) =>
+        !['currentManagementOther', 'challenges'].includes(key) || value !== '',
+    ),
+  );
 }
 
 function readCookie(header: string | undefined, name: string): string | null {
@@ -226,6 +267,7 @@ export function createApp(
   config: Pick<AppConfig, 'allowedOrigin'> & {
     planSelectionEnabled?: boolean;
     organizationProfileEnabled?: boolean;
+    discoveryEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
@@ -257,8 +299,13 @@ export function createApp(
           'loadOrganizationProfile' | 'submitOrganizationProfile'
         >
       >;
+    const discoveryOnboarding = onboarding as OnboardingModule &
+      Required<Pick<OnboardingModule, 'loadDiscovery' | 'completeDiscovery'>>;
     const recordOrganizationEvent = (name: string) => {
       onboarding.recordOrganizationProfileEvent?.(name);
+    };
+    const recordDiscoveryEvent = (name: string) => {
+      onboarding.recordDiscoveryEvent?.(name);
     };
     const readOnboardingCredential = (request: express.Request) =>
       readCookie(request.headers.cookie, onboardingCookieName);
@@ -786,6 +833,149 @@ export function createApp(
         }
       },
     );
+    app.get('/api/onboarding/discovery', async (request, response) => {
+      if (config.discoveryEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      response.set('Cache-Control', 'private, no-store');
+      const credential = readOnboardingCredential(request);
+      if (!credential) {
+        recordDiscoveryEvent('discovery_transition_rejected');
+        clearOnboardingSession(response);
+        response.status(401).json({ error: 'onboarding_session_expired' });
+        return;
+      }
+      try {
+        response.json(
+          discoveryPageResponseSchema.parse(
+            await discoveryOnboarding.loadDiscovery(credential),
+          ),
+        );
+      } catch (error) {
+        if (error instanceof DiscoveryTransitionError) {
+          clearOnboardingSession(response);
+          response.status(401).json({ error: 'onboarding_session_expired' });
+          return;
+        }
+        recordDiscoveryEvent('discovery_unexpected_failure');
+        throw error;
+      }
+    });
+    app.get('/onboarding/discovery', async (request, response) => {
+      if (config.discoveryEnabled === false) {
+        response.status(404).type('html').send('Not found.');
+        return;
+      }
+      response.set('Cache-Control', 'private, no-store');
+      const credential = readOnboardingCredential(request);
+      if (!credential) {
+        clearOnboardingSession(response);
+        response.redirect(303, '/onboarding');
+        return;
+      }
+      try {
+        response
+          .type('html')
+          .send(
+            renderDiscovery(
+              await discoveryOnboarding.loadDiscovery(credential),
+            ),
+          );
+      } catch (error) {
+        if (error instanceof DiscoveryTransitionError) {
+          clearOnboardingSession(response);
+          response.redirect(303, '/onboarding');
+          return;
+        }
+        recordDiscoveryEvent('discovery_unexpected_failure');
+        throw error;
+      }
+    });
+    app.post('/api/onboarding/discovery', async (request, response) => {
+      if (config.discoveryEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const isHtmlForm = request.is('application/x-www-form-urlencoded');
+      const input = discoveryRequestSchema.safeParse(
+        isHtmlForm
+          ? normalizeDiscoveryForm(request.body as Record<string, unknown>)
+          : request.body,
+      );
+      const credential = readOnboardingCredential(request);
+      const csrfCookie = readCookie(
+        request.headers.cookie,
+        onboardingCsrfCookieName,
+      );
+      const reject = async (status: number, error: string) => {
+        if (isHtmlForm && credential) {
+          try {
+            const state = await discoveryOnboarding.loadDiscovery(credential);
+            response
+              .status(status)
+              .type('html')
+              .send(
+                renderDiscovery(
+                  state,
+                  request.body as Record<string, unknown>,
+                  'We could not save your answers. Review the form and try again.',
+                ),
+              );
+            return;
+          } catch (loadError) {
+            if (!(loadError instanceof DiscoveryTransitionError))
+              throw loadError;
+          }
+        }
+        if (isHtmlForm)
+          response
+            .status(status)
+            .type('html')
+            .send('We could not save your answers.');
+        else response.status(status).json({ error });
+      };
+      if (!input.success) {
+        recordDiscoveryEvent('discovery_validation_rejected');
+        await reject(400, 'invalid_request');
+        return;
+      }
+      if (
+        (isHtmlForm
+          ? !hasAllowedFormOrigin(request, config.allowedOrigin)
+          : request.headers.origin !== config.allowedOrigin) ||
+        !credential ||
+        !csrfCookie ||
+        (!isHtmlForm && request.header('x-hansel-csrf') !== csrfCookie)
+      ) {
+        recordDiscoveryEvent('discovery_transition_rejected');
+        await reject(401, 'onboarding_transition_failed');
+        return;
+      }
+      try {
+        const output = discoveryResponseSchema.parse(
+          await discoveryOnboarding.completeDiscovery(
+            credential,
+            csrfCookie,
+            input.data,
+          ),
+        );
+        clearOnboardingSession(response);
+        if (isHtmlForm) response.redirect(303, output.destination);
+        else response.json(output);
+      } catch (error) {
+        if (error instanceof DiscoveryConflictError) {
+          await reject(409, 'discovery_conflict');
+          return;
+        }
+        if (error instanceof DiscoveryTransitionError) {
+          await reject(409, 'onboarding_transition_failed');
+          return;
+        }
+        recordDiscoveryEvent('discovery_unexpected_failure');
+        throw error;
+      }
+    });
   }
   configureRoutes?.(app);
 

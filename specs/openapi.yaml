@@ -52,6 +52,24 @@ paths:
           content:
             text/html:
               schema: { type: string }
+  /onboarding/discovery:
+    get:
+      operationId: renderOnboardingDiscovery
+      summary: Render the private progressive discovery form
+      security:
+        - onboardingContinuation: []
+      responses:
+        '200':
+          description: Accessible HTML form usable without JavaScript
+          content:
+            text/html:
+              schema: { type: string }
+        '303':
+          description: The continuation is unavailable and the browser returns to onboarding
+          headers:
+            Location:
+              required: true
+              schema: { type: string, const: /onboarding }
   /api/onboarding/accounts:
     post:
       operationId: createOnboardingAccount
@@ -296,6 +314,53 @@ paths:
                 $ref: '#/components/schemas/OrganizationProfileResponse'
         '303':
           description: Native form accepted; continue to discovery
+        '400': { description: The request does not match the contract }
+        '401': { description: The onboarding continuation is unavailable }
+        '409': { description: Conflicting replay or rejected transition }
+  /api/onboarding/discovery:
+    get:
+      operationId: getOnboardingDiscovery
+      summary: Load approved discovery methods and a server-issued submission key
+      security:
+        - onboardingContinuation: []
+      responses:
+        '200':
+          description: Private discovery page state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscoveryPageResponse' }
+        '401': { description: The onboarding continuation is unavailable }
+    post:
+      operationId: completeOnboardingDiscovery
+      summary: Submit or explicitly skip discovery and complete onboarding
+      security:
+        - onboardingContinuation: []
+          onboardingCsrfCookie: []
+      parameters:
+        - in: header
+          name: X-Hansel-CSRF
+          required: false
+          description: Required for JSON requests; native forms use the credential-bound CSRF cookie.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscoveryRequest' }
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/DiscoveryRequest' }
+      responses:
+        '200':
+          description: Onboarding completed or an equivalent idempotent replay accepted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiscoveryResponse' }
+        '303':
+          description: Native form accepted and redirected to the organization dashboard
+          headers:
+            Location:
+              required: true
+              schema: { type: string, const: /dashboard }
         '400': { description: The request does not match the contract }
         '401': { description: The onboarding continuation is unavailable }
         '409': { description: Conflicting replay or rejected transition }
@@ -554,18 +619,10 @@ components:
       properties:
         id: { type: string, minLength: 1 }
         label: { type: string, minLength: 1 }
-    OrganizationProfileRequest:
+    OrganizationProfileValues:
       type: object
-      additionalProperties: false
       required:
-        [
-          organizationName,
-          country,
-          industry,
-          placeService,
-          organizationSize,
-          submissionKey,
-        ]
+        [organizationName, country, industry, placeService, organizationSize]
       properties:
         organizationName: { type: string, minLength: 1, maxLength: 200 }
         country:
@@ -636,7 +693,14 @@ components:
               employees_51_100,
               employees_over_100,
             ]
-        submissionKey: { type: string, minLength: 32, maxLength: 200 }
+    OrganizationProfileRequest:
+      allOf:
+        - $ref: '#/components/schemas/OrganizationProfileValues'
+        - type: object
+          required: [submissionKey]
+          properties:
+            submissionKey: { type: string, minLength: 32, maxLength: 200 }
+      unevaluatedProperties: false
     OrganizationProfilePageResponse:
       type: object
       additionalProperties: false
@@ -664,12 +728,67 @@ components:
           minItems: 4
           maxItems: 4
           items: { $ref: '#/components/schemas/OrganizationOption' }
+        profile:
+          allOf:
+            - $ref: '#/components/schemas/OrganizationProfileValues'
+          unevaluatedProperties: false
     OrganizationProfileResponse:
       type: object
       additionalProperties: false
       required: [nextStep]
       properties:
         nextStep: { type: string, const: discovery }
+    DiscoveryRequest:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [action, currentManagement, submissionKey]
+          properties:
+            action: { type: string, const: submit }
+            currentManagement:
+              type: string
+              enum: [pdf, spreadsheet, other]
+            currentManagementOther:
+              type: string
+              minLength: 1
+              maxLength: 100
+            challenges:
+              type: string
+              minLength: 1
+              maxLength: 1000
+            submissionKey: { type: string, minLength: 32, maxLength: 200 }
+          if:
+            properties:
+              currentManagement: { const: other }
+          then:
+            required: [currentManagementOther]
+          else:
+            not:
+              required: [currentManagementOther]
+        - type: object
+          additionalProperties: false
+          required: [action, submissionKey]
+          properties:
+            action: { type: string, const: skip }
+            submissionKey: { type: string, minLength: 32, maxLength: 200 }
+    DiscoveryPageResponse:
+      type: object
+      additionalProperties: false
+      required: [submissionKey, methods]
+      properties:
+        submissionKey: { type: string, minLength: 32, maxLength: 200 }
+        methods:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items: { $ref: '#/components/schemas/OrganizationOption' }
+    DiscoveryResponse:
+      type: object
+      additionalProperties: false
+      required: [nextStep, destination]
+      properties:
+        nextStep: { type: string, const: dashboard }
+        destination: { type: string, const: /dashboard }
     HealthResponse:
       type: object
       additionalProperties: false

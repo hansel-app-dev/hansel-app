@@ -20,7 +20,16 @@ function harness() {
       update: vi.fn(),
     },
     onboardingJourney: {
-      findFirst: vi.fn().mockResolvedValue({ id: 'journey' }),
+      findFirst: vi.fn().mockResolvedValue({
+        id: 'journey',
+        currentStep: 'ORGANIZATION_PROFILE',
+        tenantId: null,
+        tenant: null,
+      }),
+      findUnique: vi.fn().mockResolvedValue({
+        currentStep: 'ORGANIZATION_PROFILE',
+        tenantId: null,
+      }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       update: vi.fn(),
     },
@@ -36,7 +45,10 @@ function harness() {
       }),
       update: vi.fn(),
     },
-    tenant: { create: vi.fn().mockResolvedValue({ id: 'tenant' }) },
+    tenant: {
+      create: vi.fn().mockResolvedValue({ id: 'tenant' }),
+      update: vi.fn(),
+    },
   };
   const prisma = {
     organizationProfileSubmission: { findUnique: vi.fn() },
@@ -77,6 +89,31 @@ describe('Prisma organization-profile store [onboarding-organization-profile REQ
     );
   });
 
+  it('prepares saved organization values for Back from discovery [onboarding-discovery REQ-012]', async () => {
+    const { store, transaction } = harness();
+    transaction.onboardingJourney.findFirst.mockResolvedValue({
+      id: 'journey',
+      currentStep: 'DISCOVERY',
+      tenantId: 'tenant',
+      tenant: {
+        name: 'Hansel',
+        country: 'AU',
+        industry: 'healthcare',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+      },
+    });
+    await expect(store.prepare(prepareInput)).resolves.toEqual({
+      profile: {
+        organizationName: 'Hansel',
+        country: 'AU',
+        industry: 'healthcare',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+      },
+    });
+  });
+
   it('rejects missing, expired, or ineligible preparation and exposes database failures', async () => {
     for (const continuation of [null, { userId: 'user', expiresAt: now }]) {
       const { store, transaction } = harness();
@@ -114,6 +151,32 @@ describe('Prisma organization-profile store [onboarding-organization-profile REQ
       data: { tenantId: 'tenant' },
     });
     expect(transaction.onboardingContinuation.update).toHaveBeenCalled();
+  });
+
+  it('updates only the existing tenant when correcting from discovery [onboarding-discovery REQ-012]', async () => {
+    const { store, transaction } = harness();
+    transaction.onboardingJourney.findUnique.mockResolvedValue({
+      currentStep: 'DISCOVERY',
+      tenantId: 'tenant',
+    });
+    await expect(store.save(saveInput)).resolves.toBe('created');
+    expect(transaction.tenant.create).not.toHaveBeenCalled();
+    expect(transaction.tenant.update).toHaveBeenCalledWith({
+      where: { id: 'tenant' },
+      data: {
+        name: 'Hansel',
+        country: 'AU',
+        industry: 'healthcare',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+      },
+    });
+    expect(transaction.onboardingJourney.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ currentStep: 'DISCOVERY' }),
+        data: { currentStep: 'DISCOVERY' },
+      }),
+    );
   });
 
   it('returns replay or conflict for a consumed submission before checking the old continuation', async () => {
@@ -163,6 +226,22 @@ describe('Prisma organization-profile store [onboarding-organization-profile REQ
         h.transaction.onboardingJourney.updateMany.mockResolvedValue({
           count: 0,
         }),
+      (h: ReturnType<typeof harness>) =>
+        h.transaction.onboardingJourney.findUnique.mockResolvedValue(null),
+      (h: ReturnType<typeof harness>) =>
+        h.transaction.onboardingJourney.findUnique.mockResolvedValue({
+          currentStep: 'COMPLETE',
+          tenantId: 'tenant',
+        }),
+      (h: ReturnType<typeof harness>) => {
+        h.transaction.onboardingJourney.findUnique.mockResolvedValue({
+          currentStep: 'DISCOVERY',
+          tenantId: 'tenant',
+        });
+        h.transaction.onboardingJourney.updateMany.mockResolvedValue({
+          count: 0,
+        });
+      },
       (h: ReturnType<typeof harness>) => {
         h.transaction.organizationProfileSubmission.findUnique.mockResolvedValue(
           {

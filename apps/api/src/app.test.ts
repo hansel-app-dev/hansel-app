@@ -10,7 +10,12 @@ import {
   OrganizationProfileTransitionError,
 } from './onboarding/organization-profile.js';
 import {
+  DiscoveryConflictError,
+  DiscoveryTransitionError,
+} from './onboarding/discovery.js';
+import {
   countryOptions,
+  discoveryManagementOptions,
   industryOptions,
   organizationSizeOptions,
   placeServiceOptions,
@@ -32,6 +37,261 @@ const planPage = {
 };
 
 const app = createApp({ allowedOrigin: 'https://app.example.com' });
+
+describe('discovery routes [onboarding-discovery REQ-001, REQ-005..REQ-013, REQ-018]', () => {
+  const page = {
+    submissionKey: 'x'.repeat(43),
+    methods: [...discoveryManagementOptions],
+  };
+  const input = {
+    action: 'submit',
+    currentManagement: 'pdf',
+    challenges: 'Version control',
+    submissionKey: page.submissionKey,
+  };
+  const module = (overrides: Record<string, unknown> = {}) => ({
+    createAccount: vi.fn(),
+    verifyEmail: vi.fn(),
+    resendVerification: vi.fn(),
+    submitPersonalProfile: vi.fn(),
+    loadDiscovery: vi.fn().mockResolvedValue(page),
+    completeDiscovery: vi.fn().mockResolvedValue({
+      nextStep: 'dashboard',
+      destination: '/dashboard',
+    }),
+    recordDiscoveryEvent: vi.fn(),
+    ...overrides,
+  });
+  const create = (overrides: Record<string, unknown> = {}, enabled = true) =>
+    createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        discoveryEnabled: enabled,
+      },
+      undefined,
+      module(overrides),
+    );
+  const cookies = 'hansel_onboarding=credential; hansel_onboarding_csrf=proof';
+
+  it('loads private JSON and exact progressive Figma wording', async () => {
+    const json = await request(create())
+      .get('/api/onboarding/discovery')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(json.body).toEqual(page);
+    expect(json.headers['cache-control']).toBe('private, no-store');
+    const html = await request(create())
+      .get('/onboarding/discovery')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(html.text).toContain('Could you tell us more?');
+    expect(html.text).toContain('How do you manage your signage currently?');
+    expect(html.text).toContain('Biggest challenges your team faces');
+    expect(html.text).toContain('Skip for now');
+    expect(html.text).toContain('href="/onboarding/organization-profile"');
+  });
+
+  it('submits JSON and submit/skip native forms to the server dashboard', async () => {
+    const feature = module();
+    const json = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com' },
+        undefined,
+        feature,
+      ),
+    )
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(200, { nextStep: 'dashboard', destination: '/dashboard' });
+    expect(String(json.headers['set-cookie'])).toContain('hansel_onboarding=;');
+    expect(feature.completeDiscovery).toHaveBeenCalledWith(
+      'credential',
+      'proof',
+      input,
+    );
+
+    await request(create())
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send(input)
+      .expect(303)
+      .expect('Location', '/dashboard');
+    const skipFeature = module();
+    await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com' },
+        undefined,
+        skipFeature,
+      ),
+    )
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, action: 'skip' })
+      .expect(303)
+      .expect('Location', '/dashboard');
+    expect(skipFeature.completeDiscovery).toHaveBeenCalledWith(
+      'credential',
+      'proof',
+      { action: 'skip', submissionKey: page.submissionKey },
+    );
+  });
+
+  it('rejects disabled, missing, invalid, forged, conflict, and stale requests', async () => {
+    await request(create({}, false))
+      .get('/api/onboarding/discovery')
+      .expect(404);
+    await request(create({}, false)).get('/onboarding/discovery').expect(404);
+    await request(create({}, false))
+      .post('/api/onboarding/discovery')
+      .send(input)
+      .expect(404);
+    await request(create()).get('/api/onboarding/discovery').expect(401);
+    await request(create())
+      .get('/onboarding/discovery')
+      .expect(303)
+      .expect('Location', '/onboarding');
+    await request(create())
+      .post('/api/onboarding/discovery')
+      .send({})
+      .expect(400);
+    await request(create())
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://evil.example')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(401);
+    await request(
+      create({
+        completeDiscovery: vi
+          .fn()
+          .mockRejectedValue(new DiscoveryConflictError()),
+      }),
+    )
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(409, { error: 'discovery_conflict' });
+    await request(
+      create({
+        completeDiscovery: vi
+          .fn()
+          .mockRejectedValue(new DiscoveryTransitionError()),
+      }),
+    )
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(409, { error: 'onboarding_transition_failed' });
+  });
+
+  it('redirects unavailable pages and renders progressive validation recovery', async () => {
+    const unavailable = create({
+      loadDiscovery: vi.fn().mockRejectedValue(new DiscoveryTransitionError()),
+    });
+    await request(unavailable)
+      .get('/api/onboarding/discovery')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(401);
+    await request(unavailable)
+      .get('/onboarding/discovery')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(303)
+      .expect('Location', '/onboarding');
+    const recovery = await request(create())
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, currentManagement: '' })
+      .expect(400);
+    expect(recovery.text).toContain('could not save your answers');
+    expect(recovery.text).toContain('Version control');
+    const otherRecovery = await request(create())
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, currentManagement: 'other' })
+      .expect(400);
+    expect(otherRecovery.text).toContain(
+      'name="currentManagementOther" maxlength="100" required',
+    );
+  });
+
+  it('uses safe progressive fallback and records validation and unexpected failures', async () => {
+    const feature = module();
+    await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com' },
+        undefined,
+        feature,
+      ),
+    )
+      .post('/api/onboarding/discovery')
+      .send({})
+      .expect(400);
+    expect(feature.recordDiscoveryEvent).toHaveBeenCalledWith(
+      'discovery_validation_rejected',
+    );
+
+    const fallback = await request(
+      create({
+        loadDiscovery: vi
+          .fn()
+          .mockRejectedValue(new DiscoveryTransitionError()),
+      }),
+    )
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, currentManagement: '' })
+      .expect(400);
+    expect(fallback.text).toBe('We could not save your answers.');
+
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const failure = new Error('database unavailable');
+    await request(create({ loadDiscovery: vi.fn().mockRejectedValue(failure) }))
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', cookies)
+      .type('form')
+      .send({ ...input, currentManagement: '' })
+      .expect(500);
+    await request(create({ loadDiscovery: vi.fn().mockRejectedValue(failure) }))
+      .get('/api/onboarding/discovery')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(500);
+    await request(create({ loadDiscovery: vi.fn().mockRejectedValue(failure) }))
+      .get('/onboarding/discovery')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(500);
+    await request(
+      create({ completeDiscovery: vi.fn().mockRejectedValue(failure) }),
+    )
+      .post('/api/onboarding/discovery')
+      .set('Origin', 'https://app.example.com')
+      .set('x-hansel-csrf', 'proof')
+      .set('Cookie', cookies)
+      .send(input)
+      .expect(500);
+    expect(errorLog).toHaveBeenCalledTimes(4);
+    errorLog.mockRestore();
+  });
+});
 
 describe('API [REQ-002, REQ-007]', () => {
   it('returns the specified health response', async () => {
@@ -137,6 +397,32 @@ describe('organization-profile routes [onboarding-organization-profile REQ-001, 
     expect(html.text).toContain('Now your organization');
     expect(html.text).toContain('Industry or sector');
     expect(html.text).not.toContain('>Back<');
+  });
+
+  it('prefills the saved organization profile on an authorized Back visit', async () => {
+    const savedPage = {
+      ...page,
+      profile: {
+        organizationName: 'Hansel saved',
+        country: 'AU',
+        industry: 'healthcare',
+        placeService: 'clinics',
+        organizationSize: 'employees_11_50',
+      },
+    };
+    const html = await request(
+      create({ loadOrganizationProfile: vi.fn().mockResolvedValue(savedPage) }),
+    )
+      .get('/onboarding/organization-profile')
+      .set('Cookie', 'hansel_onboarding=credential')
+      .expect(200);
+    expect(html.text).toContain('value="Hansel saved"');
+    expect(html.text).toContain('<option value="AU" selected>');
+    expect(html.text).toContain('<option value="healthcare" selected>');
+    expect(html.text).toContain(
+      '<option value="clinics" data-industry="healthcare" selected>',
+    );
+    expect(html.text).toContain('<option value="employees_11_50" selected>');
   });
 
   it('submits JSON and native forms with rotated cookies', async () => {

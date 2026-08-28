@@ -133,7 +133,10 @@ export class HanselStack extends cdk.Stack {
             logGroup: apiLogGroup,
             streamPrefix: 'api',
           }),
-          environment: { PORT: '3000' },
+          environment: {
+            PORT: '3000',
+            DISCOVERY_ENABLED: production ? 'false' : 'true',
+          },
           secrets: {
             DB_USERNAME: ecs.Secret.fromSecretsManager(
               databaseSecret,
@@ -234,6 +237,27 @@ export class HanselStack extends cdk.Stack {
     );
     new cloudwatch.Alarm(this, 'OrganizationUnexpectedFailureAlarm', {
       metric: organizationUnexpectedFailureFilter.metric(),
+      threshold: 5,
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    const discoveryUnexpectedFailureFilter = new logs.MetricFilter(
+      this,
+      'DiscoveryUnexpectedFailureMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'discovery_unexpected_failure',
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName: 'DiscoveryUnexpectedFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'DiscoveryUnexpectedFailureAlarm', {
+      metric: discoveryUnexpectedFailureFilter.metric(),
       threshold: 5,
       evaluationPeriods: 2,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
@@ -342,6 +366,10 @@ export class HanselStack extends cdk.Stack {
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },
         'onboarding/organization-profile': {
+          ...apiBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+        'onboarding/discovery': {
           ...apiBehavior,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },
