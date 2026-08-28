@@ -64,7 +64,7 @@ paths:
               $ref: '#/components/schemas/CreateOnboardingAccountRequest'
       responses:
         '202':
-          description: The generic verification step is ready; an eligible verified personal-profile journey may receive a fresh recovery code without revealing account state
+          description: The generic verification step is ready; an eligible verified resumable journey may receive a fresh recovery code without revealing account state
           content:
             application/json:
               schema:
@@ -89,7 +89,7 @@ paths:
   /api/onboarding/email-verification/verify:
     post:
       operationId: verifyOnboardingEmail
-      summary: Verify an initial or eligible personal-profile recovery code
+      summary: Verify an initial or eligible onboarding-resumption code
       requestBody:
         required: true
         content:
@@ -98,7 +98,7 @@ paths:
               $ref: '#/components/schemas/VerifyOnboardingEmailRequest'
       responses:
         '200':
-          description: Email verified or an eligible verified personal-profile continuation re-established
+          description: Email verified or an eligible verified continuation re-established at its latest resumable step
           content:
             application/json:
               schema:
@@ -112,7 +112,7 @@ paths:
   /api/onboarding/email-verification/resend:
     post:
       operationId: resendOnboardingVerification
-      summary: Accept an initial or eligible personal-profile recovery-code replacement request generically
+      summary: Accept an initial or eligible onboarding-resumption code replacement request generically
       requestBody:
         required: true
         content:
@@ -369,7 +369,7 @@ components:
       properties:
         nextStep:
           type: string
-          const: personal-profile
+          enum: [personal-profile, plan-selection, organization-profile]
     ResendOnboardingVerificationRequest:
       type: object
       additionalProperties: false

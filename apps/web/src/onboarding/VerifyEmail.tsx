@@ -1,4 +1,5 @@
 import { yupResolver } from '@hookform/resolvers/yup';
+import type { VerifyOnboardingEmailResponse } from '@hansel/contracts';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import * as yup from 'yup';
@@ -14,10 +15,13 @@ type FormValues = yup.InferType<typeof schema>;
 
 export interface VerifyEmailProps {
   email: string;
-  verify: (input: { email: string; code: string }) => Promise<unknown>;
+  verify: (input: {
+    email: string;
+    code: string;
+  }) => Promise<VerifyOnboardingEmailResponse>;
   resend: (input: { email: string }) => Promise<unknown>;
   resendAvailableInSeconds?: number;
-  onVerified?: () => void;
+  onVerified?: (nextStep: VerifyOnboardingEmailResponse['nextStep']) => void;
 }
 
 export function maskEmail(email: string): string {
@@ -60,8 +64,8 @@ export function VerifyEmail({
   const submit = handleSubmit(async ({ code }) => {
     setServerError('');
     try {
-      await verify({ email, code });
-      onVerified?.();
+      const result = await verify({ email, code });
+      onVerified?.(result.nextStep);
     } catch {
       setServerError(
         'That code could not be verified. Request a new code and try again.',

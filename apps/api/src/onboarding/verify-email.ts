@@ -16,7 +16,7 @@ interface VerificationDependencies {
     onboardingCredentialDigest: string;
     onboardingCredentialExpiresAt: Date;
     now: Date;
-  }): Promise<boolean>;
+  }): Promise<false | VerifyOnboardingEmailResponse['nextStep']>;
   resend(input: {
     email: string;
     codeDigest: string;
@@ -44,7 +44,7 @@ export function createEmailVerification(
     > {
       const now = dependencies.now();
       const onboardingCredential = dependencies.createOnboardingCredential();
-      const accepted = await dependencies.verify({
+      const nextStep = await dependencies.verify({
         email: input.email,
         codeDigest: dependencies.digestVerificationCode(input.code),
         onboardingCredentialDigest:
@@ -52,9 +52,9 @@ export function createEmailVerification(
         onboardingCredentialExpiresAt: new Date(now.getTime() + 15 * 60 * 1000),
         now,
       });
-      if (!accepted) throw new VerificationFailedError();
+      if (!nextStep) throw new VerificationFailedError();
       return {
-        nextStep: 'personal-profile',
+        nextStep,
         onboardingCredential,
         csrfProof: dependencies.createOnboardingCsrfProof(onboardingCredential),
       };

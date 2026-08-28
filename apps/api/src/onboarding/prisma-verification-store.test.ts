@@ -21,16 +21,23 @@ function challenge(overrides: Record<string, unknown> = {}) {
   };
 }
 function harness(user: unknown, consumedCount = 1, transitionCount = 1) {
+  const normalizedUser =
+    user && typeof user === 'object' ? { journeys: [], ...user } : user;
   const transaction = {
-    user: { findUnique: vi.fn().mockResolvedValue(user), update: vi.fn() },
+    user: {
+      findUnique: vi.fn().mockResolvedValue(normalizedUser),
+      update: vi.fn(),
+    },
     verificationChallenge: {
       updateMany: vi.fn().mockResolvedValue({ count: consumedCount }),
       create: vi.fn(),
       count: vi
         .fn()
         .mockResolvedValue(
-          Array.isArray((user as { challenges?: unknown[] } | null)?.challenges)
-            ? (user as { challenges: unknown[] }).challenges.length
+          Array.isArray(
+            (normalizedUser as { challenges?: unknown[] } | null)?.challenges,
+          )
+            ? (normalizedUser as { challenges: unknown[] }).challenges.length
             : 0,
         ),
     },
@@ -92,7 +99,9 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
       id: 'user',
       challenges: [challenge()],
     });
-    await expect(store.verify(validVerification)).resolves.toBe(true);
+    await expect(store.verify(validVerification)).resolves.toBe(
+      'personal-profile',
+    );
     expect(transaction.user.update).toHaveBeenCalled();
     expect(transaction.onboardingJourney.updateMany).toHaveBeenCalled();
     expect(transaction.onboardingContinuation.upsert).toHaveBeenCalledWith({
@@ -109,18 +118,36 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
     });
   });
 
-  it('re-establishes continuation for a verified personal-profile journey without replaying verification [REQ-088]', async () => {
-    const { store, transaction } = harness({
+  it.each([
+    ['PERSONAL_PROFILE', 'personal-profile'],
+    ['PLAN_SELECTION', 'plan-selection'],
+    ['ORGANIZATION_PROFILE', 'organization-profile'],
+  ] as const)(
+    'returns the saved %s step while re-establishing continuation without replaying verification [REQ-088]',
+    async (currentStep, nextStep) => {
+      const { store, transaction } = harness({
+        id: 'user',
+        emailVerifiedAt: new Date('2026-08-27T00:30:00Z'),
+        journeys: [{ id: 'journey', currentStep }],
+        challenges: [challenge()],
+      });
+
+      await expect(store.verify(validVerification)).resolves.toBe(nextStep);
+      expect(transaction.user.update).not.toHaveBeenCalled();
+      expect(transaction.onboardingJourney.updateMany).not.toHaveBeenCalled();
+      expect(transaction.onboardingContinuation.upsert).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('rejects recovery for an onboarding step that is not implemented [REQ-088]', async () => {
+    const { store } = harness({
       id: 'user',
       emailVerifiedAt: new Date('2026-08-27T00:30:00Z'),
-      journeys: [{ id: 'journey', currentStep: 'PERSONAL_PROFILE' }],
+      journeys: [{ id: 'journey', currentStep: 'PAYMENT' }],
       challenges: [challenge()],
     });
 
-    await expect(store.verify(validVerification)).resolves.toBe(true);
-    expect(transaction.user.update).not.toHaveBeenCalled();
-    expect(transaction.onboardingJourney.updateMany).not.toHaveBeenCalled();
-    expect(transaction.onboardingContinuation.upsert).toHaveBeenCalledOnce();
+    await expect(store.verify(validVerification)).resolves.toBe(false);
   });
 
   it('rejects a missing or duplicate journey transition [REQ-012, REQ-086]', async () => {

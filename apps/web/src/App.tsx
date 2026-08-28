@@ -19,6 +19,11 @@ import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
+const verificationNextStepRoutes = {
+  'personal-profile': '/onboarding/about-you',
+  'plan-selection': '/onboarding/plan-selection',
+  'organization-profile': '/onboarding/organization-profile',
+} as const;
 
 function Home() {
   return (
@@ -73,9 +78,9 @@ export function App({
         resendAvailableInSeconds={verificationEmail ? 60 : 0}
         verify={(input) => verifyOnboardingEmail(input, apiUrl)}
         resend={(input) => resendOnboardingVerification(input, apiUrl)}
-        onVerified={() => {
+        onVerified={(nextStep) => {
           window.sessionStorage.removeItem(verificationEmailKey);
-          navigate('/onboarding/about-you');
+          navigate(verificationNextStepRoutes[nextStep]);
         }}
       />
     );

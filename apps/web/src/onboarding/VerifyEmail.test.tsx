@@ -55,7 +55,9 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
   });
 
   it('submits deliberately and continues after success', async () => {
-    const verify = vi.fn().mockResolvedValue(undefined);
+    const verify = vi
+      .fn()
+      .mockResolvedValue({ nextStep: 'personal-profile' as const });
     const onVerified = vi.fn();
     render(
       <VerifyEmail
@@ -71,7 +73,7 @@ describe('VerifyEmail [REQ-006, REQ-007, REQ-084]', () => {
     expect(verify).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => {
-      expect(onVerified).toHaveBeenCalledOnce();
+      expect(onVerified).toHaveBeenCalledWith('personal-profile');
     });
   });
 

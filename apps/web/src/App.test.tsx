@@ -286,6 +286,45 @@ describe('App [REQ-002]', () => {
     });
   });
 
+  it('resumes the server-authoritative plan-selection step after verification [REQ-088]', async () => {
+    window.history.replaceState({}, '', '/onboarding/verify-email');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ nextStep: 'plan-selection' }), {
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              firstName: 'Nabin',
+              selectedInterval: 'annual',
+              selectedPriceId: null,
+              plans: planFixtures,
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+
+    render(<App apiUrl="https://api.example" />);
+    fireEvent.change(screen.getByLabelText('Verification code'), {
+      target: { value: '123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Welcome Nabin, choose your plan',
+      }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/onboarding/plan-selection');
+    window.history.replaceState({}, '', '/');
+  });
+
   it('submits personal details and advances to plan selection', async () => {
     window.history.replaceState({}, '', '/onboarding/about-you');
     document.cookie = 'hansel_onboarding_csrf=csrf-proof';

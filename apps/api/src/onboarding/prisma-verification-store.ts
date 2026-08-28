@@ -1,5 +1,17 @@
-import type { PrismaClient } from '@prisma/client';
+import type { OnboardingStep, PrismaClient } from '@prisma/client';
 import { timingSafeEqual } from 'node:crypto';
+
+type VerificationNextStep =
+  'personal-profile' | 'plan-selection' | 'organization-profile';
+
+function toVerificationNextStep(
+  step: OnboardingStep,
+): VerificationNextStep | null {
+  if (step === 'PERSONAL_PROFILE') return 'personal-profile';
+  if (step === 'PLAN_SELECTION') return 'plan-selection';
+  if (step === 'ORGANIZATION_PROFILE') return 'organization-profile';
+  return null;
+}
 
 function digestsMatch(left: string, right: string): boolean {
   const leftBytes = Buffer.from(left, 'utf8');
@@ -43,15 +55,17 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             },
           });
           const challenge = user?.challenges[0];
-          const resumesPersonalProfile = Boolean(
+          const recoveryJourney = user?.journeys[0];
+          const recoveryNextStep =
             user?.emailVerifiedAt &&
             user.journeys.length === 1 &&
-            user.journeys[0]?.currentStep === 'PERSONAL_PROFILE',
-          );
+            recoveryJourney
+              ? toVerificationNextStep(recoveryJourney.currentStep)
+              : null;
           if (
             !user ||
             !challenge ||
-            (user.emailVerifiedAt && !resumesPersonalProfile) ||
+            (user.emailVerifiedAt && !recoveryNextStep) ||
             challenge.consumedAt ||
             challenge.expiresAt <= input.now ||
             challenge.failedAttempts >= 5
@@ -79,7 +93,7 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             data: { consumedAt: input.now },
           });
           if (consumed.count !== 1) return false;
-          if (!resumesPersonalProfile) {
+          if (!recoveryNextStep) {
             await transaction.user.update({
               where: { id: user.id },
               data: { emailVerifiedAt: input.now },
@@ -103,7 +117,7 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
               expiresAt: input.onboardingCredentialExpiresAt,
             },
           });
-          return true;
+          return recoveryNextStep ?? 'personal-profile';
         });
       } catch (error) {
         if (error instanceof VerificationTransitionRejected) return false;
@@ -127,7 +141,13 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             journeys: {
               where: {
                 entryPath: 'NEW_ORGANIZATION',
-                currentStep: 'PERSONAL_PROFILE',
+                currentStep: {
+                  in: [
+                    'PERSONAL_PROFILE',
+                    'PLAN_SELECTION',
+                    'ORGANIZATION_PROFILE',
+                  ],
+                },
                 completedAt: null,
               },
               select: { id: true },
@@ -149,12 +169,12 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
               },
             })
           : 0;
-        const resumesPersonalProfile = Boolean(
+        const hasResumableJourney = Boolean(
           user?.emailVerifiedAt && user.journeys.length === 1,
         );
         if (
           !user ||
-          (user.emailVerifiedAt && !resumesPersonalProfile) ||
+          (user.emailVerifiedAt && !hasResumableJourney) ||
           !latest ||
           sendsInLastHour >= 5 ||
           input.now.getTime() - latest.sentAt.getTime() < 60_000

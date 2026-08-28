@@ -47,7 +47,13 @@ export type VerifyOnboardingEmailRequest = z.infer<
 >;
 
 export const verifyOnboardingEmailResponseSchema = z
-  .object({ nextStep: z.literal('personal-profile') })
+  .object({
+    nextStep: z.enum([
+      'personal-profile',
+      'plan-selection',
+      'organization-profile',
+    ]),
+  })
   .strict();
 export type VerifyOnboardingEmailResponse = z.infer<
   typeof verifyOnboardingEmailResponseSchema

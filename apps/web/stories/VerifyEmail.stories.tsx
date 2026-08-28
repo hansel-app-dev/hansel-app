@@ -6,7 +6,7 @@ const meta = {
   component: VerifyEmail,
   args: {
     email: 'owner@example.com',
-    verify: () => Promise.resolve(),
+    verify: () => Promise.resolve({ nextStep: 'personal-profile' }),
     resend: () => Promise.resolve(),
   },
   parameters: { layout: 'fullscreen' },
