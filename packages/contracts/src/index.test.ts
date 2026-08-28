@@ -4,6 +4,7 @@ import {
   departmentOptions,
   jobTitleOptions,
   personalProfileRequestSchema,
+  personalProfilePageResponseSchema,
   personalProfileResponseSchema,
   planSelectionPageResponseSchema,
   planSelectionRequestSchema,
@@ -228,6 +229,26 @@ describe('personal profile contract [REQ-037, REQ-040, REQ-086]', () => {
     expect(
       personalProfileResponseSchema.parse({ nextStep: 'plan-selection' }),
     ).toEqual({ nextStep: 'plan-selection' });
+    expect(
+      personalProfilePageResponseSchema.parse({
+        profile: {
+          firstName: 'Nabin',
+          lastName: 'Singh',
+          jobTitle: 'manager',
+          department: 'marketing_communications',
+        },
+      }),
+    ).toEqual({
+      profile: {
+        firstName: 'Nabin',
+        lastName: 'Singh',
+        jobTitle: 'manager',
+        department: 'marketing_communications',
+      },
+    });
+    expect(personalProfilePageResponseSchema.parse({ profile: null })).toEqual({
+      profile: null,
+    });
   });
 
   it('counts personal-profile limits by Unicode character [REQ-037, REQ-086]', () => {

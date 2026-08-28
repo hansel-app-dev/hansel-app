@@ -51,7 +51,10 @@ const organizationPage = {
   sizes: organizationSizeOptions,
 };
 
-async function enterPlanSelection(page: Page) {
+async function enterPlanSelection(
+  page: Page,
+  profile: Record<string, string> | null = null,
+) {
   await page.route('**/api/onboarding/email-verification/verify', (route) =>
     route.fulfill({
       status: 200,
@@ -63,7 +66,11 @@ async function enterPlanSelection(page: Page) {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ nextStep: 'plan-selection' }),
+      body: JSON.stringify(
+        route.request().method() === 'GET'
+          ? { profile }
+          : { nextStep: 'plan-selection' },
+      ),
     }),
   );
   await page.goto('/onboarding/verify-email');
@@ -174,7 +181,11 @@ test('personal profile matches the approved catalogs and advances [REQ-086]', as
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ nextStep: 'plan-selection' }),
+      body: JSON.stringify(
+        route.request().method() === 'GET'
+          ? { profile: null }
+          : { nextStep: 'plan-selection' },
+      ),
     }),
   );
   await page.route('**/api/onboarding/plan-selection', async (route) =>
@@ -414,9 +425,15 @@ test('paid and Enterprise plan outcomes are server-authored [onboarding-plan-sel
   await expect(page).toHaveURL('https://sales.example.com/hansel');
 });
 
-test('a failed plan choice stays selected and Back returns to personal profile [onboarding-plan-selection REQ-012, REQ-013]', async ({
+test('a failed plan choice stays selected and Back restores the personal profile [REQ-011, REQ-014, onboarding-plan-selection REQ-012, REQ-013]', async ({
   page,
 }) => {
+  const profile = {
+    firstName: 'Nabin',
+    lastName: 'Singh',
+    jobTitle: 'manager',
+    department: 'marketing_communications',
+  };
   await page.route('**/api/onboarding/plan-selection', (route) =>
     route.request().method() === 'GET'
       ? route.fulfill({
@@ -430,7 +447,7 @@ test('a failed plan choice stays selected and Back returns to personal profile [
           body: JSON.stringify({ error: 'onboarding_transition_failed' }),
         }),
   );
-  await enterPlanSelection(page);
+  await enterPlanSelection(page, profile);
   await page.getByRole('button', { name: 'Choose Plus' }).click();
   await expect(page.getByRole('alert')).toContainText(
     'could not save your plan',
@@ -441,6 +458,14 @@ test('a failed plan choice stays selected and Back returns to personal profile [
   await expect(
     page.getByRole('heading', { name: 'Tell us about you' }),
   ).toBeVisible();
+  await expect(page.getByLabel('First name')).toHaveValue('Nabin');
+  await expect(page.getByLabel('Last name')).toHaveValue('Singh');
+  await expect(page.getByLabel('Job title', { exact: true })).toHaveValue(
+    'manager',
+  );
+  await expect(page.getByLabel('Department', { exact: true })).toHaveValue(
+    'marketing_communications',
+  );
 });
 
 test('server-rendered personal profile matches its visual and accessibility contract [REQ-054, REQ-086]', async ({
@@ -457,7 +482,7 @@ test('server-rendered personal profile matches its visual and accessibility cont
   });
 });
 
-test('plan selection remains functional without JavaScript [onboarding-plan-selection REQ-012, REQ-017]', async ({
+test('plan selection and profile edits remain functional without JavaScript [REQ-011, REQ-014, REQ-054, onboarding-plan-selection REQ-012, REQ-017]', async ({
   browser,
 }) => {
   const { baseUrl, credential, csrfProof, disconnect } =
@@ -491,6 +516,27 @@ test('plan selection remains functional without JavaScript [onboarding-plan-sele
   await expect(
     page.getByRole('heading', { name: 'Welcome Nabin, choose your plan' }),
   ).toBeVisible();
+  await page.getByRole('link', { name: 'Back' }).click();
+  await expect(page).toHaveURL(/\/onboarding\/about-you$/);
+  await expect(page.getByLabel('First name')).toHaveValue('Nabin');
+  await expect(page.getByLabel('Last name')).toHaveValue('Singh');
+  await expect(page.getByLabel('Job title', { exact: true })).toHaveValue(
+    'manager',
+  );
+  await expect(page.getByLabel('Department', { exact: true })).toHaveValue(
+    'marketing_communications',
+  );
+  await page.getByLabel('First name').fill('Updated');
+  const [profileSubmission] = await Promise.all([
+    page.waitForRequest('**/api/onboarding/personal-profile'),
+    page.getByRole('button', { name: 'Next' }).click(),
+  ]);
+  const profileSubmissionHeaders = await profileSubmission.allHeaders();
+  expect(profileSubmissionHeaders.origin).toBe('null');
+  expect(profileSubmissionHeaders['sec-fetch-site']).toBe('same-origin');
+  await expect(
+    page.getByRole('heading', { name: 'Welcome Updated, choose your plan' }),
+  ).toBeVisible();
   const [submission] = await Promise.all([
     page.waitForRequest('**/api/onboarding/plan-selection'),
     page.getByRole('button', { name: 'Or try it for free' }).click(),
@@ -499,8 +545,8 @@ test('plan selection remains functional without JavaScript [onboarding-plan-sele
   expect(submissionHeaders.origin).toBe('null');
   expect(submissionHeaders['sec-fetch-site']).toBe('same-origin');
   const submissionCookies = submissionHeaders.cookie ?? '';
-  expect(submissionCookies).toContain(`hansel_onboarding=${credential}`);
-  expect(submissionCookies).toContain(`hansel_onboarding_csrf=${csrfProof}`);
+  expect(submissionCookies).toContain('hansel_onboarding=');
+  expect(submissionCookies).toContain('hansel_onboarding_csrf=');
   await expect(page).toHaveURL(/\/onboarding\/organization-profile$/);
   await context.close();
   await disconnect();

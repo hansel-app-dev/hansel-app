@@ -6,6 +6,7 @@ import {
   loadPlanSelection,
   selectOnboardingPlan,
   verifyOnboardingEmail,
+  loadPersonalProfile,
   submitPersonalProfile,
   loadOrganizationProfile,
   submitOrganizationProfile,
@@ -16,6 +17,38 @@ import {
   organizationSizeOptions,
   placeServiceOptions,
 } from '@hansel/contracts';
+
+describe('personal profile API [REQ-011, REQ-014]', () => {
+  it('loads the accepted profile with credentials', async () => {
+    const result = {
+      profile: {
+        firstName: 'Nabin',
+        lastName: 'Singh',
+        jobTitle: 'manager' as const,
+        department: 'marketing_communications' as const,
+      },
+    };
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }));
+
+    await expect(loadPersonalProfile('', fetcher)).resolves.toEqual(result);
+    expect(fetcher).toHaveBeenCalledWith('/api/onboarding/personal-profile', {
+      method: 'GET',
+      credentials: 'include',
+    });
+  });
+
+  it('maps an unavailable profile load', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+
+    await expect(loadPersonalProfile('', fetcher)).rejects.toThrow(
+      'personal_profile_load_failed',
+    );
+  });
+});
 
 describe('organization profile API [onboarding-organization-profile REQ-006, REQ-007, REQ-011]', () => {
   const page = {

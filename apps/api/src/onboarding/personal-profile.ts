@@ -1,4 +1,5 @@
 import type {
+  PersonalProfilePageResponse,
   PersonalProfileRequest,
   PersonalProfileResponse,
 } from '@hansel/contracts';
@@ -20,6 +21,30 @@ interface PersonalProfileDependencies {
   createOnboardingCsrfProof(credential: string): string;
   verifyOnboardingCsrfProof(credential: string, proof: string): boolean;
   now(): Date;
+}
+
+interface PersonalProfileLoaderDependencies {
+  load(input: {
+    credentialDigest: string;
+    now: Date;
+  }): Promise<PersonalProfilePageResponse | null>;
+  digestOnboardingCredential(credential: string): string;
+  now(): Date;
+}
+
+export function createPersonalProfileLoader(
+  dependencies: PersonalProfileLoaderDependencies,
+) {
+  return async function loadPersonalProfile(
+    credential: string,
+  ): Promise<PersonalProfilePageResponse> {
+    const result = await dependencies.load({
+      credentialDigest: dependencies.digestOnboardingCredential(credential),
+      now: dependencies.now(),
+    });
+    if (!result) throw new PersonalProfileTransitionError();
+    return result;
+  };
 }
 
 export function createPersonalProfile(

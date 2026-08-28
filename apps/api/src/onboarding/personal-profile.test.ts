@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createPersonalProfile,
+  createPersonalProfileLoader,
   PersonalProfileTransitionError,
 } from './personal-profile.js';
 
@@ -16,6 +17,33 @@ const rotation = {
 };
 
 describe('personal profile [REQ-037, REQ-040, REQ-086]', () => {
+  it('loads an accepted profile through the continuation credential [REQ-011, REQ-014]', async () => {
+    const load = vi.fn().mockResolvedValue({ profile });
+    const loader = createPersonalProfileLoader({
+      load,
+      digestOnboardingCredential: (value) => `digest:${value}`,
+      now: () => new Date('2026-08-27T02:00:00Z'),
+    });
+
+    await expect(loader('credential')).resolves.toEqual({ profile });
+    expect(load).toHaveBeenCalledWith({
+      credentialDigest: 'digest:credential',
+      now: new Date('2026-08-27T02:00:00Z'),
+    });
+  });
+
+  it('rejects an unavailable profile continuation generically [REQ-014]', async () => {
+    const loader = createPersonalProfileLoader({
+      load: vi.fn().mockResolvedValue(null),
+      digestOnboardingCredential: vi.fn(),
+      now: vi.fn(),
+    });
+
+    await expect(loader('invalid')).rejects.toBeInstanceOf(
+      PersonalProfileTransitionError,
+    );
+  });
+
   it('persists the profile through the authenticated transition', async () => {
     const save = vi.fn().mockResolvedValue(true);
     const submit = createPersonalProfile({

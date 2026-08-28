@@ -140,6 +140,13 @@ export type PersonalProfileRequest = z.infer<
   typeof personalProfileRequestSchema
 >;
 
+export const personalProfilePageResponseSchema = z
+  .object({ profile: personalProfileRequestSchema.nullable() })
+  .strict();
+export type PersonalProfilePageResponse = z.infer<
+  typeof personalProfilePageResponseSchema
+>;
+
 export const personalProfileResponseSchema = z
   .object({ nextStep: z.literal('plan-selection') })
   .strict();

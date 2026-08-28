@@ -10,6 +10,7 @@ import {
   departmentOptions,
   jobTitleOptions,
   personalProfileRequestSchema,
+  personalProfilePageResponseSchema,
   personalProfileResponseSchema,
   planSelectionPageResponseSchema,
   planSelectionRequestSchema,
@@ -28,6 +29,7 @@ import {
   type VerifyOnboardingEmailRequest,
   type VerifyOnboardingEmailResponse,
   type PersonalProfileRequest,
+  type PersonalProfilePageResponse,
   type PersonalProfileResponse,
   type PlanSelectionPageResponse,
   type PlanSelectionRequest,
@@ -60,6 +62,9 @@ export interface OnboardingModule {
   resendVerification(
     input: ResendOnboardingVerificationRequest,
   ): Promise<ResendOnboardingVerificationResponse>;
+  loadPersonalProfile?(
+    credential: string,
+  ): Promise<PersonalProfilePageResponse>;
   submitPersonalProfile(
     credential: string,
     csrfProof: string,
@@ -236,10 +241,13 @@ export function createApp(
   app.get('/api/health', (_request, response) => {
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
-  app.get('/onboarding/about-you', (_request, response) => {
-    response.type('html').send(renderAboutYouForm());
-  });
+  if (!onboarding)
+    app.get('/onboarding/about-you', (_request, response) => {
+      response.type('html').send(renderAboutYouForm());
+    });
   if (onboarding) {
+    const personalProfileOnboarding = onboarding as OnboardingModule &
+      Required<Pick<OnboardingModule, 'loadPersonalProfile'>>;
     const planOnboarding = onboarding as OnboardingModule &
       Required<Pick<OnboardingModule, 'load' | 'select'>>;
     const organizationOnboarding = onboarding as OnboardingModule &
@@ -254,6 +262,41 @@ export function createApp(
     };
     const readOnboardingCredential = (request: express.Request) =>
       readCookie(request.headers.cookie, onboardingCookieName);
+    app.get('/onboarding/about-you', async (request, response) => {
+      response.set('Cache-Control', 'private, no-store');
+      const credential = readOnboardingCredential(request);
+      if (!credential) {
+        response
+          .status(401)
+          .type('html')
+          .send(
+            renderAboutYouForm(
+              {},
+              'Your onboarding session is unavailable. Please sign in again.',
+            ),
+          );
+        return;
+      }
+      try {
+        const { profile } =
+          await personalProfileOnboarding.loadPersonalProfile(credential);
+        response.type('html').send(renderAboutYouForm(profile ?? {}));
+      } catch (error) {
+        if (error instanceof PersonalProfileTransitionError) {
+          response
+            .status(409)
+            .type('html')
+            .send(
+              renderAboutYouForm(
+                {},
+                'Your onboarding session is unavailable. Please sign in again.',
+              ),
+            );
+          return;
+        }
+        throw error;
+      }
+    });
     app.get('/api/onboarding/plan-selection', async (request, response) => {
       if (config.planSelectionEnabled === false) {
         response.status(404).json({ error: 'not_found' });
@@ -376,6 +419,27 @@ export function createApp(
           .json(resendOnboardingVerificationResponseSchema.parse(result));
       },
     );
+    app.get('/api/onboarding/personal-profile', async (request, response) => {
+      response.set('Cache-Control', 'private, no-store');
+      const credential = readOnboardingCredential(request);
+      if (!credential) {
+        response.status(401).json({ error: 'onboarding_transition_failed' });
+        return;
+      }
+      try {
+        response.json(
+          personalProfilePageResponseSchema.parse(
+            await personalProfileOnboarding.loadPersonalProfile(credential),
+          ),
+        );
+      } catch (error) {
+        if (error instanceof PersonalProfileTransitionError) {
+          response.status(409).json({ error: 'onboarding_transition_failed' });
+          return;
+        }
+        throw error;
+      }
+    });
     app.post('/api/onboarding/personal-profile', async (request, response) => {
       const isHtmlForm = request.is('application/x-www-form-urlencoded');
       const reject = (status: number, error: string) => {
@@ -410,7 +474,9 @@ export function createApp(
       );
       const csrfHeader = request.header('x-hansel-csrf');
       if (
-        request.headers.origin !== config.allowedOrigin ||
+        (isHtmlForm
+          ? !hasAllowedFormOrigin(request, config.allowedOrigin)
+          : request.headers.origin !== config.allowedOrigin) ||
         !credential ||
         !csrfCookie ||
         (!isHtmlForm && csrfHeader !== csrfCookie)

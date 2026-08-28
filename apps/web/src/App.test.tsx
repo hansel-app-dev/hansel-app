@@ -156,6 +156,38 @@ describe('App [REQ-002]', () => {
     ).toBeInTheDocument();
   });
 
+  it('restores the accepted personal profile when returning to the step [REQ-011, REQ-014]', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          profile: {
+            firstName: 'Nabin',
+            lastName: 'Singh',
+            jobTitle: 'manager',
+            department: 'marketing_communications',
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<App apiUrl="https://api.example" path="/onboarding/about-you" />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('First name')).toHaveValue('Nabin');
+    });
+    expect(screen.getByLabelText('Last name')).toHaveValue('Singh');
+    expect(screen.getByLabelText('Job title')).toHaveValue('manager');
+    expect(screen.getByLabelText('Department')).toHaveValue(
+      'marketing_communications',
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.example/api/onboarding/personal-profile',
+      expect.objectContaining({ method: 'GET', credentials: 'include' }),
+    );
+  });
+
   it('connects verification and resend actions to the configured API', async () => {
     vi.stubGlobal(
       'fetch',
@@ -165,6 +197,9 @@ describe('App [REQ-002]', () => {
           new Response(JSON.stringify({ nextStep: 'personal-profile' }), {
             status: 200,
           }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ profile: null }), { status: 200 }),
         )
         .mockResolvedValueOnce(
           new Response(JSON.stringify({ status: 'accepted' }), { status: 202 }),
@@ -178,7 +213,7 @@ describe('App [REQ-002]', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledOnce();
+      expect(fetch).toHaveBeenCalledTimes(2);
     });
     expect(
       await screen.findByRole('heading', { name: 'Tell us about you' }),
@@ -189,18 +224,23 @@ describe('App [REQ-002]', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Request new code' }));
     await waitFor(() => {
-      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(fetch).toHaveBeenCalledTimes(3);
     });
   });
 
   it('submits personal details and advances to plan selection', async () => {
     window.history.replaceState({}, '', '/onboarding/about-you');
     document.cookie = 'hansel_onboarding_csrf=csrf-proof';
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ nextStep: 'plan-selection' }), {
-        status: 200,
-      }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ profile: null }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ nextStep: 'plan-selection' }), {
+          status: 200,
+        }),
+      );
     vi.stubGlobal('fetch', fetchMock);
     render(<App apiUrl="https://api.example" />);
     for (const [label, value] of [
@@ -258,6 +298,45 @@ describe('App [REQ-002]', () => {
       window.history.replaceState({}, '', '/');
     },
   );
+
+  it('returns from plan selection and restores the accepted profile [REQ-011, REQ-014]', async () => {
+    window.history.replaceState({}, '', '/onboarding/plan-selection');
+    const profile = {
+      firstName: 'Nabin',
+      lastName: 'Singh',
+      jobTitle: 'manager',
+      department: 'marketing_communications',
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            firstName: 'Nabin',
+            selectedInterval: 'annual',
+            selectedPriceId: null,
+            plans: planFixtures,
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ profile }), { status: 200 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    render(<App apiUrl="https://api.example" />);
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Back' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Tell us about you' }),
+    ).toBeVisible();
+    await waitFor(() => {
+      expect(screen.getByLabelText('First name')).toHaveValue('Nabin');
+    });
+    expect(window.location.pathname).toBe('/onboarding/about-you');
+    window.history.replaceState({}, '', '/');
+  });
 
   it('opens the configured Enterprise sales destination [onboarding-plan-selection REQ-008]', async () => {
     document.cookie = 'hansel_onboarding_csrf=csrf-proof';

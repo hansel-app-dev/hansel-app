@@ -11,6 +11,8 @@ import {
   type VerifyOnboardingEmailRequest,
   type VerifyOnboardingEmailResponse,
   personalProfileResponseSchema,
+  personalProfilePageResponseSchema,
+  type PersonalProfilePageResponse,
   type PersonalProfileRequest,
   type PersonalProfileResponse,
   planSelectionPageResponseSchema,
@@ -24,6 +26,18 @@ import {
   type OrganizationProfileRequest,
   type OrganizationProfileResponse,
 } from '@hansel/contracts';
+
+export async function loadPersonalProfile(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PersonalProfilePageResponse> {
+  const response = await fetcher(`${baseUrl}/api/onboarding/personal-profile`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  if (!response.ok) throw new Error('personal_profile_load_failed');
+  return personalProfilePageResponseSchema.parse(await response.json());
+}
 
 export async function loadOrganizationProfile(
   baseUrl: string,

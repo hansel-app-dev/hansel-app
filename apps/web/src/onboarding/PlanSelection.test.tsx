@@ -133,4 +133,19 @@ describe('PlanSelection [onboarding-plan-selection REQ-001, REQ-004, REQ-005, RE
       expect(screen.getByRole('button', { name: 'Choose Plus' })).toBeEnabled(),
     );
   });
+
+  it('keeps the Back href and delegates enhanced navigation [onboarding-plan-selection REQ-013]', async () => {
+    const onBack = vi.fn();
+    render(
+      <PlanSelection
+        loadPlans={() => Promise.resolve(state)}
+        selectPlan={vi.fn()}
+        onBack={onBack}
+      />,
+    );
+    const back = await screen.findByRole('link', { name: 'Back' });
+    expect(back).toHaveAttribute('href', '/onboarding/about-you');
+    fireEvent.click(back);
+    expect(onBack).toHaveBeenCalledOnce();
+  });
 });

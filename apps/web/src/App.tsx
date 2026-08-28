@@ -3,6 +3,7 @@ import {
   createOnboardingAccount,
   resendOnboardingVerification,
   verifyOnboardingEmail,
+  loadPersonalProfile,
   submitPersonalProfile,
   loadPlanSelection,
   selectOnboardingPlan,
@@ -73,6 +74,7 @@ export function App({
   if (currentPath === '/onboarding/about-you') {
     return (
       <AboutYou
+        loadProfile={() => loadPersonalProfile(apiUrl)}
         submitProfile={(input) => submitPersonalProfile(input, apiUrl)}
         onCompleted={() => {
           navigate('/onboarding/plan-selection');
@@ -85,6 +87,9 @@ export function App({
       <PlanSelection
         loadPlans={() => loadPlanSelection(apiUrl)}
         selectPlan={(priceId) => selectOnboardingPlan(priceId, apiUrl)}
+        onBack={() => {
+          navigate('/onboarding/about-you');
+        }}
         onCompleted={(result) => {
           if (result.nextStep === 'contact-sales')
             openExternal(result.destination);

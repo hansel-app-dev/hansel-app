@@ -493,7 +493,7 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
     errorLog.mockRestore();
   });
 
-  it('submits a validated profile using only the secure continuation cookie', async () => {
+  it('submits a validated profile using only the secure continuation cookie [REQ-054, REQ-086]', async () => {
     const submitPersonalProfile = vi
       .fn()
       .mockResolvedValue({ nextStep: 'plan-selection' });
@@ -532,6 +532,174 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
         department: 'marketing_communications',
       },
     );
+  });
+
+  it('accepts a same-origin progressive profile submission with an opaque Origin [REQ-054, REQ-086]', async () => {
+    const submitPersonalProfile = vi
+      .fn()
+      .mockResolvedValue({ nextStep: 'plan-selection' });
+    const onboardingApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      {
+        createAccount: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        submitPersonalProfile,
+      },
+    );
+
+    await request(onboardingApp)
+      .post('/api/onboarding/personal-profile')
+      .type('form')
+      .set('Origin', 'null')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .set('Host', 'app.example.com')
+      .set(
+        'Cookie',
+        'hansel_onboarding=opaque; hansel_onboarding_csrf=csrf-proof',
+      )
+      .send({
+        firstName: 'Updated',
+        lastName: 'Singh',
+        jobTitle: 'manager',
+        department: 'marketing_communications',
+      })
+      .expect(303)
+      .expect('Location', '/onboarding/plan-selection');
+
+    expect(submitPersonalProfile).toHaveBeenCalledWith(
+      'opaque',
+      'csrf-proof',
+      expect.objectContaining({ firstName: 'Updated' }),
+    );
+  });
+
+  it('loads the accepted profile using only the secure continuation cookie [REQ-011, REQ-014, REQ-086]', async () => {
+    const profile = {
+      firstName: 'Nabin',
+      lastName: 'Singh',
+      jobTitle: 'manager' as const,
+      department: 'marketing_communications' as const,
+    };
+    const loadPersonalProfile = vi.fn().mockResolvedValue({ profile });
+    const onboardingApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      {
+        createAccount: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        loadPersonalProfile,
+        submitPersonalProfile: vi.fn(),
+      },
+    );
+
+    const response = await request(onboardingApp)
+      .get('/api/onboarding/personal-profile')
+      .set('Cookie', 'other=x; hansel_onboarding=opaque%2Dcredential')
+      .expect('Cache-Control', 'private, no-store')
+      .expect(200, { profile });
+
+    expect(response.body).toEqual({ profile });
+    expect(loadPersonalProfile).toHaveBeenCalledWith('opaque-credential');
+  });
+
+  it('prefills the progressive profile form from accepted server state [REQ-011, REQ-054]', async () => {
+    const loadPersonalProfile = vi
+      .fn()
+      .mockResolvedValueOnce({
+        profile: {
+          firstName: 'Nabin',
+          lastName: 'Singh',
+          jobTitle: 'manager',
+          department: 'marketing_communications',
+        },
+      })
+      .mockResolvedValueOnce({ profile: null });
+    const onboardingApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      {
+        createAccount: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        loadPersonalProfile,
+        submitPersonalProfile: vi.fn(),
+      },
+    );
+
+    const response = await request(onboardingApp)
+      .get('/onboarding/about-you')
+      .set('Cookie', 'hansel_onboarding=opaque')
+      .expect(200);
+
+    expect(response.text).toContain('value="Nabin"');
+    expect(response.text).toContain('value="manager" selected');
+    await request(onboardingApp)
+      .get('/onboarding/about-you')
+      .set('Cookie', 'hansel_onboarding=opaque')
+      .expect(200, /name="firstName"[^>]+value=""/);
+  });
+
+  it('rejects unavailable profile reads without exposing continuation details [REQ-086]', async () => {
+    const module = (loadPersonalProfile: ReturnType<typeof vi.fn>) => ({
+      createAccount: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerification: vi.fn(),
+      loadPersonalProfile,
+      submitPersonalProfile: vi.fn(),
+    });
+    const missingCredential = vi.fn();
+    const missingCredentialApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      module(missingCredential),
+    );
+    await request(missingCredentialApp)
+      .get('/api/onboarding/personal-profile')
+      .expect(401, { error: 'onboarding_transition_failed' });
+    await request(missingCredentialApp)
+      .get('/onboarding/about-you')
+      .expect(401, /Please sign in again/);
+    expect(missingCredential).not.toHaveBeenCalled();
+
+    const staleApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      module(vi.fn().mockRejectedValue(new PersonalProfileTransitionError())),
+    );
+    await request(staleApp)
+      .get('/api/onboarding/personal-profile')
+      .set('Cookie', 'hansel_onboarding=stale')
+      .expect(409, { error: 'onboarding_transition_failed' });
+    await request(staleApp)
+      .get('/onboarding/about-you')
+      .set('Cookie', 'hansel_onboarding=stale')
+      .expect(409, /onboarding session is unavailable/i);
+
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const unexpectedApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      module(vi.fn().mockRejectedValue(new Error('secret'))),
+    );
+    const response = await request(unexpectedApp)
+      .get('/api/onboarding/personal-profile')
+      .set('Cookie', 'hansel_onboarding=opaque')
+      .expect(500);
+    expect(response.body).toEqual({
+      error: 'internal_error',
+      correlationId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    });
+    await request(unexpectedApp)
+      .get('/onboarding/about-you')
+      .set('Cookie', 'hansel_onboarding=opaque')
+      .expect(500);
+    expect(errorLog).toHaveBeenCalledTimes(2);
+    errorLog.mockRestore();
   });
 
   it.each([

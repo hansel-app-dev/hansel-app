@@ -7,9 +7,21 @@ paths:
     get:
       operationId: renderOnboardingPersonalProfile
       summary: Render the progressive personal-profile form
+      security:
+        - onboardingContinuation: []
       responses:
         '200':
-          description: Accessible HTML form that remains usable without JavaScript
+          description: Accessible private HTML form that remains usable without JavaScript
+          content:
+            text/html:
+              schema: { type: string }
+        '401':
+          description: The onboarding continuation is absent
+          content:
+            text/html:
+              schema: { type: string }
+        '409':
+          description: The onboarding continuation is stale or incompatible
           content:
             text/html:
               schema: { type: string }
@@ -117,10 +129,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/ResendOnboardingVerificationResponse'
   /api/onboarding/personal-profile:
+    get:
+      operationId: getOnboardingPersonalProfile
+      summary: Load the verified user's server-authoritative personal profile
+      security:
+        - onboardingContinuation: []
+      responses:
+        '200':
+          description: The accepted profile, or null before the first save
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalProfilePageResponse'
+        '401':
+          description: The onboarding continuation is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: The onboarding continuation is stale or incompatible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     post:
       operationId: submitOnboardingPersonalProfile
       summary: Save the verified user's personal profile and advance onboarding
-      description: This server-authoritative transition is single-use. A retry after an accepted or otherwise incompatible transition receives 409, and the client must resume from server-authoritative journey state; an idempotency key is not accepted for this step.
+      description: The initial save advances the new-organization journey to plan selection. Returning from plan selection permits an edit, and every accepted write rotates the continuation credential. Incompatible journey state receives 409; an idempotency key is not accepted for this step.
       security:
         - onboardingContinuation: []
           onboardingCsrfCookie: []
@@ -410,6 +446,15 @@ components:
         nextStep:
           type: string
           const: plan-selection
+    PersonalProfilePageResponse:
+      type: object
+      additionalProperties: false
+      required: [profile]
+      properties:
+        profile:
+          oneOf:
+            - $ref: '#/components/schemas/PersonalProfileRequest'
+            - type: 'null'
     PlanSelectionRequest:
       type: object
       additionalProperties: false

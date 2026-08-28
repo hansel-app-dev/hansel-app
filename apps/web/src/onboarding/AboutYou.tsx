@@ -4,6 +4,7 @@ import {
   departmentOptions,
   jobTitleOptions,
   personalProfileRequestSchema,
+  type PersonalProfilePageResponse,
   type PersonalProfileRequest,
 } from '@hansel/contracts';
 import { useForm } from 'react-hook-form';
@@ -49,17 +50,23 @@ const profileSchema = yup
 type ProfileForm = yup.InferType<typeof profileSchema>;
 
 export interface AboutYouProps {
+  loadProfile?: () => Promise<PersonalProfilePageResponse>;
   submitProfile: (profile: PersonalProfileRequest) => Promise<unknown>;
   onCompleted?: () => void;
 }
 
-export function AboutYou({ submitProfile, onCompleted }: AboutYouProps) {
+export function AboutYou({
+  loadProfile,
+  submitProfile,
+  onCompleted,
+}: AboutYouProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
+    reset,
     setError,
     watch,
   } = useForm<ProfileForm>({
@@ -76,6 +83,18 @@ export function AboutYou({ submitProfile, onCompleted }: AboutYouProps) {
   useEffect(() => {
     headingRef.current?.focus();
   }, []);
+  useEffect(() => {
+    if (!loadProfile) return;
+    void loadProfile()
+      .then(({ profile }) => {
+        if (profile) reset(profile);
+      })
+      .catch(() => {
+        setError('root', {
+          message: 'We could not load your details. Please try again.',
+        });
+      });
+  }, [loadProfile, reset, setError]);
   useEffect(() => {
     if (errors.root?.message) errorRef.current?.focus();
   }, [errors.root?.message]);

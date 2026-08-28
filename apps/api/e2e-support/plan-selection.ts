@@ -5,6 +5,14 @@ import { createApp } from '../src/app.js';
 import { loadPlanCatalog } from '../src/onboarding/plan-catalog.js';
 import { createPlanSelection } from '../src/onboarding/plan-selection.js';
 import { createPrismaPlanSelectionStore } from '../src/onboarding/prisma-plan-selection-store.js';
+import {
+  createPersonalProfile,
+  createPersonalProfileLoader,
+} from '../src/onboarding/personal-profile.js';
+import {
+  createPrismaPersonalProfileLoader,
+  createPrismaPersonalProfileStore,
+} from '../src/onboarding/prisma-personal-profile-store.js';
 
 export async function seedPlanSelectionJourney() {
   const prisma = new PrismaClient({
@@ -71,12 +79,23 @@ export async function seedPlanSelectionJourney() {
         csrfProof: '',
       }),
     resendVerification: () => Promise.resolve({ status: 'accepted' as const }),
-    submitPersonalProfile: () =>
-      Promise.resolve({
-        nextStep: 'plan-selection' as const,
-        onboardingCredential: '',
-        csrfProof: '',
-      }),
+    loadPersonalProfile: createPersonalProfileLoader({
+      load: createPrismaPersonalProfileLoader(prisma),
+      digestOnboardingCredential: (value) =>
+        security.digestOnboardingCredential(value),
+      now: () => new Date(),
+    }),
+    submitPersonalProfile: createPersonalProfile({
+      save: createPrismaPersonalProfileStore(prisma),
+      createOnboardingCredential: () => security.createOnboardingCredential(),
+      digestOnboardingCredential: (value) =>
+        security.digestOnboardingCredential(value),
+      createOnboardingCsrfProof: (value) =>
+        security.createOnboardingCsrfProof(value),
+      verifyOnboardingCsrfProof: (value, proof) =>
+        security.verifyOnboardingCsrfProof(value, proof),
+      now: () => new Date(),
+    }),
     ...planSelection,
   }).listen(3011);
   return {

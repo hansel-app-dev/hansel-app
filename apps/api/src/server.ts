@@ -10,8 +10,14 @@ import { createPrismaVerificationStore } from './onboarding/prisma-verification-
 import { createResendVerificationSender } from './onboarding/resend-verification-sender.js';
 import { createOnboardingSecurity } from './onboarding/security.js';
 import { createEmailVerification } from './onboarding/verify-email.js';
-import { createPersonalProfile } from './onboarding/personal-profile.js';
-import { createPrismaPersonalProfileStore } from './onboarding/prisma-personal-profile-store.js';
+import {
+  createPersonalProfile,
+  createPersonalProfileLoader,
+} from './onboarding/personal-profile.js';
+import {
+  createPrismaPersonalProfileLoader,
+  createPrismaPersonalProfileStore,
+} from './onboarding/prisma-personal-profile-store.js';
 import { loadPlanCatalog } from './onboarding/plan-catalog.js';
 import { createPlanSelection } from './onboarding/plan-selection.js';
 import { createPrismaPlanSelectionStore } from './onboarding/prisma-plan-selection-store.js';
@@ -58,6 +64,12 @@ const onboarding = {
     ...security,
     storePendingAccount: createPrismaPendingAccountStore(prisma),
     sendVerificationCode,
+    now: () => new Date(),
+  }),
+  loadPersonalProfile: createPersonalProfileLoader({
+    load: createPrismaPersonalProfileLoader(prisma),
+    digestOnboardingCredential: (credential) =>
+      security.digestOnboardingCredential(credential),
     now: () => new Date(),
   }),
   submitPersonalProfile: createPersonalProfile({

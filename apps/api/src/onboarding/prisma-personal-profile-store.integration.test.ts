@@ -1,7 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
-import { createPrismaPersonalProfileStore } from './prisma-personal-profile-store.js';
+import {
+  createPrismaPersonalProfileLoader,
+  createPrismaPersonalProfileStore,
+} from './prisma-personal-profile-store.js';
 import { createPrismaVerificationStore } from './prisma-verification-store.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -29,6 +32,173 @@ const rotation = () => ({
 integration('PostgreSQL personal-profile transition [REQ-018, REQ-086]', () => {
   afterAll(async () => {
     await prisma.$disconnect();
+  });
+
+  it('loads and updates accepted values after returning from plan selection [REQ-011, REQ-014]', async () => {
+    const testId = randomUUID();
+    const credentialDigest = `return-${testId}`;
+    await prisma.user.create({
+      data: {
+        email: `profile-integration-return-${testId}@example.com`,
+        emailVerifiedAt: new Date(),
+        journeys: {
+          create: {
+            entryPath: 'NEW_ORGANIZATION',
+            currentStep: 'PERSONAL_PROFILE',
+          },
+        },
+        continuation: {
+          create: {
+            credentialDigest,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        },
+      },
+    });
+    const save = createPrismaPersonalProfileStore(prisma);
+    const load = createPrismaPersonalProfileLoader(prisma);
+    const firstRotation = rotation();
+    await expect(
+      save({
+        credentialDigest,
+        now: new Date(),
+        profile,
+        ...firstRotation,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      load({
+        credentialDigest: firstRotation.nextCredentialDigest,
+        now: new Date(),
+      }),
+    ).resolves.toEqual({ profile });
+
+    const updatedProfile = { ...profile, firstName: 'Updated' };
+    const secondRotation = rotation();
+    await expect(
+      save({
+        credentialDigest: firstRotation.nextCredentialDigest,
+        now: new Date(),
+        profile: updatedProfile,
+        ...secondRotation,
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      load({
+        credentialDigest: secondRotation.nextCredentialDigest,
+        now: new Date(),
+      }),
+    ).resolves.toEqual({ profile: updatedProfile });
+  });
+
+  it('rejects an ambiguous continuation with multiple eligible journeys [REQ-012]', async () => {
+    const testId = randomUUID();
+    const credentialDigest = `ambiguous-return-${testId}`;
+    await prisma.user.create({
+      data: {
+        email: `profile-integration-ambiguous-return-${testId}@example.com`,
+        emailVerifiedAt: new Date(),
+        journeys: {
+          create: [
+            { entryPath: 'NEW_ORGANIZATION', currentStep: 'PLAN_SELECTION' },
+            { entryPath: 'NEW_ORGANIZATION', currentStep: 'PLAN_SELECTION' },
+          ],
+        },
+        continuation: {
+          create: {
+            credentialDigest,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        },
+      },
+    });
+
+    await expect(
+      createPrismaPersonalProfileLoader(prisma)({
+        credentialDigest,
+        now: new Date(),
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('rejects invitation journeys from personal-profile loading and saving [REQ-003, REQ-012]', async () => {
+    const testId = randomUUID();
+    const credentialDigest = `invitation-${testId}`;
+    await prisma.user.create({
+      data: {
+        email: `profile-integration-invitation-${testId}@example.com`,
+        emailVerifiedAt: new Date(),
+        journeys: {
+          create: {
+            entryPath: 'ORGANIZATION_INVITATION',
+            currentStep: 'PLAN_SELECTION',
+          },
+        },
+        continuation: {
+          create: {
+            credentialDigest,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        },
+      },
+    });
+
+    await expect(
+      createPrismaPersonalProfileLoader(prisma)({
+        credentialDigest,
+        now: new Date(),
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      createPrismaPersonalProfileStore(prisma)({
+        credentialDigest,
+        now: new Date(),
+        profile,
+        ...rotation(),
+      }),
+    ).resolves.toBe(false);
+  });
+
+  it('rejects conflicting personal-profile and plan-selection journeys [REQ-012]', async () => {
+    const testId = randomUUID();
+    const credentialDigest = `conflicting-${testId}`;
+    const user = await prisma.user.create({
+      data: {
+        email: `profile-integration-conflicting-${testId}@example.com`,
+        emailVerifiedAt: new Date(),
+        journeys: {
+          create: [
+            { entryPath: 'NEW_ORGANIZATION', currentStep: 'PERSONAL_PROFILE' },
+            { entryPath: 'NEW_ORGANIZATION', currentStep: 'PLAN_SELECTION' },
+          ],
+        },
+        continuation: {
+          create: {
+            credentialDigest,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        },
+      },
+    });
+
+    await expect(
+      createPrismaPersonalProfileStore(prisma)({
+        credentialDigest,
+        now: new Date(),
+        profile,
+        ...rotation(),
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      prisma.onboardingJourney.findMany({
+        where: { userId: user.id },
+        orderBy: { currentStep: 'asc' },
+        select: { currentStep: true },
+      }),
+    ).resolves.toEqual([
+      { currentStep: 'PERSONAL_PROFILE' },
+      { currentStep: 'PLAN_SELECTION' },
+    ]);
   });
 
   it('has a single winner under concurrent retries [REQ-018]', async () => {

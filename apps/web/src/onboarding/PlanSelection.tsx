@@ -11,10 +11,12 @@ import { PlanCard } from '../design-system/index.js';
 export function PlanSelection({
   loadPlans,
   selectPlan,
+  onBack,
   onCompleted = () => undefined,
 }: {
   loadPlans: () => Promise<PlanSelectionPageResponse>;
   selectPlan: (priceId: PlanPriceId) => Promise<PlanSelectionResponse>;
+  onBack?: () => void;
   onCompleted?: (result: PlanSelectionResponse) => void;
 }) {
   const [state, setState] = useState<PlanSelectionPageResponse | null>(null);
@@ -123,6 +125,14 @@ export function PlanSelection({
       <a
         className="fixed bottom-14 left-14 rounded-control border border-control-border px-4 py-2 max-sm:static max-sm:mt-10 max-sm:inline-block"
         href="/onboarding/about-you"
+        onClick={
+          onBack
+            ? (event) => {
+                event.preventDefault();
+                onBack();
+              }
+            : undefined
+        }
       >
         Back
       </a>
