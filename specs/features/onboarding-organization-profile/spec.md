@@ -4,10 +4,10 @@
 - Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-08-27`
+- Last updated: `2026-08-28`
 - Design authority: `Figma Hansel App UI, Onboarding frame 11:409`
 - Design evidence: `Browser-inspected 2026-08-27; Figma structured connector was rate-limited`
-- Product approval: `Acceptance criteria approved by user, 2026-08-27`
+- Product approval: `Acceptance criteria approved by user, 2026-08-28`
 - Implementation evidence: `100% frontend/backend unit coverage; PostgreSQL integration; JavaScript and no-JavaScript Playwright; Storybook axe and deterministic desktop/narrow screenshots; independent spec and standards reviews passed, 2026-08-28`
 
 ## Problem
@@ -53,6 +53,7 @@ Organization creation is also an authorization transition. The verified creator 
 - REQ-016: Frontend and backend unit suites MUST retain 100% statement, branch, function, and line coverage. Contract tests MUST validate every request, response, country, industry, place/service relationship, and size identifier. PostgreSQL tests MUST prove atomic organization/Owner/journey creation, rollback, one concurrent winner, idempotent same-payload retry, and conflicting-payload rejection. Playwright MUST cover successful Free-plan progression, dependent options, validation retention, no JavaScript, accessibility, keyboard use, deterministic desktop and 320-pixel visual states, and forbidden Back mutation.
 - REQ-017: Structured events MUST record page load, validation rejection, transition rejection, successful organization creation, idempotent replay, conflict, and unexpected failure using correlation ID and non-sensitive stable outcome fields. Logs and metrics MUST never include organization name, country combined with identity, continuation or submission keys, CSRF values, cookies, or headers. Alerting MUST cover sustained unexpected organization-creation failures.
 - REQ-018: Deployment MUST apply the additive database migration before enabling the route. Production rollout MUST be flag-controlled, fail closed when catalog validation fails, and allow rollback by disabling the route while preserving created organizations and memberships.
+- REQ-019: The `Type of place or service` select MUST retain the approved white surface while disabled waiting for an industry selection. It MUST remain semantically disabled and continue to expose the instruction to select an industry first.
 
 ## Acceptance scenarios
 
@@ -62,6 +63,7 @@ Organization creation is also an authorization transition. The verified creator 
 - When the page loads
 - Then the exact Figma heading, five fields, ordering, and Next action are shown
 - And every selectable value comes from the approved versioned country, industry/place, and size catalogs
+- And the disabled `Type of place or service` select retains a white background while explaining that an industry must be selected first
 
 ### AC-002 — Dependent place values remain valid [REQ-004]
 

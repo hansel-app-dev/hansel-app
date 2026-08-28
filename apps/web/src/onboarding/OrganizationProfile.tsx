@@ -130,6 +130,7 @@ export function OrganizationProfile({
               {...register('industry')}
             />
             <SelectField
+              className="disabled:!bg-surface"
               label="Type of place or service"
               options={places}
               disabled={!industry}

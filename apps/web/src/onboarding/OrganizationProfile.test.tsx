@@ -29,8 +29,8 @@ const page = {
   sizes: [...organizationSizeOptions],
 };
 
-describe('OrganizationProfile [onboarding-organization-profile REQ-001..REQ-015]', () => {
-  it('loads the Figma fields and filters dependent options', async () => {
+describe('OrganizationProfile [onboarding-organization-profile REQ-001..REQ-019]', () => {
+  it('loads the Figma fields, keeps place/service white, and filters dependent options [REQ-019]', async () => {
     const submitProfile = vi.fn().mockResolvedValue({ nextStep: 'discovery' });
     render(
       <OrganizationProfile
@@ -42,7 +42,9 @@ describe('OrganizationProfile [onboarding-organization-profile REQ-001..REQ-015]
       screen.getByRole('heading', { name: 'Now your organization' }),
     ).toBeVisible();
     expect(await screen.findByLabelText('Organization')).toBeVisible();
-    expect(screen.getByLabelText('Type of place or service')).toBeDisabled();
+    const placeService = screen.getByLabelText('Type of place or service');
+    expect(placeService).toBeDisabled();
+    expect(placeService).toHaveClass('disabled:!bg-surface');
     fireEvent.change(screen.getByLabelText('Industry or sector'), {
       target: { value: 'healthcare' },
     });
