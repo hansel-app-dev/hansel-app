@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   createOnboardingAccount,
   resendOnboardingVerification,
@@ -46,6 +46,25 @@ export function App({
     () => window.sessionStorage.getItem(verificationEmailKey) ?? '',
   );
   const [currentPath, setCurrentPath] = useState(path);
+  useEffect(() => {
+    if (path !== '/onboarding' && path !== '/onboarding/verify-email') return;
+    const hasSessionHint = document.cookie
+      .split(';')
+      .some((part) => part.trim().startsWith('hansel_onboarding_csrf='));
+    if (!hasSessionHint) return;
+    let active = true;
+    void loadPersonalProfile(apiUrl)
+      .then(() => {
+        if (!active) return;
+        window.sessionStorage.removeItem(verificationEmailKey);
+        window.history.replaceState({}, '', '/onboarding/about-you');
+        setCurrentPath('/onboarding/about-you');
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [apiUrl, path]);
   const navigate = (destination: string) => {
     window.history.pushState({}, '', destination);
     setCurrentPath(destination);

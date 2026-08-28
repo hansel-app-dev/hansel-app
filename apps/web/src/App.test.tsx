@@ -69,11 +69,12 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.useRealTimers();
   window.sessionStorage.clear();
+  document.cookie = 'hansel_onboarding_csrf=; Max-Age=0; path=/';
 });
 
 describe('App [REQ-002]', () => {
   it('routes organization profile completion to discovery [onboarding-organization-profile REQ-001, REQ-011]', async () => {
-    document.cookie = 'hansel_onboarding_csrf=proof';
+    document.cookie = 'hansel_onboarding_csrf=proof; path=/';
     vi.stubGlobal(
       'fetch',
       vi
@@ -142,11 +143,90 @@ describe('App [REQ-002]', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('routes the verification step', () => {
-    render(<App path="/onboarding/verify-email" />);
-    expect(
-      screen.getByRole('heading', { name: 'Verify your account' }),
-    ).toBeInTheDocument();
+  it.each([
+    ['onboarding', '/onboarding', "Let's get started"],
+    ['verification', '/onboarding/verify-email', 'Verify your account'],
+  ])(
+    'keeps an unavailable hinted session at the %s entry [REQ-089]',
+    async (_entry, path, heading) => {
+      document.cookie = 'hansel_onboarding_csrf=proof; path=/';
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'onboarding_session_expired' }), {
+          status: 401,
+        }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(<App path={path} />);
+
+      expect(
+        screen.getByRole('heading', { name: heading }),
+      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledOnce();
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/onboarding/personal-profile',
+        expect.objectContaining({ method: 'GET', credentials: 'include' }),
+      );
+    },
+  );
+
+  it.each([
+    ['onboarding', '/onboarding'],
+    ['verification', '/onboarding/verify-email'],
+  ])(
+    'resumes an active session at About You from %s [REQ-089]',
+    async (_entry, path) => {
+      document.cookie = 'hansel_onboarding_csrf=proof; path=/';
+      window.sessionStorage.setItem(
+        'hansel.verificationEmail',
+        'owner@example.com',
+      );
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockImplementation(() =>
+            Promise.resolve(
+              new Response(JSON.stringify({ profile: null }), { status: 200 }),
+            ),
+          ),
+      );
+
+      render(<App apiUrl="https://api.example" path={path} />);
+
+      expect(
+        await screen.findByRole('heading', { name: 'Tell us about you' }),
+      ).toBeInTheDocument();
+      expect(window.location.pathname).toBe('/onboarding/about-you');
+      expect(
+        window.sessionStorage.getItem('hansel.verificationEmail'),
+      ).toBeNull();
+      window.history.replaceState({}, '', '/');
+    },
+  );
+
+  it('does not resume after the session-aware page is closed [REQ-089]', async () => {
+    document.cookie = 'hansel_onboarding_csrf=proof; path=/';
+    window.history.replaceState({}, '', '/onboarding');
+    let resolveProbe: (response: Response) => void = () => undefined;
+    const pendingProbe = new Promise<Response>((resolve) => {
+      resolveProbe = resolve;
+    });
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(pendingProbe));
+
+    const view = render(<App path="/onboarding" />);
+    view.unmount();
+    await act(async () => {
+      resolveProbe(
+        new Response(JSON.stringify({ profile: null }), { status: 200 }),
+      );
+      await pendingProbe;
+    });
+
+    expect(window.location.pathname).toBe('/onboarding');
+    window.history.replaceState({}, '', '/');
   });
 
   it('routes the personal profile step', () => {
@@ -213,7 +293,7 @@ describe('App [REQ-002]', () => {
 
   it('returns to onboarding when the personal-profile session expires before submission [REQ-086]', async () => {
     window.history.replaceState({}, '', '/onboarding/about-you');
-    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof; path=/';
     vi.stubGlobal(
       'fetch',
       vi
@@ -327,7 +407,7 @@ describe('App [REQ-002]', () => {
 
   it('submits personal details and advances to plan selection', async () => {
     window.history.replaceState({}, '', '/onboarding/about-you');
-    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof; path=/';
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -365,7 +445,7 @@ describe('App [REQ-002]', () => {
     'routes a selected %s plan to %s [onboarding-plan-selection REQ-006, REQ-007]',
     async (priceId, nextStep, destination) => {
       window.history.replaceState({}, '', '/onboarding/plan-selection');
-      document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+      document.cookie = 'hansel_onboarding_csrf=csrf-proof; path=/';
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
@@ -436,7 +516,7 @@ describe('App [REQ-002]', () => {
   });
 
   it('opens the configured Enterprise sales destination [onboarding-plan-selection REQ-008]', async () => {
-    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof; path=/';
     const openExternal = vi.fn();
     vi.stubGlobal(
       'fetch',
