@@ -188,6 +188,64 @@ describe('App [REQ-002]', () => {
     );
   });
 
+  it('logs out an expired personal-profile session and returns to onboarding [REQ-014, REQ-086]', async () => {
+    window.history.replaceState({}, '', '/onboarding/about-you');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'onboarding_session_expired' }), {
+          status: 401,
+        }),
+      ),
+    );
+
+    render(<App apiUrl="https://api.example" />);
+
+    expect(
+      await screen.findByRole('heading', { name: "Let's get started" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/onboarding');
+    expect(
+      screen.queryByText('Your onboarding session is unavailable.'),
+    ).not.toBeInTheDocument();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('returns to onboarding when the personal-profile session expires before submission [REQ-086]', async () => {
+    window.history.replaceState({}, '', '/onboarding/about-you');
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ profile: null }), { status: 200 }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ error: 'onboarding_session_expired' }),
+            { status: 401 },
+          ),
+        ),
+    );
+
+    render(<App apiUrl="https://api.example" />);
+    for (const [label, value] of [
+      ['First name', 'Nabin'],
+      ['Last name', 'Singh'],
+      ['Job title', 'manager'],
+      ['Department', 'marketing_communications'],
+    ] as const)
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(
+      await screen.findByRole('heading', { name: "Let's get started" }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/onboarding');
+    window.history.replaceState({}, '', '/');
+  });
+
   it('connects verification and resend actions to the configured API', async () => {
     vi.stubGlobal(
       'fetch',

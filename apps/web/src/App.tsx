@@ -9,6 +9,7 @@ import {
   selectOnboardingPlan,
   loadOrganizationProfile,
   submitOrganizationProfile,
+  OnboardingSessionExpiredError,
 } from './api.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
@@ -44,6 +45,14 @@ export function App({
     window.history.pushState({}, '', destination);
     setCurrentPath(destination);
   };
+  const returnToOnboarding = () => {
+    window.history.replaceState({}, '', '/onboarding');
+    setCurrentPath('/onboarding');
+  };
+  const handleSessionExpiry = (error: unknown): never => {
+    if (error instanceof OnboardingSessionExpiredError) returnToOnboarding();
+    throw error;
+  };
   if (currentPath === '/onboarding') {
     return (
       <OnboardingStart
@@ -74,8 +83,12 @@ export function App({
   if (currentPath === '/onboarding/about-you') {
     return (
       <AboutYou
-        loadProfile={() => loadPersonalProfile(apiUrl)}
-        submitProfile={(input) => submitPersonalProfile(input, apiUrl)}
+        loadProfile={() =>
+          loadPersonalProfile(apiUrl).catch(handleSessionExpiry)
+        }
+        submitProfile={(input) =>
+          submitPersonalProfile(input, apiUrl).catch(handleSessionExpiry)
+        }
         onCompleted={() => {
           navigate('/onboarding/plan-selection');
         }}

@@ -262,19 +262,27 @@ export function createApp(
     };
     const readOnboardingCredential = (request: express.Request) =>
       readCookie(request.headers.cookie, onboardingCookieName);
+    const clearOnboardingSession = (response: express.Response) => {
+      const secure = config.allowedOrigin.startsWith('https://');
+      response.clearCookie(onboardingCookieName, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        path: '/',
+      });
+      response.clearCookie(onboardingCsrfCookieName, {
+        httpOnly: false,
+        sameSite: 'strict',
+        secure,
+        path: '/',
+      });
+    };
     app.get('/onboarding/about-you', async (request, response) => {
       response.set('Cache-Control', 'private, no-store');
       const credential = readOnboardingCredential(request);
       if (!credential) {
-        response
-          .status(401)
-          .type('html')
-          .send(
-            renderAboutYouForm(
-              {},
-              'Your onboarding session is unavailable. Please sign in again.',
-            ),
-          );
+        clearOnboardingSession(response);
+        response.redirect(303, '/onboarding');
         return;
       }
       try {
@@ -283,15 +291,8 @@ export function createApp(
         response.type('html').send(renderAboutYouForm(profile ?? {}));
       } catch (error) {
         if (error instanceof PersonalProfileTransitionError) {
-          response
-            .status(409)
-            .type('html')
-            .send(
-              renderAboutYouForm(
-                {},
-                'Your onboarding session is unavailable. Please sign in again.',
-              ),
-            );
+          clearOnboardingSession(response);
+          response.redirect(303, '/onboarding');
           return;
         }
         throw error;
@@ -423,7 +424,8 @@ export function createApp(
       response.set('Cache-Control', 'private, no-store');
       const credential = readOnboardingCredential(request);
       if (!credential) {
-        response.status(401).json({ error: 'onboarding_transition_failed' });
+        clearOnboardingSession(response);
+        response.status(401).json({ error: 'onboarding_session_expired' });
         return;
       }
       try {
@@ -434,7 +436,8 @@ export function createApp(
         );
       } catch (error) {
         if (error instanceof PersonalProfileTransitionError) {
-          response.status(409).json({ error: 'onboarding_transition_failed' });
+          clearOnboardingSession(response);
+          response.status(401).json({ error: 'onboarding_session_expired' });
           return;
         }
         throw error;
@@ -473,14 +476,20 @@ export function createApp(
         onboardingCsrfCookieName,
       );
       const csrfHeader = request.header('x-hansel-csrf');
-      if (
-        (isHtmlForm
-          ? !hasAllowedFormOrigin(request, config.allowedOrigin)
-          : request.headers.origin !== config.allowedOrigin) ||
-        !credential ||
-        !csrfCookie ||
-        (!isHtmlForm && csrfHeader !== csrfCookie)
-      ) {
+      const hasAllowedOrigin = isHtmlForm
+        ? hasAllowedFormOrigin(request, config.allowedOrigin)
+        : request.headers.origin === config.allowedOrigin;
+      if (!hasAllowedOrigin) {
+        reject(401, 'onboarding_transition_failed');
+        return;
+      }
+      if (!credential || !csrfCookie) {
+        clearOnboardingSession(response);
+        if (isHtmlForm) response.redirect(303, '/onboarding');
+        else response.status(401).json({ error: 'onboarding_session_expired' });
+        return;
+      }
+      if (!isHtmlForm && csrfHeader !== csrfCookie) {
         reject(401, 'onboarding_transition_failed');
         return;
       }
@@ -510,7 +519,10 @@ export function createApp(
         else response.json(output);
       } catch (error) {
         if (error instanceof PersonalProfileTransitionError) {
-          reject(409, 'onboarding_transition_failed');
+          clearOnboardingSession(response);
+          if (isHtmlForm) response.redirect(303, '/onboarding');
+          else
+            response.status(401).json({ error: 'onboarding_session_expired' });
           return;
         }
         throw error;

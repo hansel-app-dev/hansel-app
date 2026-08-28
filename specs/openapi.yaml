@@ -15,16 +15,14 @@ paths:
           content:
             text/html:
               schema: { type: string }
-        '401':
-          description: The onboarding continuation is absent
-          content:
-            text/html:
-              schema: { type: string }
-        '409':
-          description: The onboarding continuation is stale or incompatible
-          content:
-            text/html:
-              schema: { type: string }
+        '303':
+          description: The onboarding session has expired; onboarding cookies are cleared and the browser returns to onboarding
+          headers:
+            Location:
+              required: true
+              schema:
+                type: string
+                const: /onboarding
   /onboarding/plan-selection:
     get:
       operationId: renderOnboardingPlanSelection
@@ -142,13 +140,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PersonalProfilePageResponse'
         '401':
-          description: The onboarding continuation is absent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: The onboarding continuation is stale or incompatible
+          description: The onboarding session has expired and onboarding cookies are cleared
           content:
             application/json:
               schema:
@@ -156,7 +148,7 @@ paths:
     post:
       operationId: submitOnboardingPersonalProfile
       summary: Save the verified user's personal profile and advance onboarding
-      description: The initial save advances the new-organization journey to plan selection. Returning from plan selection permits an edit, and every accepted write rotates the continuation credential. Incompatible journey state receives 409; an idempotency key is not accepted for this step.
+      description: The initial save advances the new-organization journey to plan selection. Returning from plan selection permits an edit, and every accepted write rotates the continuation credential. An unavailable or incompatible continuation is cleared and receives the generic expired-session response; an idempotency key is not accepted for this step.
       security:
         - onboardingContinuation: []
           onboardingCsrfCookie: []
@@ -184,13 +176,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/PersonalProfileResponse'
         '303':
-          description: Native HTML form submission accepted; continue to plan selection
+          description: Native HTML form submission accepted and continues to plan selection, or an expired session is cleared and returns to onboarding
           headers:
             Location:
               required: true
               schema:
                 type: string
-                const: /onboarding/plan-selection
+                enum:
+                  - /onboarding/plan-selection
+                  - /onboarding
         '400':
           description: The request does not match the contract
           content:
@@ -200,15 +194,7 @@ paths:
             text/html:
               schema: { type: string }
         '401':
-          description: The onboarding continuation is unavailable
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-            text/html:
-              schema: { type: string }
-        '409':
-          description: The server-authoritative onboarding transition was rejected
+          description: The JSON onboarding session has expired and onboarding cookies are cleared, or request authentication failed
           content:
             application/json:
               schema:

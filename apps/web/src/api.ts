@@ -27,6 +27,10 @@ import {
   type OrganizationProfileResponse,
 } from '@hansel/contracts';
 
+export class OnboardingSessionExpiredError extends Error {
+  readonly code = 'onboarding_session_expired';
+}
+
 export async function loadPersonalProfile(
   baseUrl: string,
   fetcher: typeof fetch = fetch,
@@ -35,6 +39,7 @@ export async function loadPersonalProfile(
     method: 'GET',
     credentials: 'include',
   });
+  if (response.status === 401) throw new OnboardingSessionExpiredError();
   if (!response.ok) throw new Error('personal_profile_load_failed');
   return personalProfilePageResponseSchema.parse(await response.json());
 }
@@ -74,12 +79,14 @@ export async function submitOrganizationProfile(
   return organizationProfileResponseSchema.parse(await response.json());
 }
 
-function readCsrfProof(): string {
+function readCsrfProof(
+  missingError: Error = new Error('csrf_proof_missing'),
+): string {
   const proof = document.cookie
     .split(';')
     .map((part) => part.trim().split('='))
     .find(([name]) => name === 'hansel_onboarding_csrf')?.[1];
-  if (!proof) throw new Error('csrf_proof_missing');
+  if (!proof) throw missingError;
   return decodeURIComponent(proof);
 }
 
@@ -122,10 +129,11 @@ export async function submitPersonalProfile(
     credentials: 'include',
     headers: {
       'content-type': 'application/json',
-      'x-hansel-csrf': readCsrfProof(),
+      'x-hansel-csrf': readCsrfProof(new OnboardingSessionExpiredError()),
     },
     body: JSON.stringify(input),
   });
+  if (response.status === 401) throw new OnboardingSessionExpiredError();
   if (!response.ok) throw new Error('personal_profile_failed');
   return personalProfileResponseSchema.parse(await response.json());
 }

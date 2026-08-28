@@ -468,10 +468,33 @@ test('a failed plan choice stays selected and Back restores the personal profile
   );
 });
 
-test('server-rendered personal profile matches its visual and accessibility contract [REQ-054, REQ-086]', async ({
+test('personal profile matches its visual and accessibility contract [REQ-054, REQ-086]', async ({
   page,
 }) => {
-  await page.goto('/onboarding/about-you');
+  await page.route('**/api/onboarding/email-verification/verify', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ nextStep: 'personal-profile' }),
+    }),
+  );
+  await page.route('**/api/onboarding/personal-profile', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        profile: {
+          firstName: 'Nabin',
+          lastName: 'Singh',
+          jobTitle: 'manager',
+          department: 'marketing_communications',
+        },
+      }),
+    }),
+  );
+  await page.goto('/onboarding/verify-email');
+  await page.getByLabel('Verification code').fill('123456');
+  await page.getByRole('button', { name: 'Next' }).click();
   await expect(
     page.getByRole('heading', { name: 'Tell us about you' }),
   ).toBeVisible();
@@ -488,6 +511,19 @@ test('server-rendered personal profile matches its visual and accessibility cont
     .getByLabel('Department', { exact: true })
     .boundingBox();
   expect(departmentBox?.width).toBe(firstNameBox?.width);
+});
+
+test('an expired personal-profile session logs out and returns to onboarding [REQ-014, REQ-086]', async ({
+  page,
+}) => {
+  await page.goto('/onboarding/about-you');
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(
+    page.getByRole('heading', { name: "Let's get started" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Your onboarding session is unavailable.'),
+  ).toHaveCount(0);
 });
 
 test('plan selection and profile edits remain functional without JavaScript [REQ-011, REQ-014, REQ-054, onboarding-plan-selection REQ-012, REQ-017]', async ({

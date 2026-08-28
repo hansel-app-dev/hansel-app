@@ -656,12 +656,18 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
       undefined,
       module(missingCredential),
     );
-    await request(missingCredentialApp)
+    const expiredApi = await request(missingCredentialApp)
       .get('/api/onboarding/personal-profile')
-      .expect(401, { error: 'onboarding_transition_failed' });
-    await request(missingCredentialApp)
+      .expect(401, { error: 'onboarding_session_expired' });
+    expect(expiredApi.headers['set-cookie']).toHaveLength(2);
+    const expiredPage = await request(missingCredentialApp)
       .get('/onboarding/about-you')
-      .expect(401, /Please sign in again/);
+      .expect('Location', '/onboarding')
+      .expect(303);
+    const expiredCookies = expiredPage.headers['set-cookie'] ?? [];
+    expect(expiredCookies).toHaveLength(2);
+    expect(expiredCookies[0]).toMatch(/^hansel_onboarding=;/);
+    expect(expiredCookies[1]).toMatch(/^hansel_onboarding_csrf=;/);
     expect(missingCredential).not.toHaveBeenCalled();
 
     const staleApp = createApp(
@@ -669,14 +675,17 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
       undefined,
       module(vi.fn().mockRejectedValue(new PersonalProfileTransitionError())),
     );
-    await request(staleApp)
+    const staleApi = await request(staleApp)
       .get('/api/onboarding/personal-profile')
       .set('Cookie', 'hansel_onboarding=stale')
-      .expect(409, { error: 'onboarding_transition_failed' });
-    await request(staleApp)
+      .expect(401, { error: 'onboarding_session_expired' });
+    expect(staleApi.headers['set-cookie']).toHaveLength(2);
+    const stalePage = await request(staleApp)
       .get('/onboarding/about-you')
       .set('Cookie', 'hansel_onboarding=stale')
-      .expect(409, /onboarding session is unavailable/i);
+      .expect('Location', '/onboarding')
+      .expect(303);
+    expect(stalePage.headers['set-cookie']).toHaveLength(2);
 
     const errorLog = vi
       .spyOn(console, 'error')
@@ -703,41 +712,63 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
   });
 
   it.each([
-    ['missing cookie', 'https://app.example.com', undefined],
-    ['wrong origin', 'https://evil.example.com', 'hansel_onboarding=opaque'],
+    [
+      'missing cookie',
+      'https://app.example.com',
+      undefined,
+      'onboarding_session_expired',
+    ],
+    [
+      'wrong origin',
+      'https://evil.example.com',
+      'hansel_onboarding=opaque',
+      'onboarding_transition_failed',
+    ],
+    [
+      'mismatched CSRF proof',
+      'https://app.example.com',
+      'hansel_onboarding=opaque; hansel_onboarding_csrf=csrf-proof',
+      'onboarding_transition_failed',
+    ],
     [
       'malformed cookie',
       'https://app.example.com',
       'hansel_onboarding=%E0%A4%A',
+      'onboarding_session_expired',
     ],
-  ])('rejects profile submission with %s', async (_name, origin, cookie) => {
-    const submitPersonalProfile = vi.fn();
-    const onboardingApp = createApp(
-      { allowedOrigin: 'https://app.example.com' },
-      undefined,
-      {
-        createAccount: vi.fn(),
-        verifyEmail: vi.fn(),
-        resendVerification: vi.fn(),
-        submitPersonalProfile,
-      },
-    );
-    const profileRequest = request(onboardingApp)
-      .post('/api/onboarding/personal-profile')
-      .set('Origin', origin);
-    if (cookie) profileRequest.set('Cookie', cookie);
-    await profileRequest
-      .send({
-        firstName: 'Nabin',
-        lastName: 'Singh',
-        jobTitle: 'manager',
-        department: 'marketing_communications',
-      })
-      .expect(401, { error: 'onboarding_transition_failed' });
-    expect(submitPersonalProfile).not.toHaveBeenCalled();
-  });
+  ])(
+    'rejects profile submission with %s',
+    async (_name, origin, cookie, error) => {
+      const submitPersonalProfile = vi.fn();
+      const onboardingApp = createApp(
+        { allowedOrigin: 'https://app.example.com' },
+        undefined,
+        {
+          createAccount: vi.fn(),
+          verifyEmail: vi.fn(),
+          resendVerification: vi.fn(),
+          submitPersonalProfile,
+        },
+      );
+      const profileRequest = request(onboardingApp)
+        .post('/api/onboarding/personal-profile')
+        .set('Origin', origin);
+      if (cookie) profileRequest.set('Cookie', cookie);
+      const response = await profileRequest
+        .send({
+          firstName: 'Nabin',
+          lastName: 'Singh',
+          jobTitle: 'manager',
+          department: 'marketing_communications',
+        })
+        .expect(401, { error });
+      if (error === 'onboarding_session_expired')
+        expect(response.headers['set-cookie']).toHaveLength(2);
+      expect(submitPersonalProfile).not.toHaveBeenCalled();
+    },
+  );
 
-  it('returns a generic error for invalid data or a rejected transition', async () => {
+  it('rejects invalid data and logs out a rejected transition', async () => {
     const submitPersonalProfile = vi
       .fn()
       .mockRejectedValue(new PersonalProfileTransitionError());
@@ -764,14 +795,15 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
       .send({ firstName: '' })
       .expect(400, { error: 'invalid_request' });
     expect(submitPersonalProfile).not.toHaveBeenCalled();
-    await validRequest()
+    const expiredResponse = await validRequest()
       .send({
         firstName: 'Nabin',
         lastName: 'Singh',
         jobTitle: 'manager',
         department: 'marketing_communications',
       })
-      .expect(409, { error: 'onboarding_transition_failed' });
+      .expect(401, { error: 'onboarding_session_expired' });
+    expect(expiredResponse.headers['set-cookie']).toHaveLength(2);
   });
 
   it('passes unexpected profile failures to the global handler', async () => {
@@ -843,10 +875,25 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
       })
       .expect('Location', '/onboarding/plan-selection')
       .expect(303);
-    await nativeForm()
-      .send({ firstName: '', jobTitleOther: '', departmentOther: '' })
+    const recovery = await nativeForm()
+      .send({
+        firstName: `A&<>"'`,
+        lastName: '',
+        jobTitle: 'other',
+        jobTitleOther: 'Founder',
+        department: 'other',
+        departmentOther: 'Strategy',
+      })
       .expect('Content-Type', /html/)
       .expect(400, /Review the form/);
+    expect(recovery.text).toContain('value="A&amp;&lt;&gt;&quot;&#39;"');
+    expect(recovery.text).toContain('value="other" selected');
+    expect(recovery.text).toContain(
+      'name="jobTitleOther" maxlength="100" required value="Founder"',
+    );
+    expect(recovery.text).toContain(
+      'name="departmentOther" maxlength="100" required value="Strategy"',
+    );
     expect(submitPersonalProfile).toHaveBeenCalledWith(
       'opaque',
       'csrf-proof',
@@ -856,24 +903,46 @@ describe('onboarding account route [REQ-005, REQ-023, REQ-049]', () => {
     submitPersonalProfile.mockRejectedValueOnce(
       new PersonalProfileTransitionError(),
     );
-    const recovery = await nativeForm()
+    const expiredResponse = await nativeForm()
       .send({
-        firstName: `A&<>"'`,
+        firstName: 'Nabin',
         lastName: 'Singh',
-        jobTitle: 'other',
-        jobTitleOther: 'Founder',
-        department: 'other',
-        departmentOther: 'Strategy',
+        jobTitle: 'manager',
+        department: 'marketing_communications',
       })
-      .expect(409);
-    expect(recovery.text).toContain('value="A&amp;&lt;&gt;&quot;&#39;"');
-    expect(recovery.text).toContain('value="other" selected');
-    expect(recovery.text).toContain(
-      'name="jobTitleOther" maxlength="100" required value="Founder"',
+      .expect('Location', '/onboarding')
+      .expect(303);
+    expect(expiredResponse.headers['set-cookie']).toHaveLength(2);
+  });
+
+  it('logs out an expired native profile submission and returns to onboarding [REQ-086]', async () => {
+    const submitPersonalProfile = vi.fn();
+    const onboardingApp = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      {
+        createAccount: vi.fn(),
+        verifyEmail: vi.fn(),
+        resendVerification: vi.fn(),
+        submitPersonalProfile,
+      },
     );
-    expect(recovery.text).toContain(
-      'name="departmentOther" maxlength="100" required value="Strategy"',
-    );
+
+    const response = await request(onboardingApp)
+      .post('/api/onboarding/personal-profile')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({
+        firstName: 'Nabin',
+        lastName: 'Singh',
+        jobTitle: 'manager',
+        department: 'marketing_communications',
+      })
+      .expect('Location', '/onboarding')
+      .expect(303);
+
+    expect(response.headers['set-cookie']).toHaveLength(2);
+    expect(submitPersonalProfile).not.toHaveBeenCalled();
   });
 });
 

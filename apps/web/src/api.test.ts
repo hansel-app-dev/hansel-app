@@ -9,6 +9,7 @@ import {
   loadPersonalProfile,
   submitPersonalProfile,
   loadOrganizationProfile,
+  OnboardingSessionExpiredError,
   submitOrganizationProfile,
 } from './api.js';
 import {
@@ -46,6 +47,16 @@ describe('personal profile API [REQ-011, REQ-014]', () => {
 
     await expect(loadPersonalProfile('', fetcher)).rejects.toThrow(
       'personal_profile_load_failed',
+    );
+  });
+
+  it('identifies an expired personal-profile session [REQ-086]', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    await expect(loadPersonalProfile('', fetcher)).rejects.toBeInstanceOf(
+      OnboardingSessionExpiredError,
     );
   });
 });
@@ -271,13 +282,23 @@ describe('personal profile API [REQ-086]', () => {
       'personal_profile_failed',
     );
   });
-  it('does not send a profile without CSRF proof', async () => {
+  it('identifies an expired session before sending without CSRF proof', async () => {
     document.cookie = 'hansel_onboarding_csrf=; Max-Age=0';
     const fetcher = vi.fn<typeof fetch>();
-    await expect(submitPersonalProfile(input, '', fetcher)).rejects.toThrow(
-      'csrf_proof_missing',
-    );
+    await expect(
+      submitPersonalProfile(input, '', fetcher),
+    ).rejects.toBeInstanceOf(OnboardingSessionExpiredError);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+  it('identifies an expired session returned while saving', async () => {
+    document.cookie = 'hansel_onboarding_csrf=csrf-proof';
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    await expect(
+      submitPersonalProfile(input, '', fetcher),
+    ).rejects.toBeInstanceOf(OnboardingSessionExpiredError);
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 });
 
