@@ -55,7 +55,7 @@ paths:
   /api/onboarding/accounts:
     post:
       operationId: createOnboardingAccount
-      summary: Begin email and password onboarding
+      summary: Begin or recover email and password onboarding generically
       requestBody:
         required: true
         content:
@@ -64,7 +64,7 @@ paths:
               $ref: '#/components/schemas/CreateOnboardingAccountRequest'
       responses:
         '202':
-          description: The generic verification step is ready
+          description: The generic verification step is ready; an eligible verified personal-profile journey may receive a fresh recovery code without revealing account state
           content:
             application/json:
               schema:
@@ -89,7 +89,7 @@ paths:
   /api/onboarding/email-verification/verify:
     post:
       operationId: verifyOnboardingEmail
-      summary: Verify the current onboarding email code
+      summary: Verify an initial or eligible personal-profile recovery code
       requestBody:
         required: true
         content:
@@ -98,7 +98,7 @@ paths:
               $ref: '#/components/schemas/VerifyOnboardingEmailRequest'
       responses:
         '200':
-          description: Email verified
+          description: Email verified or an eligible verified personal-profile continuation re-established
           content:
             application/json:
               schema:
@@ -112,7 +112,7 @@ paths:
   /api/onboarding/email-verification/resend:
     post:
       operationId: resendOnboardingVerification
-      summary: Accept a replacement verification-code request generically
+      summary: Accept an initial or eligible personal-profile recovery-code replacement request generically
       requestBody:
         required: true
         content:

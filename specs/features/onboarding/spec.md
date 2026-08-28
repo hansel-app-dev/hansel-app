@@ -4,7 +4,7 @@
 - Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-08-27`
+- Last updated: `2026-08-28`
 
 ## Problem
 
@@ -28,6 +28,7 @@ After this specification and its open questions are approved, an eligible person
 ## Requirements
 
 - REQ-087: The JavaScript personal-profile client MUST enforce conditional `Other` requirements before submission. The no-JavaScript progressive path MUST enforce the same rule server-side and return the preserved form with the conditional field marked required after an invalid submission.
+- REQ-088: When a verified email/password user whose `NEW_ORGANIZATION` journey remains at `PERSONAL_PROFILE` returns to account creation after losing or expiring the onboarding continuation, Hansel MUST accept the account request generically and MUST issue a fresh `ONBOARDING_EMAIL` challenge to that address when the same 60-second cooldown, five-sends-per-rolling-hour limit, replacement invalidation, attempt limit, expiry, digest-storage, and abuse controls as initial verification permit it. This recovery MUST NOT overwrite the existing password credential, consent evidence, verified-email timestamp, accepted profile data, or journey step. A correct fresh code MUST be consumed once, rotate or recreate only the short-lived onboarding continuation, and return `personal-profile`; it MUST NOT re-run the original email-verification transition. Unknown accounts, completed journeys, unsupported journey steps, and ineligible accounts MUST receive the same public account and resend responses without a verification delivery or account-state disclosure.
 - REQ-001: The onboarding entry context MUST be exactly one of `new-organization`, `organization-invitation`, or `site-invitation`, and the server MUST derive invitation context from a validated opaque invitation credential rather than caller-supplied organization or site identifiers.
 - REQ-002: The new-organization path MUST follow the Figma sequence: account creation, account verification when required by the approved identity method, personal profile, plan selection, payment only when required by the selected plan, organization profile, optional discovery questions, and completion.
 - REQ-003: The organization-invitation path MUST identify the inviting organization, collect only the account and personal-profile information required for that person, and MUST NOT ask the invitee to create another organization, select a plan, or provide payment.
@@ -123,13 +124,15 @@ After this specification and its open questions are approved, an eligible person
 - When they complete each approved step
 - Then the server permits only the next valid transition, preserves accepted progress, and creates no organization, subscription, payment, or membership more than once
 
-### AC-002 — Account verification is secure and recoverable [REQ-005, REQ-006, REQ-007, REQ-017]
+### AC-002 — Account verification is secure and recoverable [REQ-005, REQ-006, REQ-007, REQ-017, REQ-088]
 
 - Given email verification is required for the approved identity method
 - When the person submits the current six-digit code within 15 minutes and before five failed attempts
 - Then the server verifies the email once and permits the next step
 - And invalid, expired, superseded, used, throttled, or attempt-exhausted codes return a generic recoverable response without exposing secrets or account existence
 - And replacement requests are accepted no sooner than 60 seconds apart and no more than five times per rolling hour, with each replacement invalidating all earlier codes
+- And a verified user returning from an expired personal-profile continuation can receive and consume a fresh code without replacing their password, consent, verification timestamp, profile, or journey progress
+- And the same public responses disclose neither whether the email exists nor whether its journey is eligible for recovery
 
 ### AC-003 — Organization invite grants only organization membership [REQ-001, REQ-003, REQ-013]
 
@@ -163,6 +166,7 @@ After this specification and its open questions are approved, an eligible person
 - When they refresh, reconnect, or resume in a later valid session
 - Then the server returns the latest permitted step and accepted non-secret values without replaying completed side effects
 - But when the personal-profile onboarding session has expired, both onboarding cookies are cleared and the browser is taken to `/onboarding` without showing a session-unavailable page
+- And resubmitting the same verified email through account creation can deliver a fresh rate-limited recovery code that restores only the `PERSONAL_PROFILE` continuation
 
 ### AC-008 — Accessible behavior is preserved [REQ-016, REQ-017]
 

@@ -26,6 +26,13 @@ function harness(user: unknown, consumedCount = 1, transitionCount = 1) {
     verificationChallenge: {
       updateMany: vi.fn().mockResolvedValue({ count: consumedCount }),
       create: vi.fn(),
+      count: vi
+        .fn()
+        .mockResolvedValue(
+          Array.isArray((user as { challenges?: unknown[] } | null)?.challenges)
+            ? (user as { challenges: unknown[] }).challenges.length
+            : 0,
+        ),
     },
     onboardingJourney: {
       updateMany: vi.fn().mockResolvedValue({ count: transitionCount }),
@@ -102,6 +109,20 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
     });
   });
 
+  it('re-establishes continuation for a verified personal-profile journey without replaying verification [REQ-088]', async () => {
+    const { store, transaction } = harness({
+      id: 'user',
+      emailVerifiedAt: new Date('2026-08-27T00:30:00Z'),
+      journeys: [{ id: 'journey', currentStep: 'PERSONAL_PROFILE' }],
+      challenges: [challenge()],
+    });
+
+    await expect(store.verify(validVerification)).resolves.toBe(true);
+    expect(transaction.user.update).not.toHaveBeenCalled();
+    expect(transaction.onboardingJourney.updateMany).not.toHaveBeenCalled();
+    expect(transaction.onboardingContinuation.upsert).toHaveBeenCalledOnce();
+  });
+
   it('rejects a missing or duplicate journey transition [REQ-012, REQ-086]', async () => {
     const { store, transaction } = harness(
       { id: 'user', challenges: [challenge()] },
@@ -168,6 +189,26 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
       store.resend({
         email: 'owner@example.com',
         codeDigest: 'new',
+        expiresAt: new Date('2026-08-27T01:15:00Z'),
+        now,
+      }),
+    ).resolves.toBe(true);
+    expect(transaction.verificationChallenge.updateMany).toHaveBeenCalled();
+    expect(transaction.verificationChallenge.create).toHaveBeenCalled();
+  });
+
+  it('replaces the recovery code for a verified personal-profile journey [REQ-088]', async () => {
+    const { store, transaction } = harness({
+      id: 'user',
+      emailVerifiedAt: now,
+      journeys: [{ id: 'journey', currentStep: 'PERSONAL_PROFILE' }],
+      challenges: [challenge({ sentAt: new Date('2026-08-27T00:58:00Z') })],
+    });
+
+    await expect(
+      store.resend({
+        email: 'owner@example.com',
+        codeDigest: 'recovery',
         expiresAt: new Date('2026-08-27T01:15:00Z'),
         now,
       }),

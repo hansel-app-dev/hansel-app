@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import type { PendingAccount } from './create-account.js';
+import { createPrismaVerificationStore } from './prisma-verification-store.js';
 
 export function createPrismaPendingAccountStore(prisma: PrismaClient) {
   return async function storePendingAccount(
@@ -43,7 +44,13 @@ export function createPrismaPendingAccountStore(prisma: PrismaClient) {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        return { shouldSend: false };
+        const shouldSend = await createPrismaVerificationStore(prisma).resend({
+          email: input.email,
+          codeDigest: input.verificationCodeDigest,
+          expiresAt: input.verificationExpiresAt,
+          now: input.consentedAt,
+        });
+        return { shouldSend };
       }
       throw error;
     }

@@ -1,6 +1,8 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createAccountRegistration } from './create-account.js';
 import { createPrismaPendingAccountStore } from './prisma-account-store.js';
+import { createPrismaVerificationStore } from './prisma-verification-store.js';
 
 const prisma = new PrismaClient({
   datasourceUrl:
@@ -92,6 +94,98 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
       }),
     ).resolves.toEqual(
       expect.objectContaining({ passwordHash: 'original-hash' }),
+    );
+  });
+
+  it('issues a fresh challenge without overwriting a verified personal-profile journey [REQ-088]', async () => {
+    const store = createPrismaPendingAccountStore(prisma);
+    const initial = {
+      email: 'owner@example.com',
+      passwordHash: 'original-hash',
+      verificationCodeDigest: 'original-digest',
+      verificationExpiresAt: new Date('2026-08-27T00:15:00.000Z'),
+      termsVersion: '2026-08-27',
+      privacyVersion: '2026-08-27',
+      consentedAt: new Date('2026-08-27T00:00:00.000Z'),
+    };
+    await store(initial);
+    const user = await prisma.user.update({
+      where: { email: initial.email },
+      data: {
+        emailVerifiedAt: new Date('2026-08-27T00:05:00.000Z'),
+        journeys: {
+          updateMany: {
+            where: { currentStep: 'VERIFY_EMAIL' },
+            data: { currentStep: 'PERSONAL_PROFILE' },
+          },
+        },
+      },
+    });
+
+    const sendVerificationCode = vi.fn();
+    const register = createAccountRegistration({
+      hashPassword: vi.fn().mockResolvedValue('replacement-hash'),
+      createVerificationCode: () => '654321',
+      digestVerificationCode: () => 'recovery-digest',
+      storePendingAccount: store,
+      sendVerificationCode,
+      now: () => new Date('2026-08-27T02:00:00.000Z'),
+    });
+    await expect(
+      register({
+        email: initial.email,
+        password: 'Replacement password!7',
+        acceptsTerms: true,
+        termsVersion: initial.termsVersion,
+        privacyVersion: initial.privacyVersion,
+      }),
+    ).resolves.toEqual({ nextStep: 'verify-email' });
+    expect(sendVerificationCode).toHaveBeenCalledWith(initial.email, '654321');
+
+    await expect(
+      prisma.passwordCredential.findUniqueOrThrow({
+        where: { userId: user.id },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({ passwordHash: 'original-hash' }),
+    );
+    await expect(
+      prisma.verificationChallenge.findMany({
+        where: { userId: user.id },
+        orderBy: { sentAt: 'asc' },
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ codeDigest: 'original-digest' }),
+      expect.objectContaining({ codeDigest: 'recovery-digest' }),
+    ]);
+    await expect(
+      prisma.consentRecord.count({ where: { userId: user.id } }),
+    ).resolves.toBe(1);
+
+    await expect(
+      createPrismaVerificationStore(prisma).verify({
+        email: initial.email,
+        codeDigest: 'recovery-digest',
+        onboardingCredentialDigest: 'continuation-digest',
+        onboardingCredentialExpiresAt: new Date('2026-08-27T02:16:00.000Z'),
+        now: new Date('2026-08-27T02:01:00.000Z'),
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.user.findUniqueOrThrow({
+        where: { id: user.id },
+        include: { journeys: true, continuation: true },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        emailVerifiedAt: new Date('2026-08-27T00:05:00.000Z'),
+        journeys: [
+          expect.objectContaining({ currentStep: 'PERSONAL_PROFILE' }),
+        ],
+        continuation: expect.objectContaining({
+          credentialDigest: 'continuation-digest',
+        }),
+      }),
     );
   });
 

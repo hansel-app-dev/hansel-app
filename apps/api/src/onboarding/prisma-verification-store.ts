@@ -27,6 +27,14 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             where: { email: input.email },
             select: {
               id: true,
+              emailVerifiedAt: true,
+              journeys: {
+                where: {
+                  entryPath: 'NEW_ORGANIZATION',
+                  completedAt: null,
+                },
+                select: { currentStep: true },
+              },
               challenges: {
                 where: { purpose: 'ONBOARDING_EMAIL' },
                 orderBy: { sentAt: 'desc' },
@@ -35,9 +43,15 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             },
           });
           const challenge = user?.challenges[0];
+          const resumesPersonalProfile = Boolean(
+            user?.emailVerifiedAt &&
+            user.journeys.length === 1 &&
+            user.journeys[0]?.currentStep === 'PERSONAL_PROFILE',
+          );
           if (
             !user ||
             !challenge ||
+            (user.emailVerifiedAt && !resumesPersonalProfile) ||
             challenge.consumedAt ||
             challenge.expiresAt <= input.now ||
             challenge.failedAttempts >= 5
@@ -65,16 +79,18 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             data: { consumedAt: input.now },
           });
           if (consumed.count !== 1) return false;
-          await transaction.user.update({
-            where: { id: user.id },
-            data: { emailVerifiedAt: input.now },
-          });
-          const transition = await transaction.onboardingJourney.updateMany({
-            where: { userId: user.id, currentStep: 'VERIFY_EMAIL' },
-            data: { currentStep: 'PERSONAL_PROFILE' },
-          });
-          if (transition.count !== 1)
-            throw new VerificationTransitionRejected();
+          if (!resumesPersonalProfile) {
+            await transaction.user.update({
+              where: { id: user.id },
+              data: { emailVerifiedAt: input.now },
+            });
+            const transition = await transaction.onboardingJourney.updateMany({
+              where: { userId: user.id, currentStep: 'VERIFY_EMAIL' },
+              data: { currentStep: 'PERSONAL_PROFILE' },
+            });
+            if (transition.count !== 1)
+              throw new VerificationTransitionRejected();
+          }
           await transaction.onboardingContinuation.upsert({
             where: { userId: user.id },
             create: {
@@ -108,18 +124,39 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
           select: {
             id: true,
             emailVerifiedAt: true,
+            journeys: {
+              where: {
+                entryPath: 'NEW_ORGANIZATION',
+                currentStep: 'PERSONAL_PROFILE',
+                completedAt: null,
+              },
+              select: { id: true },
+            },
             challenges: {
-              where: { purpose: 'ONBOARDING_EMAIL', sentAt: { gte: hourAgo } },
+              where: { purpose: 'ONBOARDING_EMAIL' },
               orderBy: { sentAt: 'desc' },
+              take: 1,
             },
           },
         });
         const latest = user?.challenges[0];
+        const sendsInLastHour = user
+          ? await transaction.verificationChallenge.count({
+              where: {
+                userId: user.id,
+                purpose: 'ONBOARDING_EMAIL',
+                sentAt: { gte: hourAgo },
+              },
+            })
+          : 0;
+        const resumesPersonalProfile = Boolean(
+          user?.emailVerifiedAt && user.journeys.length === 1,
+        );
         if (
           !user ||
-          user.emailVerifiedAt ||
+          (user.emailVerifiedAt && !resumesPersonalProfile) ||
           !latest ||
-          user.challenges.length >= 5 ||
+          sendsInLastHour >= 5 ||
           input.now.getTime() - latest.sentAt.getTime() < 60_000
         )
           return false;
