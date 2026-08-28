@@ -61,6 +61,11 @@ button {
   font: inherit;
   background: var(--canvas);
 }
+input,
+select {
+  width: 100%;
+  min-width: 0;
+}
 .other {
   display: none;
 }

@@ -480,6 +480,14 @@ test('server-rendered personal profile matches its visual and accessibility cont
   await expect(page).toHaveScreenshot('onboarding-about-you-progressive.png', {
     fullPage: true,
   });
+  await page
+    .getByLabel('Department', { exact: true })
+    .selectOption('facilities_management_campus_maintenance');
+  const firstNameBox = await page.getByLabel('First name').boundingBox();
+  const departmentBox = await page
+    .getByLabel('Department', { exact: true })
+    .boundingBox();
+  expect(departmentBox?.width).toBe(firstNameBox?.width);
 });
 
 test('plan selection and profile edits remain functional without JavaScript [REQ-011, REQ-014, REQ-054, onboarding-plan-selection REQ-012, REQ-017]', async ({
