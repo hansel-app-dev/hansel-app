@@ -55,6 +55,22 @@ jobs:
     name: Browser E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hansel
+          POSTGRES_PASSWORD: hansel
+          POSTGRES_DB: hansel
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U hansel -d hansel"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://hansel:hansel@127.0.0.1:5433/hansel?schema=public
+      E2E_DATABASE_URL: postgresql://hansel:hansel@127.0.0.1:5433/hansel?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -63,6 +79,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @hansel/api prisma migrate deploy
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4

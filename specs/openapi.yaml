@@ -104,6 +104,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+  /api/dashboard:
+    get:
+      operationId: getDashboard
+      summary: Load the current tenant's authenticated dashboard viewer
+      security:
+        - applicationAccess: []
+        - applicationRefresh: []
+      responses:
+        '200':
+          description: Current server-derived viewer identity; a valid refresh credential may be rotated
+          headers:
+            Cache-Control:
+              required: true
+              schema: { type: string, const: 'private, no-store' }
+            Vary:
+              required: true
+              description: Includes Cookie because authentication is cookie-derived.
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardResponse' }
+        '401':
+          description: Generic authentication failure; application cookies are cleared
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/onboarding/email-verification/verify:
     post:
       operationId: verifyOnboardingEmail
@@ -374,6 +400,14 @@ components:
       type: apiKey
       in: cookie
       name: hansel_onboarding_csrf
+    applicationAccess:
+      type: apiKey
+      in: cookie
+      name: hansel_access
+    applicationRefresh:
+      type: apiKey
+      in: cookie
+      name: hansel_refresh
   schemas:
     CreateOnboardingAccountRequest:
       type: object
@@ -789,6 +823,19 @@ components:
       properties:
         nextStep: { type: string, const: dashboard }
         destination: { type: string, const: /dashboard }
+    DashboardResponse:
+      type: object
+      additionalProperties: false
+      required: [viewer]
+      properties:
+        viewer:
+          type: object
+          additionalProperties: false
+          required: [displayName, initials, roleLabel]
+          properties:
+            displayName: { type: string, minLength: 1, maxLength: 201 }
+            initials: { type: string, minLength: 1, maxLength: 2 }
+            roleLabel: { type: string, minLength: 1, maxLength: 100 }
     HealthResponse:
       type: object
       additionalProperties: false

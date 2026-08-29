@@ -67,6 +67,11 @@ export class HanselStack extends cdk.Stack {
         excludePunctuation: true,
       },
     });
+    const applicationSessionDigestSecret = new secretsmanager.Secret(
+      this,
+      'ApplicationSessionDigestSecret',
+      { generateSecretString: { excludePunctuation: true } },
+    );
     const database = new rds.DatabaseCluster(this, 'Database', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
         version: rds.AuroraPostgresEngineVersion.VER_16_6,
@@ -136,8 +141,12 @@ export class HanselStack extends cdk.Stack {
           environment: {
             PORT: '3000',
             DISCOVERY_ENABLED: production ? 'false' : 'true',
+            DASHBOARD_ENABLED: production ? 'false' : 'true',
           },
           secrets: {
+            APPLICATION_SESSION_DIGEST_KEY: ecs.Secret.fromSecretsManager(
+              applicationSessionDigestSecret,
+            ),
             DB_USERNAME: ecs.Secret.fromSecretsManager(
               databaseSecret,
               'username',
@@ -262,6 +271,48 @@ export class HanselStack extends cdk.Stack {
       evaluationPeriods: 2,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
+    const dashboardUnexpectedFailureFilter = new logs.MetricFilter(
+      this,
+      'DashboardUnexpectedFailureMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'dashboard_unexpected_failure',
+        ),
+        metricNamespace: 'Hansel/Dashboard',
+        metricName: 'DashboardUnexpectedFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'DashboardUnexpectedFailureAlarm', {
+      metric: dashboardUnexpectedFailureFilter.metric(),
+      threshold: 5,
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    const dashboardRefreshFailureFilter = new logs.MetricFilter(
+      this,
+      'DashboardRefreshFailureMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'dashboard_refresh_failed',
+        ),
+        metricNamespace: 'Hansel/Dashboard',
+        metricName: 'DashboardRefreshFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'DashboardRefreshFailureAlarm', {
+      metric: dashboardRefreshFailureFilter.metric(),
+      threshold: 5,
+      evaluationPeriods: 2,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
     const dashboard = new cloudwatch.Dashboard(this, 'OperationsDashboard');
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
@@ -275,6 +326,13 @@ export class HanselStack extends cdk.Stack {
       new cloudwatch.GraphWidget({
         title: 'Database connections',
         left: [database.metricDatabaseConnections()],
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Dashboard failures',
+        left: [
+          dashboardUnexpectedFailureFilter.metric(),
+          dashboardRefreshFailureFilter.metric(),
+        ],
       }),
     );
 

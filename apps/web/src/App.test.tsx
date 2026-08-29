@@ -75,6 +75,49 @@ afterEach(() => {
 });
 
 describe('App [REQ-002]', () => {
+  it('routes only /dashboard to the authenticated dashboard module [dashboard-home REQ-006]', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            viewer: {
+              displayName: 'Nabin Singh',
+              initials: 'NS',
+              roleLabel: 'Owner',
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    render(<App path="/dashboard" />);
+
+    expect(await screen.findByText('Nabin Singh')).toBeVisible();
+    expect(
+      screen.getAllByRole('heading', { name: 'Widget title' }),
+    ).toHaveLength(4);
+    expect(fetch).toHaveBeenCalledWith('/api/dashboard', {
+      credentials: 'include',
+    });
+  });
+
+  it('returns an unauthenticated dashboard to onboarding [dashboard-home REQ-012]', async () => {
+    window.history.replaceState({}, '', '/dashboard');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: "Let's get started" }),
+    ).toBeVisible();
+    expect(window.location.pathname).toBe('/onboarding');
+  });
+
   it('renders discovery and follows only the server-owned dashboard destination [onboarding-discovery REQ-001, REQ-010]', async () => {
     document.cookie = 'hansel_onboarding_csrf=proof; path=/';
     const openExternal = vi.fn();

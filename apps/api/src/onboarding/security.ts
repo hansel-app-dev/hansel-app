@@ -9,9 +9,11 @@ import { argon2id, hash } from 'argon2';
 export function createOnboardingSecurity({
   passwordPepper,
   verificationDigestKey,
+  applicationSessionDigestKey = verificationDigestKey,
 }: {
   passwordPepper: string;
   verificationDigestKey: string;
+  applicationSessionDigestKey?: string;
 }) {
   return {
     async hashPassword(password: string): Promise<string> {
@@ -33,6 +35,14 @@ export function createOnboardingSecurity({
     },
     createOnboardingCredential(): string {
       return randomBytes(32).toString('base64url');
+    },
+    createApplicationCredential(): string {
+      return randomBytes(32).toString('base64url');
+    },
+    digestApplicationCredential(credential: string): string {
+      return createHmac('sha256', applicationSessionDigestKey)
+        .update(`application-session:${credential}`)
+        .digest('hex');
     },
     deriveOnboardingCredential(
       credential: string,

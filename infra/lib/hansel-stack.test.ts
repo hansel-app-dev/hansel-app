@@ -30,6 +30,10 @@ describe('HanselStack [REQ-004]', () => {
         Match.objectLike({
           Environment: Match.arrayWith([
             { Name: 'DISCOVERY_ENABLED', Value: 'false' },
+            { Name: 'DASHBOARD_ENABLED', Value: 'false' },
+          ]),
+          Secrets: Match.arrayWith([
+            Match.objectLike({ Name: 'APPLICATION_SESSION_DIGEST_KEY' }),
           ]),
         }),
       ]),
@@ -58,7 +62,7 @@ describe('HanselStack [REQ-004]', () => {
         Match.objectLike({ MetricNamespace: 'Hansel/Onboarding' }),
       ]),
     });
-    output.resourceCountIs('AWS::CloudWatch::Alarm', 5);
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 7);
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({
@@ -69,6 +73,16 @@ describe('HanselStack [REQ-004]', () => {
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({ MetricName: 'DiscoveryUnexpectedFailures' }),
+      ]),
+    });
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({ MetricName: 'DashboardUnexpectedFailures' }),
+      ]),
+    });
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({ MetricName: 'DashboardRefreshFailures' }),
       ]),
     });
     output.hasResourceProperties('AWS::CloudFront::Distribution', {

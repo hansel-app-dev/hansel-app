@@ -68,6 +68,12 @@ export function createPrismaDiscoveryStore(prisma: PrismaClient) {
       requestDigest: string;
       now: Date;
       answers: DiscoveryAnswers;
+      applicationSession: {
+        accessCredentialDigest: string;
+        refreshCredentialDigest: string;
+        accessExpiresAt: Date;
+        absoluteExpiresAt: Date;
+      };
     }): Promise<CompleteResult> {
       try {
         return await prisma.$transaction(async (transaction) => {
@@ -116,6 +122,11 @@ export function createPrismaDiscoveryStore(prisma: PrismaClient) {
             data: { currentStep: 'COMPLETE', completedAt: input.now },
           });
           if (transition.count !== 1) throw new Rejected();
+          const journey = await transaction.onboardingJourney.findUnique({
+            where: { id: submission.journeyId },
+            select: { tenantId: true },
+          });
+          if (!journey?.tenantId) throw new Rejected();
           await transaction.onboardingDiscoveryResponse.create({
             data: { journeyId: submission.journeyId, ...input.answers },
           });
@@ -125,6 +136,29 @@ export function createPrismaDiscoveryStore(prisma: PrismaClient) {
               requestDigest: input.requestDigest,
               outcome: '/dashboard',
               consumedAt: input.now,
+            },
+          });
+          await transaction.applicationSessionFamily.create({
+            data: {
+              userId: continuation.userId,
+              tenantId: journey.tenantId,
+              absoluteExpiresAt: input.applicationSession.absoluteExpiresAt,
+              credentials: {
+                create: [
+                  {
+                    kind: 'ACCESS',
+                    credentialDigest:
+                      input.applicationSession.accessCredentialDigest,
+                    expiresAt: input.applicationSession.accessExpiresAt,
+                  },
+                  {
+                    kind: 'REFRESH',
+                    credentialDigest:
+                      input.applicationSession.refreshCredentialDigest,
+                    expiresAt: input.applicationSession.absoluteExpiresAt,
+                  },
+                ],
+              },
             },
           });
           await transaction.onboardingContinuation.delete({

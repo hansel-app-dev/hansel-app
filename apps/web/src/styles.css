@@ -1,5 +1,23 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: 'Hansel Material Symbols 100';
+  src: url('@material-symbols/font-100/material-symbols-outlined.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 100;
+  font-display: block;
+}
+
+@font-face {
+  font-family: 'Hansel Material Symbols 200';
+  src: url('@material-symbols/font-200/material-symbols-outlined.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 200;
+  font-display: block;
+}
+
 @theme {
   /* Verified Figma foundations: design-system-foundation REQ-002. */
   --color-foundation-brown-500: #634739;
@@ -54,5 +72,29 @@
   body {
     min-width: 320px;
     min-height: 100vh;
+  }
+}
+
+@layer components {
+  .material-symbols-100,
+  .material-symbols-200 {
+    direction: ltr;
+    display: inline-block;
+    font-feature-settings: 'liga';
+    font-style: normal;
+    line-height: 1;
+    text-transform: none;
+    white-space: nowrap;
+    word-wrap: normal;
+  }
+
+  .material-symbols-100 {
+    font-family: 'Hansel Material Symbols 100';
+    font-weight: 100;
+  }
+
+  .material-symbols-200 {
+    font-family: 'Hansel Material Symbols 200';
+    font-weight: 200;
   }
 }

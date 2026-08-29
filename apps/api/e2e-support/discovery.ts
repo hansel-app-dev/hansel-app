@@ -7,6 +7,8 @@ import {
 } from '../src/onboarding/discovery.js';
 import { createPrismaDiscoveryStore } from '../src/onboarding/prisma-discovery-store.js';
 import { createOnboardingSecurity } from '../src/onboarding/security.js';
+import { createDashboardSession } from '../src/dashboard/session.js';
+import { createPrismaDashboardSessionStore } from '../src/dashboard/prisma-session-store.js';
 
 export async function seedDiscoveryJourney() {
   const prisma = new PrismaClient({
@@ -35,6 +37,14 @@ export async function seedDiscoveryJourney() {
           expiresAt: new Date(Date.now() + 60_000),
         },
       },
+      personalProfile: {
+        create: {
+          firstName: 'Nabin',
+          lastName: 'Singh',
+          jobTitle: 'manager',
+          department: 'marketing_communications',
+        },
+      },
     },
   });
   const tenant = await prisma.tenant.create({
@@ -61,14 +71,24 @@ export async function seedDiscoveryJourney() {
     createSubmissionKey: () => randomBytes(32).toString('base64url'),
     digestOnboardingCredential: (value) =>
       security.digestOnboardingCredential(value),
+    createApplicationCredential: () => security.createApplicationCredential(),
+    digestApplicationCredential: (value) =>
+      security.digestApplicationCredential(value),
     verifyOnboardingCsrfProof: (value, proof) =>
       security.verifyOnboardingCsrfProof(value, proof),
     now: () => new Date(),
     recordEvent: () => undefined,
   });
+  const dashboard = createDashboardSession({
+    ...createPrismaDashboardSessionStore(prisma, () => undefined),
+    createCredential: () => security.createApplicationCredential(),
+    digestCredential: (value) => security.digestApplicationCredential(value),
+    now: () => new Date(),
+    recordEvent: () => undefined,
+  });
   const baseUrl = 'http://127.0.0.1:3013';
   const server = createApp(
-    { allowedOrigin: baseUrl, discoveryEnabled: true },
+    { allowedOrigin: baseUrl, discoveryEnabled: true, dashboardEnabled: true },
     undefined,
     {
       createAccount: () =>
@@ -90,6 +110,7 @@ export async function seedDiscoveryJourney() {
       loadDiscovery: feature.load.bind(feature),
       completeDiscovery: feature.complete.bind(feature),
     },
+    dashboard,
   ).listen(3013);
   return {
     baseUrl,
@@ -99,6 +120,18 @@ export async function seedDiscoveryJourney() {
       prisma.onboardingJourney.findUnique({
         where: { id: journey.id },
         include: { discoveryResponse: true },
+      }),
+    countSessions: () =>
+      prisma.applicationSessionFamily.count({
+        where: { userId: user.id, tenantId: tenant.id },
+      }),
+    expireAccess: () =>
+      prisma.applicationSessionCredential.updateMany({
+        where: {
+          kind: 'ACCESS',
+          family: { userId: user.id, tenantId: tenant.id },
+        },
+        data: { expiresAt: new Date(Date.now() - 1_000) },
       }),
     disconnect: async () => {
       await new Promise<void>((resolve, reject) =>

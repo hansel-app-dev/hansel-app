@@ -14,6 +14,10 @@ function setup(
   const prepare = vi.fn().mockResolvedValue(true);
   const complete = vi.fn().mockResolvedValue(result);
   const recordEvent = vi.fn();
+  const createApplicationCredential = vi
+    .fn()
+    .mockReturnValueOnce('application-access')
+    .mockReturnValueOnce('application-refresh');
   const module = createDiscovery({
     prepare,
     complete,
@@ -21,11 +25,19 @@ function setup(
     digestSubmissionKey: (value) => `submission:${value}`,
     digestRequest: (value) => `request:${value}`,
     digestOnboardingCredential: (value) => `credential:${value}`,
+    createApplicationCredential,
+    digestApplicationCredential: (value) => `application:${value}`,
     verifyOnboardingCsrfProof: (_credential, proof) => proof === 'proof',
     now: () => new Date('2026-08-28T00:00:00Z'),
     recordEvent,
   });
-  return { module, prepare, complete, recordEvent };
+  return {
+    module,
+    prepare,
+    complete,
+    createApplicationCredential,
+    recordEvent,
+  };
 }
 
 describe('discovery [onboarding-discovery REQ-005..REQ-010, REQ-018]', () => {
@@ -96,13 +108,26 @@ describe('discovery [onboarding-discovery REQ-005..REQ-010, REQ-018]', () => {
     const { module, complete, recordEvent } = setup();
     await expect(
       module.complete('credential', 'proof', input),
-    ).resolves.toEqual({ nextStep: 'dashboard', destination: '/dashboard' });
+    ).resolves.toEqual({
+      nextStep: 'dashboard',
+      destination: '/dashboard',
+      applicationSession: {
+        accessCredential: 'application-access',
+        refreshCredential: 'application-refresh',
+      },
+    });
     expect(complete).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialDigest: 'credential:credential',
         submissionKeyDigest: `submission:${submissionKey}`,
         requestDigest: expect.stringContaining('request:'),
         answers,
+        applicationSession: {
+          accessCredentialDigest: 'application:application-access',
+          refreshCredentialDigest: 'application:application-refresh',
+          accessExpiresAt: new Date('2026-08-28T00:15:00.000Z'),
+          absoluteExpiresAt: new Date('2026-09-27T00:00:00.000Z'),
+        },
       }),
     );
     expect(recordEvent).toHaveBeenCalledWith(event);

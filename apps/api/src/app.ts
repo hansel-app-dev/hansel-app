@@ -9,6 +9,7 @@ import {
   discoveryPageResponseSchema,
   discoveryRequestSchema,
   discoveryResponseSchema,
+  dashboardResponseSchema,
   healthResponseSchema,
   departmentOptions,
   jobTitleOptions,
@@ -30,6 +31,7 @@ import {
   type DiscoveryPageResponse,
   type DiscoveryRequest,
   type DiscoveryResponse,
+  type DashboardResponse,
   type ResendOnboardingVerificationRequest,
   type ResendOnboardingVerificationResponse,
   type VerifyOnboardingEmailRequest,
@@ -115,12 +117,37 @@ export interface OnboardingModule {
     credential: string,
     csrfProof: string,
     input: DiscoveryRequest,
-  ): Promise<DiscoveryResponse>;
+  ): Promise<
+    DiscoveryResponse & {
+      applicationSession?: {
+        accessCredential: string;
+        refreshCredential: string;
+      };
+    }
+  >;
   recordDiscoveryEvent?(name: string): void;
+}
+
+export interface DashboardModule {
+  load(input: {
+    accessCredential: string | null;
+    refreshCredential: string | null;
+  }): Promise<
+    | (DashboardResponse & {
+        applicationSession?: {
+          accessCredential: string;
+          refreshCredential: string;
+        };
+      })
+    | null
+  >;
+  recordEvent?(name: string): void;
 }
 
 const onboardingCookieName = 'hansel_onboarding';
 const onboardingCsrfCookieName = 'hansel_onboarding_csrf';
+const applicationAccessCookieName = 'hansel_access';
+const applicationRefreshCookieName = 'hansel_refresh';
 
 function escapeHtml(value: unknown): string {
   return typeof value === 'string'
@@ -268,9 +295,11 @@ export function createApp(
     planSelectionEnabled?: boolean;
     organizationProfileEnabled?: boolean;
     discoveryEnabled?: boolean;
+    dashboardEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
+  dashboard?: DashboardModule,
 ) {
   const app = express();
   app.disable('x-powered-by');
@@ -283,6 +312,78 @@ export function createApp(
   app.get('/api/health', (_request, response) => {
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
+  if (dashboard) {
+    const secure = config.allowedOrigin.startsWith('https://');
+    const clearApplicationSession = (response: express.Response) => {
+      response.clearCookie(applicationAccessCookieName, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        path: '/',
+      });
+      response.clearCookie(applicationRefreshCookieName, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure,
+        path: '/api/dashboard',
+      });
+    };
+    app.get('/api/dashboard', async (request, response) => {
+      if (config.dashboardEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      response.set('Cache-Control', 'private, no-store');
+      response.vary('Cookie');
+      try {
+        const result = await dashboard.load({
+          accessCredential: readCookie(
+            request.headers.cookie,
+            applicationAccessCookieName,
+          ),
+          refreshCredential: readCookie(
+            request.headers.cookie,
+            applicationRefreshCookieName,
+          ),
+        });
+        if (!result) {
+          dashboard.recordEvent?.('dashboard_authentication_rejected');
+          clearApplicationSession(response);
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        const { applicationSession, ...dashboardResponse } = result;
+        if (applicationSession) {
+          response.cookie(
+            applicationAccessCookieName,
+            applicationSession.accessCredential,
+            {
+              httpOnly: true,
+              sameSite: 'lax',
+              secure,
+              maxAge: 15 * 60 * 1_000,
+              path: '/',
+            },
+          );
+          response.cookie(
+            applicationRefreshCookieName,
+            applicationSession.refreshCredential,
+            {
+              httpOnly: true,
+              sameSite: 'lax',
+              secure,
+              maxAge: 30 * 24 * 60 * 60 * 1_000,
+              path: '/api/dashboard',
+            },
+          );
+        }
+        response.json(dashboardResponseSchema.parse(dashboardResponse));
+      } catch (error) {
+        dashboard.recordEvent?.('dashboard_unexpected_failure');
+        throw error;
+      }
+    });
+  }
   if (!onboarding)
     app.get('/onboarding/about-you', (_request, response) => {
       response.type('html').send(renderAboutYouForm());
@@ -953,13 +1054,38 @@ export function createApp(
         return;
       }
       try {
-        const output = discoveryResponseSchema.parse(
+        const { applicationSession, ...result } =
           await discoveryOnboarding.completeDiscovery(
             credential,
             csrfCookie,
             input.data,
-          ),
-        );
+          );
+        const output = discoveryResponseSchema.parse(result);
+        if (applicationSession) {
+          const secure = config.allowedOrigin.startsWith('https://');
+          response.cookie(
+            applicationAccessCookieName,
+            applicationSession.accessCredential,
+            {
+              httpOnly: true,
+              sameSite: 'lax',
+              secure,
+              maxAge: 15 * 60 * 1_000,
+              path: '/',
+            },
+          );
+          response.cookie(
+            applicationRefreshCookieName,
+            applicationSession.refreshCredential,
+            {
+              httpOnly: true,
+              sameSite: 'lax',
+              secure,
+              maxAge: 30 * 24 * 60 * 60 * 1_000,
+              path: '/api/dashboard',
+            },
+          );
+        }
         clearOnboardingSession(response);
         if (isHtmlForm) response.redirect(303, output.destination);
         else response.json(output);

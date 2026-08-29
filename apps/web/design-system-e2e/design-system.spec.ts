@@ -287,6 +287,64 @@ for (const state of [
   });
 }
 
+test('dashboard matches Figma, remains accessible, and reflows at 320px [dashboard-home REQ-001..REQ-004, REQ-015..REQ-018]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto(
+    '/iframe.html?id=dashboard-home--figma-sample&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Dashboard', level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByText('John Smith')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Widget title', level: 2 }),
+  ).toHaveCount(4);
+  const navigation = page.getByRole('navigation');
+  for (const label of [
+    'Dashboard',
+    'Sites',
+    'Libraries',
+    'Styleguide',
+    'Documents',
+  ])
+    await expect(navigation).toContainText(label);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('dashboard-home.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('dashboard-home-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test('dashboard retry is keyboard reachable and accessible [dashboard-home REQ-012, REQ-016..REQ-018]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=dashboard-home--retryable-failure&viewMode=story',
+  );
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeFocused();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('dashboard-home-retryable-failure.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

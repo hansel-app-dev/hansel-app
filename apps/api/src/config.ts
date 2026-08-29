@@ -1,6 +1,8 @@
 interface BaseAppConfig {
   allowedOrigin: string;
+  applicationSessionDigestKey: string;
   contactSalesDestination: string;
+  dashboardEnabled: boolean;
   discoveryEnabled: boolean;
   runtimeEnvironment: 'test' | 'production';
   planSelectionEnabled: boolean;
@@ -35,11 +37,25 @@ export function loadConfig(
   if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65_535) {
     throw new Error('PORT must be an integer between 1 and 65535');
   }
+  const verificationDigestKey = required(
+    environment,
+    'VERIFICATION_DIGEST_KEY',
+  );
+  const applicationSessionDigestKey =
+    environment.APPLICATION_SESSION_DIGEST_KEY === undefined &&
+    runtimeEnvironment === 'test'
+      ? verificationDigestKey
+      : required(environment, 'APPLICATION_SESSION_DIGEST_KEY');
   const base = {
     allowedOrigin: environment.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+    applicationSessionDigestKey,
     contactSalesDestination:
       environment.CONTACT_SALES_DESTINATION ??
       'https://www.hanselapp.io/contact',
+    dashboardEnabled:
+      environment.DASHBOARD_ENABLED === 'true' ||
+      (environment.DASHBOARD_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
     discoveryEnabled:
       environment.DISCOVERY_ENABLED === 'true' ||
       (environment.DISCOVERY_ENABLED === undefined &&
@@ -55,7 +71,7 @@ export function loadConfig(
         environment.NODE_ENV !== 'production'),
     passwordPepper: required(environment, 'PASSWORD_PEPPER'),
     port: parsedPort,
-    verificationDigestKey: required(environment, 'VERIFICATION_DIGEST_KEY'),
+    verificationDigestKey,
   };
   if (!base.contactSalesDestination.startsWith('https://'))
     throw new Error('CONTACT_SALES_DESTINATION must use HTTPS');

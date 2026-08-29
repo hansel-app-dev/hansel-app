@@ -456,3 +456,19 @@ export const discoveryResponseSchema = z
   })
   .strict();
 export type DiscoveryResponse = z.infer<typeof discoveryResponseSchema>;
+
+export const dashboardResponseSchema = z
+  .object({
+    viewer: z
+      .object({
+        displayName: z.string().min(1).max(201),
+        initials: z
+          .string()
+          .min(1)
+          .refine((value) => Array.from(value).length <= 2),
+        roleLabel: z.string().min(1).max(100),
+      })
+      .strict(),
+  })
+  .strict();
+export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;

@@ -13,6 +13,8 @@ import {
   submitOrganizationProfile,
   loadDiscovery,
   completeDiscovery,
+  loadDashboard,
+  DashboardAuthenticationRequiredError,
 } from './api.js';
 import {
   countryOptions,
@@ -21,6 +23,42 @@ import {
   organizationSizeOptions,
   placeServiceOptions,
 } from '@hansel/contracts';
+
+describe('dashboard API [dashboard-home REQ-007, REQ-012, REQ-013]', () => {
+  it('loads and strictly parses the private viewer with credentials', async () => {
+    const result = {
+      viewer: {
+        displayName: 'Nabin Singh',
+        initials: 'NS',
+        roleLabel: 'Owner',
+      },
+    };
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(result), { status: 200 }));
+
+    await expect(loadDashboard('', fetcher)).resolves.toEqual(result);
+    expect(fetcher).toHaveBeenCalledWith('/api/dashboard', {
+      credentials: 'include',
+    });
+  });
+
+  it('distinguishes authentication expiry from a retryable failure', async () => {
+    const unauthenticated = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    const unavailable = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(loadDashboard('', unauthenticated)).rejects.toBeInstanceOf(
+      DashboardAuthenticationRequiredError,
+    );
+    await expect(loadDashboard('', unavailable)).rejects.toThrow(
+      'dashboard_load_failed',
+    );
+  });
+});
 
 describe('discovery API [onboarding-discovery REQ-006, REQ-007, REQ-010, REQ-013]', () => {
   const page = {

@@ -14,6 +14,7 @@ function harness() {
     },
     onboardingJourney: {
       findFirst: vi.fn().mockResolvedValue({ id: 'journey' }),
+      findUnique: vi.fn().mockResolvedValue({ tenantId: 'tenant' }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     onboardingDiscoverySubmission: {
@@ -28,6 +29,7 @@ function harness() {
       update: vi.fn(),
     },
     onboardingDiscoveryResponse: { create: vi.fn() },
+    applicationSessionFamily: { create: vi.fn() },
   };
   const prisma = {
     onboardingDiscoverySubmission: { findUnique: vi.fn() },
@@ -59,6 +61,12 @@ const completeInput = {
     currentManagement: 'pdf' as const,
     currentManagementOther: null,
     challenges: 'Version control',
+  },
+  applicationSession: {
+    accessCredentialDigest: 'access-digest',
+    refreshCredentialDigest: 'refresh-digest',
+    accessExpiresAt: future,
+    absoluteExpiresAt: new Date('2026-09-27T02:00:00Z'),
   },
 };
 
@@ -133,6 +141,27 @@ describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017
     expect(transaction.onboardingContinuation.delete).toHaveBeenCalledWith({
       where: { userId: 'user' },
     });
+    expect(transaction.applicationSessionFamily.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user',
+        tenantId: 'tenant',
+        absoluteExpiresAt: completeInput.applicationSession.absoluteExpiresAt,
+        credentials: {
+          create: [
+            {
+              kind: 'ACCESS',
+              credentialDigest: 'access-digest',
+              expiresAt: future,
+            },
+            {
+              kind: 'REFRESH',
+              credentialDigest: 'refresh-digest',
+              expiresAt: completeInput.applicationSession.absoluteExpiresAt,
+            },
+          ],
+        },
+      },
+    });
   });
 
   it('returns replay or conflict before checking the deleted continuation', async () => {
@@ -179,6 +208,8 @@ describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017
         h.transaction.onboardingJourney.updateMany.mockResolvedValue({
           count: 0,
         }),
+      (h: ReturnType<typeof harness>) =>
+        h.transaction.onboardingJourney.findUnique.mockResolvedValue(null),
     ];
     for (const arrange of cases) {
       const h = harness();

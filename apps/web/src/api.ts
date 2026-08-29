@@ -30,10 +30,28 @@ import {
   type DiscoveryPageResponse,
   type DiscoveryRequest,
   type DiscoveryResponse,
+  dashboardResponseSchema,
+  type DashboardResponse,
 } from '@hansel/contracts';
 
 export class OnboardingSessionExpiredError extends Error {
   readonly code = 'onboarding_session_expired';
+}
+
+export class DashboardAuthenticationRequiredError extends Error {
+  readonly code = 'dashboard_authentication_required';
+}
+
+export async function loadDashboard(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<DashboardResponse> {
+  const response = await fetcher(`${baseUrl}/api/dashboard`, {
+    credentials: 'include',
+  });
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('dashboard_load_failed');
+  return dashboardResponseSchema.parse(await response.json());
 }
 
 export async function loadDiscovery(

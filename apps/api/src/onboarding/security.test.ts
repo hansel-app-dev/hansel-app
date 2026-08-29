@@ -64,4 +64,28 @@ describe('onboarding security [REQ-006, REQ-007, REQ-024]', () => {
       security.verifyOnboardingCsrfProof('credential-one', 'malformed'),
     ).toBe(false);
   });
+
+  it('creates opaque domain-separated application credentials [dashboard-home REQ-009]', () => {
+    const credential = security.createApplicationCredential();
+    const independentlyKeyed = createOnboardingSecurity({
+      passwordPepper: 'test-password-pepper-with-sufficient-entropy',
+      verificationDigestKey: 'test-verification-key-with-sufficient-entropy',
+      applicationSessionDigestKey:
+        'test-application-session-key-with-sufficient-entropy',
+    });
+
+    expect(credential).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(security.digestApplicationCredential(credential)).toBe(
+      security.digestApplicationCredential(credential),
+    );
+    expect(security.digestApplicationCredential(credential)).not.toContain(
+      credential,
+    );
+    expect(security.digestApplicationCredential('same')).not.toBe(
+      security.digestOnboardingCredential('same'),
+    );
+    expect(independentlyKeyed.digestApplicationCredential('same')).not.toBe(
+      security.digestApplicationCredential('same'),
+    );
+  });
 });

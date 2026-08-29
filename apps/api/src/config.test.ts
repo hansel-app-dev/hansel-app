@@ -5,6 +5,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   const required = {
     PASSWORD_PEPPER: 'password-pepper',
     VERIFICATION_DIGEST_KEY: 'verification-digest-key',
+    APPLICATION_SESSION_DIGEST_KEY: 'application-session-digest-key',
     RESEND_API_KEY: 're_test',
     RESEND_FROM_EMAIL: 'Hansel <onboarding@hanselapp.io>',
   };
@@ -13,6 +14,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     expect(loadConfig(required)).toEqual({
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
+      dashboardEnabled: true,
       discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
@@ -20,6 +22,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
+      applicationSessionDigestKey: 'application-session-digest-key',
       resendApiKey: 're_test',
       resendFromEmail: 'Hansel <onboarding@hanselapp.io>',
       emailDeliveryMode: 'resend',
@@ -36,6 +39,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     ).toEqual({
       allowedOrigin: 'https://hansel.example',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
+      dashboardEnabled: true,
       discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
@@ -43,6 +47,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       port: 8080,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
+      applicationSessionDigestKey: 'application-session-digest-key',
       resendApiKey: 're_test',
       resendFromEmail: 'Hansel <onboarding@hanselapp.io>',
       emailDeliveryMode: 'resend',
@@ -52,6 +57,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   it('identifies the production runtime [onboarding-plan-selection REQ-018]', () => {
     expect(loadConfig({ ...required, NODE_ENV: 'production' })).toMatchObject({
       runtimeEnvironment: 'production',
+      dashboardEnabled: false,
       discoveryEnabled: false,
       planSelectionEnabled: false,
       organizationProfileEnabled: false,
@@ -77,6 +83,13 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
         DISCOVERY_ENABLED: 'true',
       }).discoveryEnabled,
     ).toBe(true);
+    expect(
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        DASHBOARD_ENABLED: 'true',
+      }).dashboardEnabled,
+    ).toBe(true);
   });
 
   it('supports local console email without AWS email configuration', () => {
@@ -89,6 +102,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
     ).toEqual({
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
+      dashboardEnabled: true,
       discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
@@ -96,6 +110,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
+      applicationSessionDigestKey: 'verification-digest-key',
       emailDeliveryMode: 'console',
     });
   });
@@ -127,6 +142,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   it.each([
     'PASSWORD_PEPPER',
     'VERIFICATION_DIGEST_KEY',
+    'APPLICATION_SESSION_DIGEST_KEY',
     'RESEND_API_KEY',
     'RESEND_FROM_EMAIL',
   ])('rejects missing %s', (name) => {

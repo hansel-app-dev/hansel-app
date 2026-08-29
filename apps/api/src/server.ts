@@ -32,6 +32,8 @@ import {
   createDiscoveryDigests,
 } from './onboarding/discovery.js';
 import { createPrismaDiscoveryStore } from './onboarding/prisma-discovery-store.js';
+import { createDashboardSession } from './dashboard/session.js';
+import { createPrismaDashboardSessionStore } from './dashboard/prisma-session-store.js';
 
 const config = loadConfig();
 const logger = new Logger({ serviceName: 'hansel-api' });
@@ -138,6 +140,9 @@ const onboarding = {
       createSubmissionKey: () => randomBytes(32).toString('base64url'),
       digestOnboardingCredential: (credential) =>
         security.digestOnboardingCredential(credential),
+      createApplicationCredential: () => security.createApplicationCredential(),
+      digestApplicationCredential: (credential) =>
+        security.digestApplicationCredential(credential),
       verifyOnboardingCsrfProof: (credential, proof) =>
         security.verifyOnboardingCsrfProof(credential, proof),
       now: () => new Date(),
@@ -155,18 +160,32 @@ const onboarding = {
   })(),
   ...verification,
 };
-const server = createApp(config, undefined, onboarding).listen(
-  config.port,
-  () => {
-    console.log(
-      JSON.stringify({
-        level: 'INFO',
-        message: 'API listening',
-        port: config.port,
-      }),
-    );
+const dashboard = createDashboardSession({
+  ...createPrismaDashboardSessionStore(prisma, (name) => {
+    logger.info(name, { correlationId: randomUUID() });
+  }),
+  createCredential: () => security.createApplicationCredential(),
+  digestCredential: (credential) =>
+    security.digestApplicationCredential(credential),
+  now: () => new Date(),
+  recordEvent: (name) => {
+    logger.info(name, { correlationId: randomUUID() });
   },
-);
+});
+const server = createApp(config, undefined, onboarding, {
+  ...dashboard,
+  recordEvent: (name) => {
+    logger.info(name, { correlationId: randomUUID() });
+  },
+}).listen(config.port, () => {
+  console.log(
+    JSON.stringify({
+      level: 'INFO',
+      message: 'API listening',
+      port: config.port,
+    }),
+  );
+});
 
 function shutdown(signal: string): void {
   console.log(

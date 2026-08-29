@@ -38,6 +38,152 @@ const planPage = {
 
 const app = createApp({ allowedOrigin: 'https://app.example.com' });
 
+describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]', () => {
+  it('returns only the private authenticated viewer DTO', async () => {
+    const dashboard = {
+      load: vi.fn().mockResolvedValue({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+      recordEvent: vi.fn(),
+    };
+    const response = await request(
+      createApp(
+        {
+          allowedOrigin: 'https://app.example.com',
+          dashboardEnabled: true,
+        },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .get('/api/dashboard')
+      .set('Cookie', 'hansel_access=access; hansel_refresh=refresh')
+      .expect(200, {
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      });
+
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(response.headers.vary).toContain('Cookie');
+    expect(dashboard.load).toHaveBeenCalledWith({
+      accessCredential: 'access',
+      refreshCredential: 'refresh',
+    });
+  });
+
+  it('sets rotated credentials while keeping them out of the response', async () => {
+    const dashboard = {
+      load: vi.fn().mockResolvedValue({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+        applicationSession: {
+          accessCredential: 'new-access',
+          refreshCredential: 'new-refresh',
+        },
+      }),
+    };
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com' },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .get('/api/dashboard')
+      .set('Cookie', 'hansel_refresh=refresh')
+      .expect(200);
+
+    expect(response.body).toEqual({
+      viewer: {
+        displayName: 'Nabin Singh',
+        initials: 'NS',
+        roleLabel: 'Owner',
+      },
+    });
+    expect(String(response.headers['set-cookie'])).toContain(
+      'hansel_access=new-access',
+    );
+    expect(String(response.headers['set-cookie'])).toContain(
+      'hansel_refresh=new-refresh',
+    );
+  });
+
+  it('fails closed, clears credentials, and honors the rollout flag', async () => {
+    const dashboard = {
+      load: vi.fn().mockResolvedValue(null),
+      recordEvent: vi.fn(),
+    };
+    const enabled = createApp(
+      { allowedOrigin: 'https://app.example.com' },
+      undefined,
+      undefined,
+      dashboard,
+    );
+    const rejected = await request(enabled)
+      .get('/api/dashboard')
+      .expect(401, { error: 'authentication_required' });
+    expect(dashboard.load).toHaveBeenCalledWith({
+      accessCredential: null,
+      refreshCredential: null,
+    });
+    expect(dashboard.recordEvent).toHaveBeenCalledWith(
+      'dashboard_authentication_rejected',
+    );
+    expect(String(rejected.headers['set-cookie'])).toContain('hansel_access=;');
+
+    await request(
+      createApp(
+        {
+          allowedOrigin: 'https://app.example.com',
+          dashboardEnabled: false,
+        },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .get('/api/dashboard')
+      .expect(404, { error: 'not_found' });
+  });
+
+  it('records and delegates unexpected dashboard failures', async () => {
+    const errorLog = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const dashboard = {
+      load: vi.fn().mockRejectedValue(new Error('database unavailable')),
+      recordEvent: vi.fn(),
+    };
+    await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com' },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .get('/api/dashboard')
+      .expect(500);
+    expect(dashboard.recordEvent).toHaveBeenCalledWith(
+      'dashboard_unexpected_failure',
+    );
+    expect(errorLog).toHaveBeenCalledOnce();
+    errorLog.mockRestore();
+  });
+});
+
 describe('discovery routes [onboarding-discovery REQ-001, REQ-005..REQ-013, REQ-018]', () => {
   const page = {
     submissionKey: 'x'.repeat(43),
@@ -58,6 +204,10 @@ describe('discovery routes [onboarding-discovery REQ-001, REQ-005..REQ-013, REQ-
     completeDiscovery: vi.fn().mockResolvedValue({
       nextStep: 'dashboard',
       destination: '/dashboard',
+      applicationSession: {
+        accessCredential: 'application-access',
+        refreshCredential: 'application-refresh',
+      },
     }),
     recordDiscoveryEvent: vi.fn(),
     ...overrides,
@@ -107,6 +257,12 @@ describe('discovery routes [onboarding-discovery REQ-001, REQ-005..REQ-013, REQ-
       .send(input)
       .expect(200, { nextStep: 'dashboard', destination: '/dashboard' });
     expect(String(json.headers['set-cookie'])).toContain('hansel_onboarding=;');
+    expect(String(json.headers['set-cookie'])).toContain(
+      'hansel_access=application-access',
+    );
+    expect(String(json.headers['set-cookie'])).toContain(
+      'hansel_refresh=application-refresh',
+    );
     expect(feature.completeDiscovery).toHaveBeenCalledWith(
       'credential',
       'proof',

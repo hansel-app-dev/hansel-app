@@ -120,6 +120,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.9.1
         version: 5.9.1(@standard-schema/spec@1.1.0)(effect@3.21.0)(react-hook-form@7.86.0(react@19.2.8))(yup@1.7.1)(zod@4.4.3)
+      '@material-symbols/font-100':
+        specifier: 0.47.0
+        version: 0.47.0
+      '@material-symbols/font-200':
+        specifier: 0.47.0
+        version: 0.47.0
       '@vitejs/plugin-react':
         specifier: ^5.0.2
         version: 5.2.0(vite@7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -738,6 +744,12 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@material-symbols/font-100@0.47.0':
+    resolution: {integrity: sha512-uHBjCb3bqTq/3ceSZmY5zA6Sup5eii1y4Q1UiH1A7yrxbnrEHvXwhHYUylxD6r9XTGBK8esP9Mh8eVSYu2uh1A==}
+
+  '@material-symbols/font-200@0.47.0':
+    resolution: {integrity: sha512-lt1IUFZlJLKC2iGUrICGe1flZwvPpVjgCsI0GJx6GJQSBQUUaoY8Z9f/zCFBVnsMegkFpcNrQXkaJHSuTAY9Ag==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -3719,6 +3731,10 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@material-symbols/font-100@0.47.0': {}
+
+  '@material-symbols/font-200@0.47.0': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

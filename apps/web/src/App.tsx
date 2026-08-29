@@ -12,6 +12,8 @@ import {
   loadDiscovery,
   completeDiscovery,
   OnboardingSessionExpiredError,
+  loadDashboard,
+  DashboardAuthenticationRequiredError,
 } from './api.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
@@ -19,6 +21,7 @@ import { VerifyEmail } from './onboarding/VerifyEmail.js';
 import { PlanSelection } from './onboarding/PlanSelection.js';
 import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
+import { Dashboard } from './dashboard/Dashboard.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -80,6 +83,21 @@ export function App({
     if (error instanceof OnboardingSessionExpiredError) returnToOnboarding();
     throw error;
   };
+  if (currentPath === '/dashboard') {
+    return (
+      <Dashboard
+        loadDashboard={async () => {
+          try {
+            return await loadDashboard(apiUrl);
+          } catch (error) {
+            if (error instanceof DashboardAuthenticationRequiredError)
+              returnToOnboarding();
+            throw error;
+          }
+        }}
+      />
+    );
+  }
   if (currentPath === '/onboarding') {
     return (
       <OnboardingStart

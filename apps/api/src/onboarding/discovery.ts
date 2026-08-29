@@ -30,11 +30,19 @@ interface DiscoveryDependencies {
     requestDigest: string;
     now: Date;
     answers: DiscoveryAnswers;
+    applicationSession: {
+      accessCredentialDigest: string;
+      refreshCredentialDigest: string;
+      accessExpiresAt: Date;
+      absoluteExpiresAt: Date;
+    };
   }): Promise<'created' | 'replay' | 'conflict' | 'rejected'>;
   createSubmissionKey(): string;
   digestSubmissionKey(value: string): string;
   digestRequest(value: string): string;
   digestOnboardingCredential(value: string): string;
+  createApplicationCredential(): string;
+  digestApplicationCredential(value: string): string;
   verifyOnboardingCsrfProof(credential: string, proof: string): boolean;
   now(): Date;
   recordEvent(name: string): void;
@@ -89,20 +97,40 @@ export function createDiscovery(dependencies: DiscoveryDependencies) {
       credential: string,
       csrfProof: string,
       input: DiscoveryRequest,
-    ): Promise<DiscoveryResponse> {
+    ): Promise<
+      DiscoveryResponse & {
+        applicationSession?: {
+          accessCredential: string;
+          refreshCredential: string;
+        };
+      }
+    > {
       if (!dependencies.verifyOnboardingCsrfProof(credential, csrfProof)) {
         dependencies.recordEvent('discovery_transition_rejected');
         throw new DiscoveryTransitionError();
       }
       const answers = answersFrom(input);
+      const accessCredential = dependencies.createApplicationCredential();
+      const refreshCredential = dependencies.createApplicationCredential();
+      const now = dependencies.now();
       const result = await dependencies.complete({
         credentialDigest: dependencies.digestOnboardingCredential(credential),
         submissionKeyDigest: dependencies.digestSubmissionKey(
           input.submissionKey,
         ),
         requestDigest: dependencies.digestRequest(canonical(answers)),
-        now: dependencies.now(),
+        now,
         answers,
+        applicationSession: {
+          accessCredentialDigest:
+            dependencies.digestApplicationCredential(accessCredential),
+          refreshCredentialDigest:
+            dependencies.digestApplicationCredential(refreshCredential),
+          accessExpiresAt: new Date(now.getTime() + 15 * 60 * 1_000),
+          absoluteExpiresAt: new Date(
+            now.getTime() + 30 * 24 * 60 * 60 * 1_000,
+          ),
+        },
       });
       if (result === 'conflict') {
         dependencies.recordEvent('discovery_conflict');
@@ -119,7 +147,18 @@ export function createDiscovery(dependencies: DiscoveryDependencies) {
             ? 'discovery_skipped_completion'
             : 'discovery_submitted_completion',
       );
-      return { nextStep: 'dashboard', destination: '/dashboard' };
+      return {
+        nextStep: 'dashboard',
+        destination: '/dashboard',
+        ...(result === 'created'
+          ? {
+              applicationSession: {
+                accessCredential,
+                refreshCredential,
+              },
+            }
+          : {}),
+      };
     },
   };
 }

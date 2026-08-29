@@ -13,6 +13,15 @@ const prisma = new PrismaClient({
   },
 });
 const now = () => new Date();
+const applicationSession = () => {
+  const issuedAt = now();
+  return {
+    accessCredentialDigest: `access-${randomUUID()}`,
+    refreshCredentialDigest: `refresh-${randomUUID()}`,
+    accessExpiresAt: new Date(issuedAt.getTime() + 15 * 60 * 1_000),
+    absoluteExpiresAt: new Date(issuedAt.getTime() + 30 * 24 * 60 * 60 * 1_000),
+  };
+};
 
 async function seed() {
   const id = randomUUID();
@@ -104,6 +113,7 @@ integration(
           requestDigest: `request-${randomUUID()}`,
           now: completedAt,
           answers,
+          applicationSession: applicationSession(),
         }),
       ).resolves.toBe('created');
       await expect(
@@ -121,6 +131,14 @@ integration(
           where: { userId: seeded.user.id },
         }),
       ).resolves.toBeNull();
+      const family = await prisma.applicationSessionFamily.findFirstOrThrow({
+        where: { userId: seeded.user.id, tenantId: seeded.tenant.id },
+        include: { credentials: true },
+      });
+      expect(family.credentials.map(({ kind }) => kind).sort()).toEqual([
+        'ACCESS',
+        'REFRESH',
+      ]);
     });
 
     it('permits one concurrent winner, replays equivalent input, and rejects changed input', async () => {
@@ -133,6 +151,7 @@ integration(
         requestDigest: `request-${randomUUID()}`,
         now: now(),
         answers: submitted,
+        applicationSession: applicationSession(),
       };
       await expect(
         Promise.all([store.complete(input), store.complete(input)]),
@@ -144,6 +163,11 @@ integration(
       await expect(
         prisma.onboardingDiscoveryResponse.count({
           where: { journeyId: seeded.journey.id },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        prisma.applicationSessionFamily.count({
+          where: { userId: seeded.user.id, tenantId: seeded.tenant.id },
         }),
       ).resolves.toBe(1);
     });
@@ -179,6 +203,7 @@ integration(
             ...submitted,
             currentManagementOther: '',
           },
+          applicationSession: applicationSession(),
         }),
       ).rejects.toThrow();
       await expect(
@@ -189,6 +214,11 @@ integration(
       await expect(
         prisma.onboardingDiscoveryResponse.count({
           where: { journeyId: seeded.journey.id },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.applicationSessionFamily.count({
+          where: { userId: seeded.user.id, tenantId: seeded.tenant.id },
         }),
       ).resolves.toBe(0);
     });

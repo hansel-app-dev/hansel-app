@@ -95,6 +95,83 @@ async function enterPlanSelection(
   await page.getByRole('button', { name: 'Next' }).click();
 }
 
+test('authenticated dashboard renders the Figma shell and reflows at 320px [dashboard-home REQ-001..REQ-007, REQ-015..REQ-018]', async ({
+  page,
+}) => {
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'private, no-store' },
+      body: JSON.stringify({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+    }),
+  );
+  await page.goto('/dashboard');
+  await expect(
+    page.getByRole('heading', { name: 'Dashboard', level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByText('Nabin Singh')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Widget title', level: 2 }),
+  ).toHaveCount(4);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+});
+
+test('dashboard redirects generic authentication failures and retries server failures [dashboard-home REQ-012, REQ-016, REQ-018]', async ({
+  page,
+}) => {
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'authentication_required' }),
+    }),
+  );
+  await page.goto('/dashboard');
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(
+    page.getByRole('heading', { name: "Let's get started" }),
+  ).toBeVisible();
+
+  await page.unroute('**/api/dashboard');
+  let attempts = 0;
+  await page.route('**/api/dashboard', (route) => {
+    attempts += 1;
+    return route.fulfill(
+      attempts <= 2
+        ? { status: 503, body: 'unavailable' }
+        : {
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              viewer: {
+                displayName: 'Nabin Singh',
+                initials: 'NS',
+                roleLabel: 'Owner',
+              },
+            }),
+          },
+    );
+  });
+  await page.goto('/dashboard');
+  await expect(page.getByRole('alert')).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeFocused();
+  await page.getByRole('button', { name: 'Retry' }).click();
+  await expect(page.getByText('Nabin Singh')).toBeVisible();
+});
+
 test('matches the Figma-derived flow and validates required values [AC-002, AC-035, AC-052, REQ-005, REQ-016, REQ-082]', async ({
   page,
 }) => {
@@ -741,8 +818,15 @@ test('organization profile remains functional without JavaScript and persists th
 test('discovery remains functional without JavaScript and completes through PostgreSQL [onboarding-discovery REQ-008, REQ-011, REQ-017]', async ({
   browser,
 }) => {
-  const { baseUrl, credential, csrfProof, assertPersisted, disconnect } =
-    await seedDiscoveryJourney();
+  const {
+    baseUrl,
+    credential,
+    csrfProof,
+    assertPersisted,
+    countSessions,
+    expireAccess,
+    disconnect,
+  } = await seedDiscoveryJourney();
   const context = await browser.newContext({
     baseURL: baseUrl,
     javaScriptEnabled: false,
@@ -785,6 +869,23 @@ test('discovery remains functional without JavaScript and completes through Post
       currentManagement: 'pdf',
       currentManagementOther: null,
       challenges: 'Content updates',
+    },
+  });
+  await expect.poll(countSessions).toBe(1);
+  await expireAccess();
+  const dashboardResponse = await context.request.get(
+    `${baseUrl}/api/dashboard`,
+  );
+  expect(dashboardResponse.status()).toBe(200);
+  expect(dashboardResponse.headers()['set-cookie']).toContain('hansel_access=');
+  expect(dashboardResponse.headers()['set-cookie']).toContain(
+    'hansel_refresh=',
+  );
+  await expect(dashboardResponse.json()).resolves.toEqual({
+    viewer: {
+      displayName: 'Nabin Singh',
+      initials: 'NS',
+      roleLabel: 'Owner',
     },
   });
   await context.close();

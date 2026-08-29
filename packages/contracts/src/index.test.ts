@@ -6,6 +6,7 @@ import {
   discoveryPageResponseSchema,
   discoveryRequestSchema,
   discoveryResponseSchema,
+  dashboardResponseSchema,
   jobTitleOptions,
   personalProfileRequestSchema,
   personalProfilePageResponseSchema,
@@ -27,6 +28,26 @@ import {
   verifyOnboardingEmailRequestSchema,
   verifyOnboardingEmailResponseSchema,
 } from './index.js';
+
+describe('dashboard contract [dashboard-home REQ-005, REQ-007]', () => {
+  const response = {
+    viewer: {
+      displayName: 'Nabin Singh',
+      initials: 'NS',
+      roleLabel: 'Owner',
+    },
+  };
+
+  it('accepts only the private viewer display values', () => {
+    expect(dashboardResponseSchema.parse(response)).toEqual(response);
+    expect(() =>
+      dashboardResponseSchema.parse({
+        ...response,
+        tenantId: 'caller-controlled',
+      }),
+    ).toThrow();
+  });
+});
 
 describe('discovery contract [onboarding-discovery REQ-002..REQ-010, REQ-017]', () => {
   const submissionKey = 'x'.repeat(43);
