@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Resend } from 'resend';
-import { createApp } from './app.js';
+import { createApp, type AuthenticationModule } from './app.js';
 import { dashboardUrl, loadConfig } from './config.js';
 import { createConsoleVerificationSender } from './onboarding/console-verification-sender.js';
 import { createAccountRegistration } from './onboarding/create-account.js';
@@ -44,6 +44,23 @@ import { createPrismaWelcomeEmailStore } from './onboarding/prisma-welcome-email
 import { createWelcomeEmailWorker } from './onboarding/welcome-email-worker.js';
 import { configureDatabaseUrl } from './database-url.js';
 import { readFileSync } from 'node:fs';
+import { createPasswordLogin } from './auth/password-login.js';
+import { createPrismaPasswordLoginStore } from './auth/prisma-password-login-store.js';
+import { createExternalAuthSecurity } from './auth/external-auth-security.js';
+import {
+  createExternalLogin,
+  type ExternalProvider,
+} from './auth/external-login.js';
+import { createPrismaExternalLoginStore } from './auth/prisma-external-login-store.js';
+import { createOpenIdProviderAdapter } from './auth/openid-provider.js';
+import { createAppleClientSecret } from './auth/apple-client-secret.js';
+import {
+  createConsolePasswordLockSender,
+  createResendPasswordLockSender,
+} from './auth/password-lock-email.js';
+import { createPasswordLockEmailDispatcher } from './auth/password-lock-email-dispatcher.js';
+import { createPrismaPasswordLockEmailStore } from './auth/prisma-password-lock-email-store.js';
+import { createPasswordLockEmailWorker } from './auth/password-lock-email-worker.js';
 
 configureDatabaseUrl();
 const config = loadConfig();
@@ -56,6 +73,10 @@ const approvedLogoSvg = readFileSync(
 );
 let sendVerificationCode: (email: string, code: string) => Promise<void>;
 let sendWelcomeEmail: (input: WelcomeEmailInput) => Promise<string>;
+let sendPasswordLockEmail: (input: {
+  recipient: string;
+  intentId: string;
+}) => Promise<string>;
 if (config.emailDeliveryMode === 'resend') {
   const resend = new Resend(config.resendApiKey);
   sendVerificationCode = createResendVerificationSender(
@@ -68,10 +89,17 @@ if (config.emailDeliveryMode === 'resend') {
     dashboardUrl(config),
     approvedLogoSvg,
   );
+  sendPasswordLockEmail = createResendPasswordLockSender(
+    resend,
+    config.resendFromEmail,
+  );
 } else {
   sendVerificationCode = createConsoleVerificationSender();
   sendWelcomeEmail = createConsoleWelcomeSender((name, details) => {
     logger.info(name, details);
+  });
+  sendPasswordLockEmail = createConsolePasswordLockSender((name) => {
+    logger.info(name, { correlationId: randomUUID() });
   });
 }
 const verification = createEmailVerification({
@@ -80,6 +108,97 @@ const verification = createEmailVerification({
   sendVerificationCode,
   now: () => new Date(),
 });
+const authentication: AuthenticationModule = {
+  login: createPasswordLogin({
+    ...createPrismaPasswordLoginStore(prisma),
+    verifyPassword: (passwordHash, password) =>
+      security.verifyPassword(passwordHash, password),
+    dummyPasswordHash: await security.hashPassword(
+      randomBytes(32).toString('base64url'),
+    ),
+    requestVerification: async (email) => {
+      await verification.resendVerification({ email });
+    },
+    createApplicationCredential: () => security.createApplicationCredential(),
+    digestApplicationCredential: (credential) =>
+      security.digestApplicationCredential(credential),
+    createOnboardingCredential: () => security.createOnboardingCredential(),
+    digestOnboardingCredential: (credential) =>
+      security.digestOnboardingCredential(credential),
+    createOnboardingCsrfProof: (credential) =>
+      security.createOnboardingCsrfProof(credential),
+    now: () => new Date(),
+    recordEvent: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  }),
+  recordEvent: (name) => {
+    logger.error(name, { correlationId: randomUUID() });
+  },
+};
+if (config.externalAuthEnabled && config.externalAuth) {
+  const externalSecurity = createExternalAuthSecurity(
+    config.externalAuth.transactionKey,
+  );
+  const appleClientSecret = await createAppleClientSecret({
+    ...config.externalAuth.apple,
+    now: new Date(),
+  });
+  const callbackUris: Record<ExternalProvider, string> = {
+    google: config.externalAuth.google.callbackUri,
+    microsoft: config.externalAuth.microsoft.callbackUri,
+    apple: config.externalAuth.apple.callbackUri,
+  };
+  const externalLogin = createExternalLogin({
+    ...externalSecurity,
+    ...createPrismaExternalLoginStore(prisma),
+    providers: {
+      google: createOpenIdProviderAdapter({
+        issuer: 'https://accounts.google.com',
+        clientId: config.externalAuth.google.clientId,
+        clientSecret: config.externalAuth.google.clientSecret,
+        scope: 'openid email profile',
+        usePkce: true,
+      }),
+      microsoft: createOpenIdProviderAdapter({
+        issuer: `https://login.microsoftonline.com/${config.externalAuth.microsoft.tenantId}/v2.0`,
+        clientId: config.externalAuth.microsoft.clientId,
+        clientSecret: config.externalAuth.microsoft.clientSecret,
+        scope: 'openid email profile',
+        usePkce: true,
+      }),
+      apple: createOpenIdProviderAdapter({
+        issuer: 'https://appleid.apple.com',
+        clientId: config.externalAuth.apple.clientId,
+        clientSecret: appleClientSecret,
+        scope: 'name email',
+        usePkce: false,
+        responseMode: 'form_post',
+      }),
+    },
+    callbackUri: (provider) => callbackUris[provider],
+    createApplicationCredential: () => security.createApplicationCredential(),
+    digestApplicationCredential: (credential) =>
+      security.digestApplicationCredential(credential),
+    createOnboardingCredential: () => security.createOnboardingCredential(),
+    digestOnboardingCredential: (credential) =>
+      security.digestOnboardingCredential(credential),
+    createOnboardingCsrfProof: (credential) =>
+      security.createOnboardingCsrfProof(credential),
+    now: () => new Date(),
+    recordEvent: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  });
+  authentication.startExternal = (provider, intent) =>
+    externalLogin.start(provider, intent);
+  authentication.callbackExternal = (provider, parameters) => {
+    const callbackUrl = new URL(callbackUris[provider]);
+    for (const [key, value] of Object.entries(parameters))
+      callbackUrl.searchParams.set(key, value);
+    return externalLogin.callback(provider, callbackUrl);
+  };
+}
 let planCatalog;
 try {
   planCatalog = loadPlanCatalog(config.runtimeEnvironment);
@@ -225,12 +344,38 @@ const welcomeEmailWorker = createWelcomeEmailWorker({
   },
 });
 if (config.welcomeEmailEnabled) welcomeEmailWorker.start();
-const server = createApp(config, undefined, onboarding, {
-  ...dashboard,
+const passwordLockEmailDispatcher = createPasswordLockEmailDispatcher({
+  ...createPrismaPasswordLockEmailStore(prisma),
+  send: sendPasswordLockEmail,
+  workerId: randomUUID(),
+  now: () => new Date(),
   recordEvent: (name) => {
     logger.info(name, { correlationId: randomUUID() });
   },
-}).listen(config.port, () => {
+});
+const passwordLockEmailWorker = createPasswordLockEmailWorker({
+  runOnce: () => passwordLockEmailDispatcher.runOnce(),
+  schedule: (callback, intervalMs) => setInterval(callback, intervalMs),
+  cancel: (timer) => {
+    clearInterval(timer as NodeJS.Timeout);
+  },
+  recordEvent: (name) => {
+    logger.error(name, { correlationId: randomUUID() });
+  },
+});
+if (config.loginEnabled) passwordLockEmailWorker.start();
+const server = createApp(
+  config,
+  undefined,
+  onboarding,
+  {
+    ...dashboard,
+    recordEvent: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  },
+  authentication,
+).listen(config.port, () => {
   console.log(
     JSON.stringify({
       level: 'INFO',
@@ -242,6 +387,7 @@ const server = createApp(config, undefined, onboarding, {
 
 function shutdown(signal: string): void {
   welcomeEmailWorker.stop();
+  passwordLockEmailWorker.stop();
   console.log(
     JSON.stringify({ level: 'INFO', message: 'Shutting down', signal }),
   );

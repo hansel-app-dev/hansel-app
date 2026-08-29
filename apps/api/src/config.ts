@@ -11,6 +11,27 @@ interface BaseAppConfig {
   port: number;
   verificationDigestKey: string;
   welcomeEmailEnabled: boolean;
+  loginEnabled: boolean;
+  externalAuthEnabled: boolean;
+  externalAuth: ExternalAuthConfig | null;
+}
+
+export interface ExternalAuthConfig {
+  transactionKey: string;
+  google: { clientId: string; clientSecret: string; callbackUri: string };
+  microsoft: {
+    clientId: string;
+    clientSecret: string;
+    tenantId: string;
+    callbackUri: string;
+  };
+  apple: {
+    clientId: string;
+    teamId: string;
+    keyId: string;
+    privateKey: string;
+    callbackUri: string;
+  };
 }
 
 export type AppConfig = BaseAppConfig &
@@ -88,6 +109,77 @@ export function loadConfig(
     environment.WELCOME_EMAIL_ENABLED === 'true' ||
     (environment.WELCOME_EMAIL_ENABLED === undefined &&
       runtimeEnvironment !== 'production');
+  const externalAuthEnabled = environment.EXTERNAL_AUTH_ENABLED === 'true';
+  let externalAuth: ExternalAuthConfig | null = null;
+  if (externalAuthEnabled) {
+    if (
+      runtimeEnvironment === 'production' &&
+      allowedOrigin !== 'https://app.hanselapp.io'
+    )
+      throw new Error(
+        'Production external authentication requires https://app.hanselapp.io',
+      );
+    const transactionKey = required(
+      environment,
+      'EXTERNAL_AUTH_TRANSACTION_KEY',
+    );
+    if (transactionKey.length < 32)
+      throw new Error(
+        'EXTERNAL_AUTH_TRANSACTION_KEY must be at least 32 characters',
+      );
+    const appleCallbackUri = required(environment, 'APPLE_CALLBACK_URL');
+    let appleCallback: URL;
+    try {
+      appleCallback = new URL(appleCallbackUri);
+    } catch {
+      throw new Error('APPLE_CALLBACK_URL must be an absolute HTTPS callback');
+    }
+    if (
+      appleCallback.protocol !== 'https:' ||
+      appleCallback.username ||
+      appleCallback.password ||
+      appleCallback.search ||
+      appleCallback.hash ||
+      appleCallback.pathname !== '/auth/callback/apple'
+    )
+      throw new Error('APPLE_CALLBACK_URL must be an absolute HTTPS callback');
+    const productionAppleCallback = new URL(
+      '/auth/callback/apple',
+      allowedOrigin,
+    ).toString();
+    if (
+      runtimeEnvironment === 'production' &&
+      appleCallback.toString() !== productionAppleCallback
+    )
+      throw new Error('APPLE_CALLBACK_URL must match the production callback');
+    externalAuth = {
+      transactionKey,
+      google: {
+        clientId: required(environment, 'GOOGLE_CLIENT_ID'),
+        clientSecret: required(environment, 'GOOGLE_CLIENT_SECRET'),
+        callbackUri: new URL('/auth/callback/google', allowedOrigin).toString(),
+      },
+      microsoft: {
+        clientId: required(environment, 'MICROSOFT_CLIENT_ID'),
+        clientSecret: required(environment, 'MICROSOFT_CLIENT_SECRET'),
+        tenantId: required(environment, 'MICROSOFT_TENANT_ID'),
+        callbackUri: new URL(
+          '/auth/callback/microsoft',
+          allowedOrigin,
+        ).toString(),
+      },
+      apple: {
+        clientId: required(environment, 'APPLE_CLIENT_ID'),
+        teamId: required(environment, 'APPLE_TEAM_ID'),
+        keyId: required(environment, 'APPLE_KEY_ID'),
+        privateKey: required(environment, 'APPLE_PRIVATE_KEY').replace(
+          /\\n/g,
+          '\n',
+        ),
+        callbackUri: appleCallback.toString(),
+      },
+    };
+  }
   const base = {
     allowedOrigin,
     applicationSessionDigestKey,
@@ -115,6 +207,12 @@ export function loadConfig(
     port: parsedPort,
     verificationDigestKey,
     welcomeEmailEnabled,
+    loginEnabled:
+      environment.LOGIN_ENABLED === 'true' ||
+      (environment.LOGIN_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
+    externalAuthEnabled,
+    externalAuth,
   };
   if (!base.contactSalesDestination.startsWith('https://'))
     throw new Error('CONTACT_SALES_DESTINATION must use HTTPS');

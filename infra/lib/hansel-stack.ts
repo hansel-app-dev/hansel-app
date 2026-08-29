@@ -30,6 +30,12 @@ export class HanselStack extends cdk.Stack {
     const welcomeEmailEnabled =
       welcomeEmailContext === 'true' ||
       (welcomeEmailContext === undefined && !production);
+    const loginEnabled = this.node.tryGetContext('loginEnabled') === 'true';
+    const externalAuthEnabled =
+      this.node.tryGetContext('externalAuthEnabled') === 'true' && loginEnabled;
+    const configuredAppleCallbackUrl = this.node.tryGetContext(
+      'appleCallbackUrl',
+    ) as string | undefined;
     const migrationBootstrap =
       this.node.tryGetContext('migrationBootstrap') === 'true';
     const domainName = this.node.tryGetContext('domainName') as
@@ -41,6 +47,10 @@ export class HanselStack extends cdk.Stack {
         'Production requires domainName and a us-east-1 certificateArn CDK context',
       );
     }
+    if (externalAuthEnabled && !production && !configuredAppleCallbackUrl)
+      throw new Error(
+        'External auth development requires an appleCallbackUrl HTTPS context',
+      );
     const removalPolicy = production
       ? cdk.RemovalPolicy.RETAIN
       : cdk.RemovalPolicy.DESTROY;
@@ -90,11 +100,24 @@ export class HanselStack extends cdk.Stack {
       'VerificationDigestSecret',
       { generateSecretString: { excludePunctuation: true } },
     );
+    const externalAuthTransactionSecret = new secretsmanager.Secret(
+      this,
+      'ExternalAuthTransactionSecret',
+      {
+        generateSecretString: { excludePunctuation: true, passwordLength: 64 },
+      },
+    );
     const resendSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
       'ResendSecret',
       (this.node.tryGetContext('resendSecretName') as string | undefined) ??
         `/hansel/${props.stage}/resend`,
+    );
+    const externalAuthSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'ExternalAuthSecret',
+      (this.node.tryGetContext('externalAuthSecretName') as
+        string | undefined) ?? `/hansel/${props.stage}/external-auth`,
     );
     const database = new rds.DatabaseCluster(this, 'Database', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
@@ -170,7 +193,16 @@ export class HanselStack extends cdk.Stack {
             EMAIL_DELIVERY_MODE: 'resend',
             DISCOVERY_ENABLED: production ? 'false' : 'true',
             DASHBOARD_ENABLED: production ? 'false' : 'true',
+            LOGIN_ENABLED: loginEnabled ? 'true' : 'false',
+            EXTERNAL_AUTH_ENABLED: externalAuthEnabled ? 'true' : 'false',
             WELCOME_EMAIL_ENABLED: welcomeEmailEnabled ? 'true' : 'false',
+            ...(externalAuthEnabled
+              ? {
+                  APPLE_CALLBACK_URL:
+                    configuredAppleCallbackUrl ??
+                    `https://${domainName ?? 'app.hanselapp.io'}/auth/callback/apple`,
+                }
+              : {}),
           },
           secrets: {
             APPLICATION_SESSION_DIGEST_KEY: ecs.Secret.fromSecretsManager(
@@ -180,6 +212,9 @@ export class HanselStack extends cdk.Stack {
               ecs.Secret.fromSecretsManager(passwordPepperSecret),
             VERIFICATION_DIGEST_KEY: ecs.Secret.fromSecretsManager(
               verificationDigestSecret,
+            ),
+            EXTERNAL_AUTH_TRANSACTION_KEY: ecs.Secret.fromSecretsManager(
+              externalAuthTransactionSecret,
             ),
             RESEND_API_KEY: ecs.Secret.fromSecretsManager(
               resendSecret,
@@ -197,6 +232,46 @@ export class HanselStack extends cdk.Stack {
               databaseSecret,
               'password',
             ),
+            ...(externalAuthEnabled
+              ? {
+                  GOOGLE_CLIENT_ID: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'googleClientId',
+                  ),
+                  GOOGLE_CLIENT_SECRET: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'googleClientSecret',
+                  ),
+                  MICROSOFT_CLIENT_ID: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'microsoftClientId',
+                  ),
+                  MICROSOFT_CLIENT_SECRET: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'microsoftClientSecret',
+                  ),
+                  MICROSOFT_TENANT_ID: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'microsoftTenantId',
+                  ),
+                  APPLE_CLIENT_ID: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'appleClientId',
+                  ),
+                  APPLE_TEAM_ID: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'appleTeamId',
+                  ),
+                  APPLE_KEY_ID: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'appleKeyId',
+                  ),
+                  APPLE_PRIVATE_KEY: ecs.Secret.fromSecretsManager(
+                    externalAuthSecret,
+                    'applePrivateKey',
+                  ),
+                }
+              : {}),
           },
         },
       },
@@ -480,6 +555,73 @@ export class HanselStack extends cdk.Stack {
         ? cloudwatch.TreatMissingData.BREACHING
         : cloudwatch.TreatMissingData.NOT_BREACHING,
     });
+    const authMetric = (id: string, message: string, metricName: string) =>
+      new logs.MetricFilter(this, id, {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          message,
+        ),
+        metricNamespace: 'Hansel/Authentication',
+        metricName,
+        metricValue: '1',
+      });
+    const loginRejectionFilter = authMetric(
+      'LoginRejectionMetric',
+      'password_login_rejected',
+      'PasswordLoginRejections',
+    );
+    const externalRejectionFilter = authMetric(
+      'ExternalRejectionMetric',
+      'external_login_rejected',
+      'ExternalLoginRejections',
+    );
+    const lockEmailTerminalFilter = authMetric(
+      'PasswordLockEmailTerminalMetric',
+      'password_lock_email_terminal_failure',
+      'PasswordLockEmailTerminalFailures',
+    );
+    const loginUnexpectedFilter = authMetric(
+      'LoginUnexpectedMetric',
+      'password_login_unexpected_failure',
+      'PasswordLoginUnexpectedFailures',
+    );
+    const providerUnavailableFilter = authMetric(
+      'ExternalProviderUnavailableMetric',
+      'external_provider_unavailable',
+      'ExternalProviderUnavailable',
+    );
+    new cloudwatch.Alarm(this, 'LoginRejectionSpikeAlarm', {
+      metric: loginRejectionFilter.metric(),
+      threshold: 50,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'ExternalRejectionSpikeAlarm', {
+      metric: externalRejectionFilter.metric(),
+      threshold: 20,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'PasswordLockEmailTerminalAlarm', {
+      metric: lockEmailTerminalFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'LoginUnexpectedAlarm', {
+      metric: loginUnexpectedFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'ExternalProviderUnavailableAlarm', {
+      metric: providerUnavailableFilter.metric(),
+      threshold: 5,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
     const dashboard = new cloudwatch.Dashboard(this, 'OperationsDashboard');
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
@@ -519,6 +661,19 @@ export class HanselStack extends cdk.Stack {
           }),
         ],
       }),
+      new cloudwatch.GraphWidget({
+        title: 'Authentication safety',
+        left: [
+          loginRejectionFilter.metric(),
+          externalRejectionFilter.metric(),
+          lockEmailTerminalFilter.metric(),
+          loginUnexpectedFilter.metric(),
+          providerUnavailableFilter.metric(),
+          api.loadBalancer.metrics.targetResponseTime({
+            statistic: 'p95',
+          }),
+        ],
+      }),
     );
 
     const webBucket = new s3.Bucket(this, 'WebBucket', {
@@ -555,8 +710,53 @@ export class HanselStack extends cdk.Stack {
           },
         },
         {
-          name: 'RateLimit',
+          name: 'AuthenticationRateLimit',
           priority: 1,
+          action: { block: {} },
+          statement: {
+            rateBasedStatement: {
+              aggregateKeyType: 'IP',
+              limit: 300,
+              evaluationWindowSec: 300,
+              scopeDownStatement: {
+                orStatement: {
+                  statements: ['/api/auth', '/auth/'].map((searchString) => ({
+                    byteMatchStatement: {
+                      fieldToMatch: { uriPath: {} },
+                      positionalConstraint: 'STARTS_WITH',
+                      searchString,
+                      textTransformations: [{ priority: 0, type: 'NONE' }],
+                    },
+                  })),
+                },
+              },
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'authentication-rate-limit',
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: 'AWSManagedIpReputation',
+          priority: 2,
+          overrideAction: { none: {} },
+          statement: {
+            managedRuleGroupStatement: {
+              vendorName: 'AWS',
+              name: 'AWSManagedRulesAmazonIpReputationList',
+            },
+          },
+          visibilityConfig: {
+            cloudWatchMetricsEnabled: true,
+            metricName: 'ip-reputation',
+            sampledRequestsEnabled: true,
+          },
+        },
+        {
+          name: 'RateLimit',
+          priority: 3,
           action: { block: {} },
           statement: {
             rateBasedStatement: { aggregateKeyType: 'IP', limit: 2000 },
@@ -600,6 +800,11 @@ export class HanselStack extends cdk.Stack {
       },
       additionalBehaviors: {
         'api/*': apiBehavior,
+        login: {
+          ...apiBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+        'auth/*': apiBehavior,
         'onboarding/about-you': {
           ...apiBehavior,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,

@@ -78,16 +78,18 @@ describe('App [REQ-002]', () => {
   it('routes only /dashboard to the authenticated dashboard module [dashboard-home REQ-006]', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            viewer: {
-              displayName: 'Nabin Singh',
-              initials: 'NS',
-              roleLabel: 'Owner',
-            },
-          }),
-          { status: 200 },
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              viewer: {
+                displayName: 'Nabin Singh',
+                initials: 'NS',
+                roleLabel: 'Owner',
+              },
+            }),
+            { status: 200 },
+          ),
         ),
       ),
     );
@@ -103,7 +105,7 @@ describe('App [REQ-002]', () => {
     });
   });
 
-  it('returns an unauthenticated dashboard to onboarding [dashboard-home REQ-012]', async () => {
+  it('returns an unauthenticated dashboard to login [user-login REQ-012]', async () => {
     window.history.replaceState({}, '', '/dashboard');
     vi.stubGlobal(
       'fetch',
@@ -113,12 +115,12 @@ describe('App [REQ-002]', () => {
     render(<App />);
 
     expect(
-      await screen.findByRole('heading', { name: "Let's get started" }),
+      await screen.findByRole('heading', { name: 'Log in to your account' }),
     ).toBeVisible();
-    expect(window.location.pathname).toBe('/onboarding');
+    expect(window.location.pathname).toBe('/login');
   });
 
-  it('logs out from the dashboard and replaces navigation with onboarding [dashboard-logout REQ-004, REQ-009]', async () => {
+  it('logs out from the dashboard and replaces navigation with login [user-login REQ-012]', async () => {
     window.history.replaceState({}, '', '/dashboard');
     window.sessionStorage.setItem(
       'hansel.verificationEmail',
@@ -148,16 +150,151 @@ describe('App [REQ-002]', () => {
     );
     fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
     expect(
-      await screen.findByRole('heading', { name: "Let's get started" }),
+      await screen.findByRole('heading', { name: 'Log in to your account' }),
     ).toBeVisible();
     expect(fetcher).toHaveBeenNthCalledWith(2, '/api/dashboard/logout', {
       method: 'POST',
       credentials: 'include',
     });
-    expect(window.location.pathname).toBe('/onboarding');
+    expect(window.location.pathname).toBe('/login');
     expect(
       window.sessionStorage.getItem('hansel.verificationEmail'),
     ).toBeNull();
+  });
+
+  it('routes a successful login to the server-owned destination [user-login REQ-009, REQ-012]', async () => {
+    window.history.replaceState({}, '', '/login');
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ destination: '/dashboard' }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            viewer: {
+              displayName: 'Nabin Singh',
+              initials: 'NS',
+              roleLabel: 'Owner',
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal('fetch', fetcher);
+
+    render(<App />);
+    fireEvent.change(await screen.findByLabelText('Email'), {
+      target: { value: ' Nabin@Example.com ' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'Correct-password-1!' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+
+    expect(await screen.findByText('Nabin Singh')).toBeVisible();
+    expect(window.location.pathname).toBe('/dashboard');
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/auth/login', {
+      body: expect.any(String),
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    });
+    const submittedBody = fetcher.mock.calls[1]?.[1]?.body;
+    if (typeof submittedBody !== 'string')
+      throw new Error('Expected a serialized login request');
+    const submittedLogin: unknown = JSON.parse(submittedBody);
+    expect(submittedLogin).toEqual({
+      email: 'nabin@example.com',
+      password: 'Correct-password-1!',
+    });
+  });
+
+  it('stores the normalized email when login resumes verification [user-login REQ-009]', async () => {
+    window.history.replaceState({}, '', '/login');
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({ destination: '/onboarding/verify-email' }),
+            { status: 200 },
+          ),
+        ),
+    );
+    render(<App />);
+    fireEvent.change(await screen.findByLabelText('Email'), {
+      target: { value: ' Owner@Example.com ' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'Correct-password-1!' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Verify your account' }),
+    ).toBeVisible();
+    expect(window.sessionStorage.getItem('hansel.verificationEmail')).toBe(
+      'owner@example.com',
+    );
+  });
+
+  it('replaces login with dashboard for an existing valid session [user-login REQ-012]', async () => {
+    window.history.replaceState({}, '', '/login');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              viewer: {
+                displayName: 'Nabin Singh',
+                initials: 'NS',
+                roleLabel: 'Owner',
+              },
+            }),
+            { status: 200 },
+          ),
+        ),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Nabin Singh')).toBeVisible();
+    expect(window.location.pathname).toBe('/dashboard');
+  });
+
+  it('ignores a completed login preflight after the page unmounts', () => {
+    window.history.replaceState({}, '', '/login');
+    let resolveFetch: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          }),
+      ),
+    );
+    const view = render(<App />);
+    view.unmount();
+    act(() => {
+      resolveFetch?.(
+        new Response(
+          JSON.stringify({
+            viewer: { displayName: 'Ava', initials: 'A', roleLabel: 'Owner' },
+          }),
+          { status: 200 },
+        ),
+      );
+    });
+    expect(window.location.pathname).toBe('/login');
   });
 
   it('renders discovery and follows only the server-owned dashboard destination [onboarding-discovery REQ-001, REQ-010]', async () => {

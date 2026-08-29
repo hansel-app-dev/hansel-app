@@ -140,9 +140,9 @@ test('dashboard redirects generic authentication failures and retries server fai
     }),
   );
   await page.goto('/dashboard');
-  await expect(page).toHaveURL(/\/onboarding$/);
+  await expect(page).toHaveURL(/\/login$/);
   await expect(
-    page.getByRole('heading', { name: "Let's get started" }),
+    page.getByRole('heading', { name: 'Log in to your account' }),
   ).toBeVisible();
 
   await page.unroute('**/api/dashboard');
@@ -180,6 +180,7 @@ test('authenticated user logs out through the account menu and cannot return wit
   const context = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
   });
+  const page = await context.newPage();
   try {
     await context.addCookies([
       {
@@ -199,7 +200,6 @@ test('authenticated user logs out through the account menu and cannot return wit
         sameSite: 'Lax',
       },
     ]);
-    const page = await context.newPage();
     await page.route('**/api/dashboard**', async (route) => {
       const requestUrl = new URL(route.request().url());
       const response = await route.fetch({
@@ -226,9 +226,9 @@ test('authenticated user logs out through the account menu and cannot return wit
     );
     await page.getByRole('menuitem', { name: 'Log out' }).click();
     expect((await logoutResponse).status()).toBe(204);
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page).toHaveURL(/\/login$/);
     await expect(
-      page.getByRole('heading', { name: "Let's get started" }),
+      page.getByRole('heading', { name: 'Log in to your account' }),
     ).toBeVisible();
     expect(
       (await context.cookies()).filter(({ name }) =>
@@ -245,8 +245,9 @@ test('authenticated user logs out through the account menu and cannot return wit
     });
     await expect(page).not.toHaveURL(/\/dashboard$/);
     await page.goto('/dashboard');
-    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(page).toHaveURL(/\/login$/);
   } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
     await seeded.disconnect();
   }

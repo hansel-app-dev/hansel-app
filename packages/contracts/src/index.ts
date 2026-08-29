@@ -5,6 +5,30 @@ import englishCountries from 'i18n-iso-countries/langs/en.json' with { type: 'js
 export const healthResponseSchema = z.object({ status: z.literal('ok') });
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
+export const loginRequestSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().pipe(z.email()),
+    password: z.string().min(1).max(128),
+  })
+  .strict();
+export type LoginRequest = z.infer<typeof loginRequestSchema>;
+
+export const loginDestinationSchema = z.enum([
+  '/dashboard',
+  '/onboarding/verify-email',
+  '/onboarding/about-you',
+  '/onboarding/plan-selection',
+  '/onboarding/payment',
+  '/onboarding/organization-profile',
+  '/onboarding/discovery',
+]);
+export type LoginDestination = z.infer<typeof loginDestinationSchema>;
+
+export const loginResponseSchema = z
+  .object({ destination: loginDestinationSchema })
+  .strict();
+export type LoginResponse = z.infer<typeof loginResponseSchema>;
+
 const passwordSchema = z
   .string()
   .refine((password) => {

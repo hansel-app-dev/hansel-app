@@ -15,6 +15,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
+      loginEnabled: true,
+      externalAuthEnabled: false,
+      externalAuth: null,
       discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
@@ -41,6 +44,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       allowedOrigin: 'https://hansel.example',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
+      loginEnabled: true,
+      externalAuthEnabled: false,
+      externalAuth: null,
       discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
@@ -65,6 +71,8 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
     expect(loadConfig(production)).toMatchObject({
       runtimeEnvironment: 'production',
       dashboardEnabled: false,
+      loginEnabled: false,
+      externalAuthEnabled: false,
       discoveryEnabled: false,
       planSelectionEnabled: false,
       organizationProfileEnabled: false,
@@ -107,6 +115,12 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
         DASHBOARD_ENABLED: 'true',
       }).dashboardEnabled,
     ).toBe(true);
+    expect(
+      loadConfig({
+        ...production,
+        LOGIN_ENABLED: 'true',
+      }).loginEnabled,
+    ).toBe(true);
   });
 
   it('supports local console email without AWS email configuration', () => {
@@ -120,6 +134,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
+      loginEnabled: true,
+      externalAuthEnabled: false,
+      externalAuth: null,
       discoveryEnabled: true,
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
@@ -131,6 +148,115 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       applicationSessionDigestKey: 'verification-digest-key',
       emailDeliveryMode: 'console',
     });
+  });
+
+  it('loads complete environment-isolated external provider configuration', () => {
+    const config = loadConfig({
+      ...required,
+      ALLOWED_ORIGIN: 'https://app.dev.example',
+      EXTERNAL_AUTH_ENABLED: 'true',
+      EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+      GOOGLE_CLIENT_ID: 'google-id',
+      GOOGLE_CLIENT_SECRET: 'google-secret',
+      MICROSOFT_CLIENT_ID: 'microsoft-id',
+      MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
+      MICROSOFT_TENANT_ID: 'tenant-id',
+      APPLE_CLIENT_ID: 'apple-id',
+      APPLE_TEAM_ID: 'team-id',
+      APPLE_KEY_ID: 'key-id',
+      APPLE_PRIVATE_KEY: 'private-key',
+      APPLE_CALLBACK_URL: 'https://apple.dev.example/auth/callback/apple',
+    });
+    expect(config).toMatchObject({
+      externalAuthEnabled: true,
+      externalAuth: {
+        transactionKey: 't'.repeat(32),
+        google: {
+          clientId: 'google-id',
+          clientSecret: 'google-secret',
+          callbackUri: 'https://app.dev.example/auth/callback/google',
+        },
+        microsoft: {
+          clientId: 'microsoft-id',
+          clientSecret: 'microsoft-secret',
+          tenantId: 'tenant-id',
+          callbackUri: 'https://app.dev.example/auth/callback/microsoft',
+        },
+        apple: {
+          clientId: 'apple-id',
+          teamId: 'team-id',
+          keyId: 'key-id',
+          privateKey: 'private-key',
+          callbackUri: 'https://apple.dev.example/auth/callback/apple',
+        },
+      },
+    });
+  });
+
+  it('fails closed for partial or cross-environment external provider configuration', () => {
+    expect(() =>
+      loadConfig({ ...required, EXTERNAL_AUTH_ENABLED: 'true' }),
+    ).toThrow('EXTERNAL_AUTH_TRANSACTION_KEY is required');
+    expect(() =>
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGIN: 'https://app.hanselapp.io',
+        EXTERNAL_AUTH_ENABLED: 'true',
+        EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+        GOOGLE_CLIENT_ID: 'google-id',
+        GOOGLE_CLIENT_SECRET: 'google-secret',
+        MICROSOFT_CLIENT_ID: 'microsoft-id',
+        MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
+        MICROSOFT_TENANT_ID: 'tenant-id',
+        APPLE_CLIENT_ID: 'apple-id',
+        APPLE_TEAM_ID: 'team-id',
+        APPLE_KEY_ID: 'key-id',
+        APPLE_PRIVATE_KEY: 'private-key',
+        APPLE_CALLBACK_URL: 'https://other.example/auth/callback/apple',
+      }),
+    ).toThrow('APPLE_CALLBACK_URL must match the production callback');
+  });
+
+  it.each([
+    ['short transaction key', { EXTERNAL_AUTH_TRANSACTION_KEY: 'short' }],
+    ['malformed callback', { APPLE_CALLBACK_URL: 'not a URL' }],
+    [
+      'insecure callback',
+      { APPLE_CALLBACK_URL: 'http://apple.dev.example/auth/callback/apple' },
+    ],
+  ])('rejects %s external authorization configuration', (_name, override) => {
+    expect(() =>
+      loadConfig({
+        ...required,
+        ALLOWED_ORIGIN: 'https://app.dev.example',
+        EXTERNAL_AUTH_ENABLED: 'true',
+        EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+        GOOGLE_CLIENT_ID: 'google-id',
+        GOOGLE_CLIENT_SECRET: 'google-secret',
+        MICROSOFT_CLIENT_ID: 'microsoft-id',
+        MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
+        APPLE_CLIENT_ID: 'apple-id',
+        APPLE_TEAM_ID: 'team-id',
+        APPLE_KEY_ID: 'key-id',
+        APPLE_PRIVATE_KEY: 'private-key',
+        APPLE_CALLBACK_URL: 'https://apple.dev.example/auth/callback/apple',
+        ...override,
+      }),
+    ).toThrow();
+  });
+
+  it('requires the exact production application origin for provider callbacks', () => {
+    expect(() =>
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGIN: 'https://other.example',
+        EXTERNAL_AUTH_ENABLED: 'true',
+      }),
+    ).toThrow(
+      'Production external authentication requires https://app.hanselapp.io',
+    );
   });
 
   it('builds only a trusted absolute dashboard URL', () => {

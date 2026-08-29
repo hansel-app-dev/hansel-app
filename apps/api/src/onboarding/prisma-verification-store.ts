@@ -143,6 +143,7 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
                 entryPath: 'NEW_ORGANIZATION',
                 currentStep: {
                   in: [
+                    'VERIFY_EMAIL',
                     'PERSONAL_PROFILE',
                     'PLAN_SELECTION',
                     'ORGANIZATION_PROFILE',
@@ -150,7 +151,7 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
                 },
                 completedAt: null,
               },
-              select: { id: true },
+              select: { id: true, currentStep: true },
             },
             challenges: {
               where: { purpose: 'ONBOARDING_EMAIL' },
@@ -170,14 +171,20 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             })
           : 0;
         const hasResumableJourney = Boolean(
-          user?.emailVerifiedAt && user.journeys.length === 1,
+          user?.emailVerifiedAt &&
+          user.journeys.length === 1 &&
+          user.journeys[0]?.currentStep !== 'VERIFY_EMAIL',
         );
+        const canBootstrapChallenge =
+          !user?.emailVerifiedAt &&
+          user?.journeys.length === 1 &&
+          user.journeys[0]?.currentStep === 'VERIFY_EMAIL';
         if (
           !user ||
           (user.emailVerifiedAt && !hasResumableJourney) ||
-          !latest ||
+          (!latest && !canBootstrapChallenge) ||
           sendsInLastHour >= 5 ||
-          input.now.getTime() - latest.sentAt.getTime() < 60_000
+          (latest && input.now.getTime() - latest.sentAt.getTime() < 60_000)
         )
           return false;
 

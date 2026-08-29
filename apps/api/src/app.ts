@@ -10,6 +10,8 @@ import {
   discoveryRequestSchema,
   discoveryResponseSchema,
   dashboardResponseSchema,
+  loginRequestSchema,
+  loginResponseSchema,
   healthResponseSchema,
   departmentOptions,
   jobTitleOptions,
@@ -32,6 +34,7 @@ import {
   type DiscoveryRequest,
   type DiscoveryResponse,
   type DashboardResponse,
+  type LoginRequest,
   type ResendOnboardingVerificationRequest,
   type ResendOnboardingVerificationResponse,
   type VerifyOnboardingEmailRequest,
@@ -46,6 +49,12 @@ import {
   type OrganizationProfileRequest,
   type OrganizationProfileResponse,
 } from '@hansel/contracts';
+import type { PasswordLoginResult } from './auth/password-login.js';
+import type {
+  ExternalLoginResult,
+  ExternalProvider,
+} from './auth/external-login.js';
+import { externalProviders } from './auth/external-login.js';
 import { VerificationFailedError } from './onboarding/verify-email.js';
 import { PersonalProfileTransitionError } from './onboarding/personal-profile.js';
 import { PlanSelectionTransitionError } from './onboarding/plan-selection.js';
@@ -148,6 +157,16 @@ export interface DashboardModule {
   recordEvent?(name: string): void;
 }
 
+export interface AuthenticationModule {
+  login(input: LoginRequest): Promise<PasswordLoginResult>;
+  startExternal?(provider: ExternalProvider, intent: 'login'): Promise<string>;
+  callbackExternal?(
+    provider: ExternalProvider,
+    parameters: Record<string, string>,
+  ): Promise<ExternalLoginResult>;
+  recordEvent?(name: string): void;
+}
+
 const onboardingCookieName = 'hansel_onboarding';
 const onboardingCsrfCookieName = 'hansel_onboarding_csrf';
 const applicationAccessCookieName = 'hansel_access';
@@ -180,6 +199,13 @@ function renderOptions(
         `<option value="${id}"${selected === id ? ' selected' : ''}>${escapeHtml(label)}</option>`,
     ),
   ].join('');
+}
+
+function renderLoginForm(
+  values: Record<string, unknown> = {},
+  error = '',
+): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Log in — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="login-heading"><h1 id="login-heading">Log in to your account</h1>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/login" method="post"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required maxlength="128"><button type="submit">Log in</button></form><div class="divider" aria-hidden="true"><span>or log in with</span><i></i></div><nav aria-label="External login providers"><a href="/auth/start/google?intent=login">Continue with Google</a><a href="/auth/start/microsoft?intent=login">Continue with Microsoft</a><a href="/auth/start/apple?intent=login">Continue with Apple</a></nav><p>Don&#39;t have an account? <a href="/onboarding">Create an account</a></p></section></main></body></html>`;
 }
 
 function renderAboutYouForm(
@@ -287,10 +313,18 @@ function hasAllowedFormOrigin(
   allowedOrigin: string,
 ): boolean {
   if (request.headers.origin === allowedOrigin) return true;
+  const allowedUrl = new URL(allowedOrigin);
+  if (
+    request.header('sec-fetch-site') === 'same-origin' &&
+    allowedUrl.protocol === 'http:' &&
+    ['localhost', '127.0.0.1', '::1'].includes(allowedUrl.hostname)
+  )
+    return true;
+  if (request.headers.origin === undefined) return false;
   if (request.headers.origin !== 'null') return false;
   return (
     request.header('sec-fetch-site') === 'same-origin' &&
-    request.header('host') === new URL(allowedOrigin).host
+    request.header('host') === allowedUrl.host
   );
 }
 
@@ -300,10 +334,13 @@ export function createApp(
     organizationProfileEnabled?: boolean;
     discoveryEnabled?: boolean;
     dashboardEnabled?: boolean;
+    loginEnabled?: boolean;
+    externalAuthEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
   dashboard?: DashboardModule,
+  authentication?: AuthenticationModule,
 ) {
   const app = express();
   app.disable('x-powered-by');
@@ -316,6 +353,242 @@ export function createApp(
   app.get('/api/health', (_request, response) => {
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
+  if (authentication) {
+    const secure = config.allowedOrigin.startsWith('https://');
+    const writeAuthenticationCookies = (
+      response: express.Response,
+      result: Extract<
+        PasswordLoginResult | ExternalLoginResult,
+        { status: 'accepted' }
+      >,
+    ) => {
+      if (result.applicationSession) {
+        response.cookie(
+          applicationAccessCookieName,
+          result.applicationSession.accessCredential,
+          {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure,
+            maxAge: 15 * 60 * 1_000,
+            path: '/',
+          },
+        );
+        response.cookie(
+          applicationRefreshCookieName,
+          result.applicationSession.refreshCredential,
+          {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure,
+            maxAge: 30 * 24 * 60 * 60 * 1_000,
+            path: '/api/dashboard',
+          },
+        );
+      }
+      if (result.onboardingSession) {
+        response.cookie(
+          onboardingCookieName,
+          result.onboardingSession.onboardingCredential,
+          {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure,
+            maxAge: 15 * 60 * 1_000,
+            path: '/',
+          },
+        );
+        response.cookie(
+          onboardingCsrfCookieName,
+          result.onboardingSession.csrfProof,
+          {
+            httpOnly: false,
+            sameSite: 'strict',
+            secure,
+            maxAge: 15 * 60 * 1_000,
+            path: '/',
+          },
+        );
+      }
+    };
+    const isExternalProvider = (value: string): value is ExternalProvider =>
+      externalProviders.some((provider) => provider === value);
+    app.get('/auth/start/:provider', async (request, response) => {
+      response.set('Cache-Control', 'private, no-store');
+      response.vary('Cookie');
+      if (
+        config.externalAuthEnabled !== true ||
+        !authentication.startExternal ||
+        !isExternalProvider(request.params.provider) ||
+        request.query.intent !== 'login'
+      ) {
+        response.status(404).send('Not found');
+        return;
+      }
+      try {
+        response.redirect(
+          303,
+          await authentication.startExternal(request.params.provider, 'login'),
+        );
+      } catch {
+        authentication.recordEvent?.('external_provider_unavailable');
+        response.redirect(303, '/login?error=provider_unavailable');
+      }
+    });
+    const externalCallback = async (
+      request: express.Request,
+      response: express.Response,
+    ) => {
+      response.set('Cache-Control', 'private, no-store');
+      response.vary('Cookie');
+      const provider = request.params.provider;
+      if (
+        config.externalAuthEnabled !== true ||
+        !authentication.callbackExternal ||
+        typeof provider !== 'string' ||
+        !isExternalProvider(provider)
+      ) {
+        response.status(404).send('Not found');
+        return;
+      }
+      const source = (
+        request.method === 'POST' ? request.body : request.query
+      ) as Record<string, unknown> | undefined;
+      const parameters = Object.fromEntries(
+        ['code', 'state', 'error', 'error_description'].flatMap((key) =>
+          typeof source?.[key] === 'string' ? [[key, source[key]]] : [],
+        ),
+      ) as Record<string, string>;
+      try {
+        const result = await authentication.callbackExternal(
+          provider,
+          parameters,
+        );
+        if (result.status === 'rejected') {
+          response.redirect(303, '/login?error=authentication_failed');
+          return;
+        }
+        writeAuthenticationCookies(response, result);
+        response.redirect(303, result.destination);
+      } catch {
+        authentication.recordEvent?.('external_provider_unavailable');
+        response.redirect(303, '/login?error=provider_unavailable');
+      }
+    };
+    app.get('/auth/callback/:provider', externalCallback);
+    app.post('/auth/callback/:provider', externalCallback);
+    app.get('/login', async (request, response) => {
+      if (config.loginEnabled === false) {
+        response.status(404).send('Not found');
+        return;
+      }
+      response.set('Cache-Control', 'private, no-store');
+      response.vary('Cookie');
+      if (dashboard) {
+        try {
+          const session = await dashboard.load({
+            accessCredential: readCookie(
+              request.headers.cookie,
+              applicationAccessCookieName,
+            ),
+            refreshCredential: readCookie(
+              request.headers.cookie,
+              applicationRefreshCookieName,
+            ),
+          });
+          if (session) {
+            if (session.applicationSession)
+              writeAuthenticationCookies(response, {
+                status: 'accepted',
+                destination: '/dashboard',
+                applicationSession: session.applicationSession,
+              });
+            response.redirect(303, '/dashboard');
+            return;
+          }
+        } catch {
+          // A dashboard dependency failure must not make login unavailable.
+        }
+      }
+      response.type('html').send(renderLoginForm());
+    });
+    app.post('/api/auth/login', async (request, response) => {
+      if (config.loginEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const isHtmlForm = request.is('application/x-www-form-urlencoded');
+      response.set('Cache-Control', 'private, no-store');
+      response.vary('Cookie');
+      if (
+        isHtmlForm
+          ? !hasAllowedFormOrigin(request, config.allowedOrigin)
+          : request.headers.origin !== config.allowedOrigin
+      ) {
+        response.status(403).json({ error: 'forbidden' });
+        return;
+      }
+      const rawBody: unknown = request.body;
+      const input = loginRequestSchema.safeParse(rawBody);
+      if (!input.success) {
+        const submittedEmail =
+          typeof rawBody === 'object' &&
+          rawBody !== null &&
+          'email' in rawBody &&
+          typeof rawBody.email === 'string'
+            ? rawBody.email
+            : '';
+        if (isHtmlForm)
+          response
+            .status(400)
+            .type('html')
+            .send(
+              renderLoginForm(
+                { email: submittedEmail },
+                'Enter a valid email address and password.',
+              ),
+            );
+        else response.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+      try {
+        const result = await authentication.login(input.data);
+        if (result.status === 'rejected') {
+          if (isHtmlForm)
+            response
+              .status(401)
+              .type('html')
+              .send(
+                renderLoginForm(
+                  { email: input.data.email },
+                  "We couldn't log you in. Check your details and try again.",
+                ),
+              );
+          else response.status(401).json({ error: 'authentication_failed' });
+          return;
+        }
+        writeAuthenticationCookies(response, result);
+        const output = loginResponseSchema.parse({
+          destination: result.destination,
+        });
+        if (isHtmlForm) response.redirect(303, output.destination);
+        else response.json(output);
+      } catch {
+        authentication.recordEvent?.('password_login_unexpected_failure');
+        if (isHtmlForm)
+          response
+            .status(503)
+            .type('html')
+            .send(
+              renderLoginForm(
+                { email: input.data.email },
+                'Login is temporarily unavailable. Please try again.',
+              ),
+            );
+        else response.status(503).json({ error: 'login_unavailable' });
+      }
+    });
+  }
   if (dashboard) {
     const secure = config.allowedOrigin.startsWith('https://');
     const clearApplicationSession = (response: express.Response) => {

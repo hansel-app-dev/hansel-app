@@ -224,6 +224,25 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
     expect(transaction.verificationChallenge.create).toHaveBeenCalled();
   });
 
+  it('creates a recovery code when an unverified journey has lost its challenge', async () => {
+    const { store, transaction } = harness({
+      id: 'user',
+      emailVerifiedAt: null,
+      journeys: [{ id: 'journey', currentStep: 'VERIFY_EMAIL' }],
+      challenges: [],
+    });
+
+    await expect(
+      store.resend({
+        email: 'owner@example.com',
+        codeDigest: 'recovery',
+        expiresAt: new Date('2026-08-27T01:15:00Z'),
+        now,
+      }),
+    ).resolves.toBe(true);
+    expect(transaction.verificationChallenge.create).toHaveBeenCalled();
+  });
+
   it('replaces the recovery code for a verified personal-profile journey [REQ-088]', async () => {
     const { store, transaction } = harness({
       id: 'user',

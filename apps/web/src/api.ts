@@ -32,6 +32,9 @@ import {
   type DiscoveryResponse,
   dashboardResponseSchema,
   type DashboardResponse,
+  loginResponseSchema,
+  type LoginRequest,
+  type LoginResponse,
 } from '@hansel/contracts';
 
 export class OnboardingSessionExpiredError extends Error {
@@ -40,6 +43,26 @@ export class OnboardingSessionExpiredError extends Error {
 
 export class DashboardAuthenticationRequiredError extends Error {
   readonly code = 'dashboard_authentication_required';
+}
+
+export class LoginAuthenticationError extends Error {
+  readonly code = 'authentication_failed';
+}
+
+export async function login(
+  input: LoginRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<LoginResponse> {
+  const response = await fetcher(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (response.status === 401) throw new LoginAuthenticationError();
+  if (!response.ok) throw new Error('login_unavailable');
+  return loginResponseSchema.parse(await response.json());
 }
 
 export async function loadDashboard(

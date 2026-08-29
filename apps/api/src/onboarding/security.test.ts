@@ -13,6 +13,12 @@ describe('onboarding security [REQ-006, REQ-007, REQ-024]', () => {
     expect(hash).toMatch(/^\$argon2id\$v=19\$m=19456,p=1,t=2\$/);
     expect(hash).not.toContain('Correct horse battery staple!7');
     expect(hash).not.toContain('test-password-pepper');
+    await expect(
+      security.verifyPassword(hash, 'Correct horse battery staple!7'),
+    ).resolves.toBe(true);
+    await expect(
+      security.verifyPassword(hash, 'Incorrect password!7'),
+    ).resolves.toBe(false);
   });
 
   it('creates six-digit codes and stable keyed digests', () => {

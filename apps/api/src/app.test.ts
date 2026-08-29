@@ -38,6 +38,502 @@ const planPage = {
 
 const app = createApp({ allowedOrigin: 'https://app.example.com' });
 
+describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
+  it.each(['google', 'microsoft', 'apple'])(
+    'starts the server-owned %s authorization flow',
+    async (provider) => {
+      const authentication = {
+        login: vi.fn(),
+        startExternal: vi
+          .fn()
+          .mockResolvedValue(`https://provider.example/${provider}`),
+        callbackExternal: vi.fn(),
+      };
+      const response = await request(
+        createApp(
+          {
+            allowedOrigin: 'https://app.example.com',
+            loginEnabled: true,
+            externalAuthEnabled: true,
+          },
+          undefined,
+          undefined,
+          undefined,
+          authentication,
+        ),
+      )
+        .get(`/auth/start/${provider}?intent=login`)
+        .expect(303);
+      expect(response.headers.location).toBe(
+        `https://provider.example/${provider}`,
+      );
+      expect(authentication.startExternal).toHaveBeenCalledWith(
+        provider,
+        'login',
+      );
+    },
+  );
+
+  it('sets Hansel cookies after a validated provider callback and fails generically otherwise', async () => {
+    const callbackExternal = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: 'accepted',
+        destination: '/dashboard',
+        applicationSession: {
+          accessCredential: 'external-access',
+          refreshCredential: 'external-refresh',
+        },
+      })
+      .mockResolvedValueOnce({ status: 'rejected' });
+    const externalApp = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: true,
+        externalAuthEnabled: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn(), startExternal: vi.fn(), callbackExternal },
+    );
+    const accepted = await request(externalApp)
+      .get('/auth/callback/google?code=code&state=state')
+      .expect(303);
+    expect(accepted.headers.location).toBe('/dashboard');
+    expect(accepted.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('hansel_access=external-access'),
+        expect.stringContaining('hansel_refresh=external-refresh'),
+      ]),
+    );
+    expect(callbackExternal).toHaveBeenNthCalledWith(1, 'google', {
+      code: 'code',
+      state: 'state',
+    });
+    const rejected = await request(externalApp)
+      .post('/auth/callback/apple')
+      .type('form')
+      .send({ error: 'access_denied', state: 'state' })
+      .expect(303);
+    expect(rejected.headers.location).toBe(
+      '/login?error=authentication_failed',
+    );
+  });
+
+  it('serves the accessible progressive login page without JavaScript', async () => {
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+        undefined,
+        undefined,
+        undefined,
+        { login: vi.fn() },
+      ),
+    )
+      .get('/login')
+      .expect(200);
+
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(response.text).toContain(
+      '<h1 id="login-heading">Log in to your account</h1>',
+    );
+    expect(response.text).toContain('action="/api/auth/login" method="post"');
+    expect(response.text).toContain('autocomplete="current-password"');
+    for (const provider of ['google', 'microsoft', 'apple'])
+      expect(response.text).toContain(`/auth/start/${provider}?intent=login`);
+    expect(response.text).not.toContain('By creating an account');
+  });
+
+  it('redirects an existing valid application session away from login', async () => {
+    const dashboard = {
+      load: vi.fn().mockResolvedValue({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+      logout: vi.fn(),
+    };
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+        undefined,
+        undefined,
+        dashboard,
+        { login: vi.fn() },
+      ),
+    )
+      .get('/login')
+      .set('Cookie', 'hansel_access=access; hansel_refresh=refresh')
+      .expect(303);
+    expect(response.headers.location).toBe('/dashboard');
+    expect(dashboard.load).toHaveBeenCalledWith({
+      accessCredential: 'access',
+      refreshCredential: 'refresh',
+    });
+  });
+
+  it('returns progressive generic failures without retaining a password', async () => {
+    const authentication = {
+      login: vi.fn().mockResolvedValue({ status: 'rejected' }),
+    };
+    const loginApp = createApp(
+      { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      authentication,
+    );
+    const response = await request(loginApp)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'owner@example.com', password: 'wrong-secret' })
+      .expect(401);
+
+    expect(response.type).toContain('html');
+    expect(response.text).toContain(
+      'We couldn&#39;t log you in. Check your details and try again.',
+    );
+    expect(response.text).toContain('value="owner@example.com"');
+    expect(response.text).not.toContain('wrong-secret');
+  });
+
+  it('uses a 303 redirect after successful native-form login', async () => {
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+        undefined,
+        undefined,
+        undefined,
+        {
+          login: vi.fn().mockResolvedValue({
+            status: 'accepted',
+            destination: '/dashboard',
+          }),
+        },
+      ),
+    )
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'owner@example.com', password: 'valid-secret' })
+      .expect(303);
+
+    expect(response.headers.location).toBe('/dashboard');
+  });
+
+  it('accepts a same-origin native form when the browser omits Origin', async () => {
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'http://127.0.0.1:5173', loginEnabled: true },
+        undefined,
+        undefined,
+        undefined,
+        {
+          login: vi.fn().mockResolvedValue({
+            status: 'accepted',
+            destination: '/dashboard',
+          }),
+        },
+      ),
+    )
+      .post('/api/auth/login')
+      .set('Host', 'reverse-proxy.internal')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send({ email: 'owner@example.com', password: 'valid-secret' })
+      .expect(303);
+    expect(response.headers.location).toBe('/dashboard');
+  });
+
+  it('sets Hansel session cookies and returns only the server-owned destination', async () => {
+    const authentication = {
+      login: vi.fn().mockResolvedValue({
+        status: 'accepted',
+        destination: '/dashboard',
+        applicationSession: {
+          accessCredential: 'access',
+          refreshCredential: 'refresh',
+        },
+      }),
+    };
+    const response = await request(
+      createApp(
+        {
+          allowedOrigin: 'https://app.example.com',
+          loginEnabled: true,
+        },
+        undefined,
+        undefined,
+        undefined,
+        authentication,
+      ),
+    )
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .send({
+        email: '  OWNER@example.com ',
+        password: 'Correct horse battery staple!7',
+      })
+      .expect(200, { destination: '/dashboard' });
+
+    expect(authentication.login).toHaveBeenCalledWith({
+      email: 'owner@example.com',
+      password: 'Correct horse battery staple!7',
+    });
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(response.headers.vary).toContain('Cookie');
+    expect(response.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /^hansel_access=access;.*Path=\/;.*HttpOnly;.*Secure;.*SameSite=Lax$/,
+        ),
+        expect.stringMatching(
+          /^hansel_refresh=refresh;.*Path=\/api\/dashboard;.*HttpOnly;.*Secure;.*SameSite=Lax$/,
+        ),
+      ]),
+    );
+  });
+
+  it('issues onboarding cookies for a verified incomplete account', async () => {
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+        undefined,
+        undefined,
+        undefined,
+        {
+          login: vi.fn().mockResolvedValue({
+            status: 'accepted',
+            destination: '/onboarding/about-you',
+            onboardingSession: {
+              onboardingCredential: 'onboarding',
+              csrfProof: 'csrf-proof',
+            },
+          }),
+        },
+      ),
+    )
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'owner@example.com', password: 'valid-secret' })
+      .expect(200, { destination: '/onboarding/about-you' });
+
+    expect(response.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('hansel_onboarding=onboarding'),
+        expect.stringContaining('hansel_onboarding_csrf=csrf-proof'),
+      ]),
+    );
+  });
+
+  it('fails closed when login or external authorization is disabled or malformed', async () => {
+    const disabled = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: false,
+        externalAuthEnabled: false,
+      },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn() },
+    );
+    await request(disabled).get('/login').expect(404);
+    await request(disabled)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'owner@example.com', password: 'secret' })
+      .expect(404, { error: 'not_found' });
+    await request(disabled).get('/auth/start/google?intent=login').expect(404);
+    await request(disabled).get('/auth/callback/not-a-provider').expect(404);
+
+    const enabled = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: true,
+        externalAuthEnabled: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn(), startExternal: vi.fn(), callbackExternal: vi.fn() },
+    );
+    await request(enabled)
+      .get('/auth/start/google?intent=onboarding')
+      .expect(404);
+    await request(enabled).get('/auth/start/unknown?intent=login').expect(404);
+  });
+
+  it('maps provider dependency failures to one safe login error', async () => {
+    const recordEvent = vi.fn();
+    const external = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: true,
+        externalAuthEnabled: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+      {
+        login: vi.fn(),
+        startExternal: vi.fn().mockRejectedValue(new Error('private detail')),
+        callbackExternal: vi
+          .fn()
+          .mockRejectedValue(new Error('private detail')),
+        recordEvent,
+      },
+    );
+    expect(
+      (
+        await request(external)
+          .get('/auth/start/google?intent=login')
+          .expect(303)
+      ).headers.location,
+    ).toBe('/login?error=provider_unavailable');
+    expect(
+      (
+        await request(external)
+          .get('/auth/callback/google?code=code&state=state')
+          .expect(303)
+      ).headers.location,
+    ).toBe('/login?error=provider_unavailable');
+    expect(recordEvent).toHaveBeenCalledTimes(2);
+    expect(recordEvent).toHaveBeenCalledWith('external_provider_unavailable');
+  });
+
+  it('keeps the login page available when session preflight fails and refreshes cookies when it succeeds', async () => {
+    const failingDashboard = {
+      load: vi.fn().mockRejectedValue(new Error('private detail')),
+      logout: vi.fn(),
+    };
+    await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+        undefined,
+        undefined,
+        failingDashboard,
+        { login: vi.fn() },
+      ),
+    )
+      .get('/login')
+      .expect(200);
+
+    const refreshingDashboard = {
+      load: vi.fn().mockResolvedValue({
+        viewer: { displayName: 'Ava', initials: 'A', roleLabel: 'Owner' },
+        applicationSession: {
+          accessCredential: 'new-access',
+          refreshCredential: 'new-refresh',
+        },
+      }),
+      logout: vi.fn(),
+    };
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+        undefined,
+        undefined,
+        refreshingDashboard,
+        { login: vi.fn() },
+      ),
+    )
+      .get('/login')
+      .expect(303);
+    expect(response.headers['set-cookie']).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('hansel_access=new-access'),
+        expect.stringContaining('hansel_refresh=new-refresh'),
+      ]),
+    );
+  });
+
+  it('validates origins and payloads for JSON and progressive form login', async () => {
+    const loginApp = createApp(
+      { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn() },
+    );
+    await request(loginApp)
+      .post('/api/auth/login')
+      .set('Origin', 'https://evil.example')
+      .send({ email: 'owner@example.com', password: 'secret' })
+      .expect(403, { error: 'forbidden' });
+    await request(loginApp)
+      .post('/api/auth/login')
+      .type('form')
+      .send({ email: 'owner@example.com', password: 'secret' })
+      .expect(403, { error: 'forbidden' });
+    await request(loginApp)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'not-email', password: '' })
+      .expect(400, { error: 'invalid_request' });
+    const form = await request(loginApp)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'not-email', password: '' })
+      .expect(400);
+    expect(form.text).toContain('Enter a valid email address and password.');
+    const formWithoutEmail = await request(loginApp)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ password: '' })
+      .expect(400);
+    expect(formWithoutEmail.text).toContain(
+      'Enter a valid email address and password.',
+    );
+  });
+
+  it('returns generic JSON rejection and safe HTML/JSON availability failures', async () => {
+    const rejected = createApp(
+      { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn().mockResolvedValue({ status: 'rejected' }) },
+    );
+    await request(rejected)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'owner@example.com', password: 'wrong' })
+      .expect(401, { error: 'authentication_failed' });
+
+    const unavailable = createApp(
+      { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      {
+        login: vi.fn().mockRejectedValue(new Error('private detail')),
+        recordEvent: vi.fn(),
+      },
+    );
+    await request(unavailable)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'owner@example.com', password: 'secret' })
+      .expect(503, { error: 'login_unavailable' });
+    const form = await request(unavailable)
+      .post('/api/auth/login')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'owner@example.com', password: 'secret' })
+      .expect(503);
+    expect(form.text).toContain(
+      'Login is temporarily unavailable. Please try again.',
+    );
+  });
+});
+
 describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]', () => {
   it('logs out from a trusted origin and clears both application cookies [dashboard-logout REQ-004..REQ-007]', async () => {
     const dashboard = {

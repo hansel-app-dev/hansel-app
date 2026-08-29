@@ -15,7 +15,9 @@ import {
   loadDashboard,
   logoutDashboard,
   DashboardAuthenticationRequiredError,
+  login as loginWithPassword,
 } from './api.js';
+import { Login } from './auth/Login.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
@@ -53,6 +55,7 @@ export function App({
     () => window.sessionStorage.getItem(verificationEmailKey) ?? '',
   );
   const [currentPath, setCurrentPath] = useState(path);
+  const [loginReady, setLoginReady] = useState(path !== '/login');
   useEffect(() => {
     if (path !== '/onboarding' && path !== '/onboarding/verify-email') return;
     const hasSessionHint = document.cookie
@@ -72,6 +75,23 @@ export function App({
       active = false;
     };
   }, [apiUrl, path]);
+  useEffect(() => {
+    if (currentPath !== '/login') return;
+    setLoginReady(false);
+    let active = true;
+    void loadDashboard(apiUrl)
+      .then(() => {
+        if (!active) return;
+        window.history.replaceState({}, '', '/dashboard');
+        setCurrentPath('/dashboard');
+      })
+      .catch(() => {
+        if (active) setLoginReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [apiUrl, currentPath]);
   const navigate = (destination: string) => {
     window.history.pushState({}, '', destination);
     setCurrentPath(destination);
@@ -79,6 +99,10 @@ export function App({
   const returnToOnboarding = () => {
     window.history.replaceState({}, '', '/onboarding');
     setCurrentPath('/onboarding');
+  };
+  const returnToLogin = () => {
+    window.history.replaceState({}, '', '/login');
+    setCurrentPath('/login');
   };
   const handleSessionExpiry = (error: unknown): never => {
     if (error instanceof OnboardingSessionExpiredError) returnToOnboarding();
@@ -92,14 +116,31 @@ export function App({
             return await loadDashboard(apiUrl);
           } catch (error) {
             if (error instanceof DashboardAuthenticationRequiredError)
-              returnToOnboarding();
+              returnToLogin();
             throw error;
           }
         }}
         logout={async () => {
           await logoutDashboard(apiUrl);
           window.sessionStorage.removeItem(verificationEmailKey);
-          returnToOnboarding();
+          returnToLogin();
+        }}
+      />
+    );
+  }
+  if (currentPath === '/login') {
+    if (!loginReady) return null;
+    return (
+      <Login
+        login={(input) => loginWithPassword(input, apiUrl)}
+        onLoggedIn={(destination, email) => {
+          if (destination === '/onboarding/verify-email') {
+            window.sessionStorage.setItem(verificationEmailKey, email);
+            setVerificationEmail(email);
+          } else {
+            window.sessionStorage.removeItem(verificationEmailKey);
+          }
+          navigate(destination);
         }}
       />
     );

@@ -8,6 +8,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: 'http://localhost:3000' },
+      '/auth': { target: 'http://localhost:3000' },
+      '/login': { target: 'http://localhost:3000' },
       '/onboarding/about-you': { target: 'http://localhost:3000' },
       '/onboarding/plan-selection': { target: 'http://localhost:3000' },
     },

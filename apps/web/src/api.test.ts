@@ -16,6 +16,8 @@ import {
   loadDashboard,
   logoutDashboard,
   DashboardAuthenticationRequiredError,
+  login,
+  LoginAuthenticationError,
 } from './api.js';
 import {
   countryOptions,
@@ -24,6 +26,50 @@ import {
   organizationSizeOptions,
   placeServiceOptions,
 } from '@hansel/contracts';
+
+describe('login API [user-login REQ-003, REQ-004, REQ-008]', () => {
+  it('submits credentials and strictly parses the server-owned destination', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ destination: '/dashboard' }), {
+        status: 200,
+      }),
+    );
+    const input = {
+      email: 'owner@example.com',
+      password: 'Correct horse battery staple!7',
+    };
+
+    await expect(login(input, '', fetcher)).resolves.toEqual({
+      destination: '/dashboard',
+    });
+    expect(fetcher).toHaveBeenCalledWith('/api/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  });
+
+  it('distinguishes generic rejection from temporary unavailability', async () => {
+    const rejected = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    const unavailable = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(
+      login({ email: 'owner@example.com', password: 'wrong' }, '', rejected),
+    ).rejects.toBeInstanceOf(LoginAuthenticationError);
+    await expect(
+      login(
+        { email: 'owner@example.com', password: 'anything' },
+        '',
+        unavailable,
+      ),
+    ).rejects.toThrow('login_unavailable');
+  });
+});
 
 describe('dashboard API [dashboard-home REQ-007, REQ-012, REQ-013]', () => {
   it('logs out with one credentialed bodyless POST [dashboard-logout REQ-004]', async () => {

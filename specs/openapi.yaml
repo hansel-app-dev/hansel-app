@@ -3,6 +3,131 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /login:
+    get:
+      operationId: renderLogin
+      summary: Render the progressive login form
+      responses:
+        '200':
+          description: Accessible private HTML login form usable without JavaScript
+          headers:
+            Cache-Control:
+              required: true
+              schema: { type: string, const: 'private, no-store' }
+          content:
+            text/html:
+              schema: { type: string }
+        '404': { description: Login is disabled }
+  /api/auth/login:
+    post:
+      operationId: loginWithPassword
+      summary: Authenticate an existing Hansel account with email and password
+      description: Scripted requests must send the configured application Origin; ordinary same-origin forms may instead be validated with browser-protected Fetch Metadata at a trusted reverse-proxy boundary. The server selects the account, onboarding state, tenant, membership, session lifetime, and closed destination.
+      parameters:
+        - name: Origin
+          in: header
+          required: false
+          description: Required for scripted requests; ordinary same-origin forms may instead be validated with browser-protected Fetch Metadata at a trusted reverse-proxy boundary.
+          schema: { type: string, format: uri }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: JSON login accepted and the corresponding Hansel cookies are set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '303':
+          description: Native form login accepted and redirected to the server-owned destination
+          headers:
+            Location:
+              required: true
+              schema: { $ref: '#/components/schemas/LoginDestination' }
+        '400': { description: Strict request validation failed }
+        '401':
+          description: Generic authentication rejection for unknown, invalid, locked, ambiguous, or ineligible credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [error]
+                properties:
+                  error: { type: string, const: authentication_failed }
+            text/html:
+              schema: { type: string }
+        '403': { description: Origin validation failed }
+        '404': { description: Login is disabled }
+        '503':
+          description: Authentication is temporarily unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [error]
+                properties:
+                  error: { type: string, const: login_unavailable }
+            text/html:
+              schema: { type: string }
+  /auth/start/{provider}:
+    get:
+      operationId: startExternalLogin
+      summary: Start a server-owned external authorization-code login
+      parameters:
+        - $ref: '#/components/parameters/ExternalProvider'
+        - name: intent
+          in: query
+          required: true
+          schema: { type: string, const: login }
+      responses:
+        '303':
+          description: Redirect to the configured provider authorization endpoint, or a categorical login failure
+          headers:
+            Location:
+              required: true
+              schema: { type: string, format: uri-reference }
+        '404':
+          { description: Provider authentication is disabled or unsupported }
+  /auth/callback/{provider}:
+    get:
+      operationId: completeExternalLogin
+      summary: Consume a Google or Microsoft external authorization callback
+      parameters:
+        - $ref: '#/components/parameters/ExternalProvider'
+        - { name: code, in: query, schema: { type: string } }
+        - { name: state, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+      responses:
+        '303': { $ref: '#/components/responses/ExternalCallbackRedirect' }
+        '404':
+          { description: Provider authentication is disabled or unsupported }
+    post:
+      operationId: completeExternalLoginFormPost
+      summary: Consume an Apple form-post external authorization callback
+      parameters:
+        - $ref: '#/components/parameters/ExternalProvider'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                code: { type: string }
+                state: { type: string }
+                error: { type: string }
+                error_description: { type: string }
+      responses:
+        '303': { $ref: '#/components/responses/ExternalCallbackRedirect' }
+        '404':
+          { description: Provider authentication is disabled or unsupported }
   /onboarding/about-you:
     get:
       operationId: renderOnboardingPersonalProfile
@@ -436,6 +561,27 @@ paths:
         '401': { description: The onboarding continuation is unavailable }
         '409': { description: Conflicting replay or rejected transition }
 components:
+  parameters:
+    ExternalProvider:
+      name: provider
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [google, microsoft, apple]
+  responses:
+    ExternalCallbackRedirect:
+      description: One-time callback consumed; redirect to a closed Hansel destination or generic categorical login failure
+      headers:
+        Location:
+          required: true
+          schema:
+            oneOf:
+              - $ref: '#/components/schemas/LoginDestination'
+              - type: string
+                enum:
+                  - /login?error=authentication_failed
+                  - /login?error=provider_unavailable
   securitySchemes:
     onboardingContinuation:
       type: apiKey
@@ -454,6 +600,29 @@ components:
       in: cookie
       name: hansel_refresh
   schemas:
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 1, maxLength: 128 }
+    LoginDestination:
+      type: string
+      enum:
+        - /dashboard
+        - /onboarding/verify-email
+        - /onboarding/about-you
+        - /onboarding/plan-selection
+        - /onboarding/payment
+        - /onboarding/organization-profile
+        - /onboarding/discovery
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [destination]
+      properties:
+        destination: { $ref: '#/components/schemas/LoginDestination' }
     CreateOnboardingAccountRequest:
       type: object
       additionalProperties: false

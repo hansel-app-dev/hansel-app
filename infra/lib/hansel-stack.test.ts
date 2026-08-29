@@ -11,7 +11,8 @@ function template(
   for (const [key, value] of Object.entries(context))
     app.node.setContext(key, value);
   if (stage === 'production') {
-    app.node.setContext('domainName', 'hansel.example.com');
+    if (!context.domainName)
+      app.node.setContext('domainName', 'hansel.example.com');
     app.node.setContext(
       'certificateArn',
       'arn:aws:acm:us-east-1:111111111111:certificate/example',
@@ -38,12 +39,15 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
             { Name: 'EMAIL_DELIVERY_MODE', Value: 'resend' },
             { Name: 'DISCOVERY_ENABLED', Value: 'false' },
             { Name: 'DASHBOARD_ENABLED', Value: 'false' },
+            { Name: 'LOGIN_ENABLED', Value: 'false' },
+            { Name: 'EXTERNAL_AUTH_ENABLED', Value: 'false' },
             { Name: 'WELCOME_EMAIL_ENABLED', Value: 'false' },
           ]),
           Secrets: Match.arrayWith([
             Match.objectLike({ Name: 'APPLICATION_SESSION_DIGEST_KEY' }),
             Match.objectLike({ Name: 'PASSWORD_PEPPER' }),
             Match.objectLike({ Name: 'VERIFICATION_DIGEST_KEY' }),
+            Match.objectLike({ Name: 'EXTERNAL_AUTH_TRANSACTION_KEY' }),
             Match.objectLike({ Name: 'RESEND_API_KEY' }),
             Match.objectLike({ Name: 'RESEND_FROM_EMAIL' }),
           ]),
@@ -69,6 +73,12 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
       },
     });
     output.resourceCountIs('AWS::WAFv2::WebACL', 1);
+    expect(
+      JSON.stringify(output.findResources('AWS::WAFv2::WebACL')),
+    ).toContain('authentication-rate-limit');
+    expect(
+      JSON.stringify(output.findResources('AWS::WAFv2::WebACL')),
+    ).toContain('AWSManagedRulesAmazonIpReputationList');
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({ MetricNamespace: 'Hansel/Onboarding' }),
@@ -88,7 +98,7 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
           Match.objectLike({ MetricName: metricName }),
         ]),
       });
-    output.resourceCountIs('AWS::CloudWatch::Alarm', 9);
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 14);
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({
@@ -112,6 +122,9 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
     expect(
       JSON.stringify(output.findResources('AWS::CloudWatch::Dashboard')),
     ).toContain('Welcome email delivery');
+    expect(
+      JSON.stringify(output.findResources('AWS::CloudWatch::Dashboard')),
+    ).toContain('Authentication safety');
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({ MetricName: 'DiscoveryUnexpectedFailures' }),
@@ -134,6 +147,8 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
         }),
         CacheBehaviors: Match.arrayWith([
           Match.objectLike({ PathPattern: 'api/*' }),
+          Match.objectLike({ PathPattern: 'login' }),
+          Match.objectLike({ PathPattern: 'auth/*' }),
           Match.objectLike({ PathPattern: 'onboarding/about-you' }),
           Match.objectLike({ PathPattern: 'onboarding/plan-selection' }),
           Match.objectLike({
@@ -142,6 +157,61 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
           Match.objectLike({ PathPattern: 'onboarding/discovery' }),
         ]),
       }),
+    });
+  });
+
+  it('injects stage-scoped provider configuration only when both rollout flags are enabled', () => {
+    const output = template('test', {
+      loginEnabled: 'true',
+      externalAuthEnabled: 'true',
+      appleCallbackUrl: 'https://apple.dev.example/auth/callback/apple',
+    });
+    output.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'LOGIN_ENABLED', Value: 'true' },
+            { Name: 'EXTERNAL_AUTH_ENABLED', Value: 'true' },
+            {
+              Name: 'APPLE_CALLBACK_URL',
+              Value: 'https://apple.dev.example/auth/callback/apple',
+            },
+          ]),
+          Secrets: Match.arrayWith([
+            Match.objectLike({ Name: 'GOOGLE_CLIENT_ID' }),
+            Match.objectLike({ Name: 'GOOGLE_CLIENT_SECRET' }),
+            Match.objectLike({ Name: 'MICROSOFT_CLIENT_ID' }),
+            Match.objectLike({ Name: 'MICROSOFT_CLIENT_SECRET' }),
+            Match.objectLike({ Name: 'MICROSOFT_TENANT_ID' }),
+            Match.objectLike({ Name: 'APPLE_CLIENT_ID' }),
+            Match.objectLike({ Name: 'APPLE_TEAM_ID' }),
+            Match.objectLike({ Name: 'APPLE_KEY_ID' }),
+            Match.objectLike({ Name: 'APPLE_PRIVATE_KEY' }),
+          ]),
+        }),
+      ]),
+    });
+  });
+
+  it('supports a deliberate staged production enablement with the exact callback origin', () => {
+    const output = template('production', {
+      domainName: 'app.hanselapp.io',
+      loginEnabled: 'true',
+      externalAuthEnabled: 'true',
+    });
+    output.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'LOGIN_ENABLED', Value: 'true' },
+            { Name: 'EXTERNAL_AUTH_ENABLED', Value: 'true' },
+            {
+              Name: 'APPLE_CALLBACK_URL',
+              Value: 'https://app.hanselapp.io/auth/callback/apple',
+            },
+          ]),
+        }),
+      ]),
     });
   });
 

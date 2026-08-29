@@ -48,21 +48,68 @@ enum EmailDeliveryStatus {
   TERMINAL
 }
 
+enum ExternalAuthProvider {
+  GOOGLE
+  MICROSOFT
+  APPLE
+}
+
+enum ExternalAuthIntent {
+  LOGIN
+  ONBOARDING
+}
+
 model User {
-  id              String                     @id @default(uuid()) @db.Uuid
-  email           String                     @unique
-  emailVerifiedAt DateTime?
-  password        PasswordCredential?
-  consents        ConsentRecord[]
-  challenges      VerificationChallenge[]
-  journeys        OnboardingJourney[]
-  memberships     Membership[]
-  personalProfile PersonalProfile?
-  planSelection   OnboardingPlanSelection?
-  continuation    OnboardingContinuation?
-  sessionFamilies ApplicationSessionFamily[]
-  createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
+  id                          String                           @id @default(uuid()) @db.Uuid
+  email                       String                           @unique
+  emailVerifiedAt             DateTime?
+  password                    PasswordCredential?
+  consents                    ConsentRecord[]
+  challenges                  VerificationChallenge[]
+  journeys                    OnboardingJourney[]
+  memberships                 Membership[]
+  personalProfile             PersonalProfile?
+  planSelection               OnboardingPlanSelection?
+  continuation                OnboardingContinuation?
+  sessionFamilies             ApplicationSessionFamily[]
+  passwordAuthenticationState PasswordAuthenticationState?
+  passwordLockNotifications   PasswordLockNotificationIntent[]
+  externalIdentities          ExternalIdentity[]
+  createdAt                   DateTime                         @default(now())
+  updatedAt                   DateTime                         @updatedAt
+}
+
+model ExternalIdentity {
+  id        String               @id @default(uuid()) @db.Uuid
+  userId    String               @db.Uuid
+  provider  ExternalAuthProvider
+  subject   String               @db.VarChar(512)
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  @@unique([provider, subject])
+  @@unique([provider, userId])
+  @@index([userId])
+}
+
+model ExternalAuthorizationTransaction {
+  id                 String               @id @default(uuid()) @db.Uuid
+  provider           ExternalAuthProvider
+  intent             ExternalAuthIntent
+  stateDigest        String               @unique @db.VarChar(64)
+  nonceDigest        String               @db.VarChar(64)
+  pkceVerifierDigest String?              @db.VarChar(64)
+  sealedSecrets      String
+  redirectUri        String               @db.VarChar(2048)
+  termsVersion       String?              @db.VarChar(64)
+  privacyVersion     String?              @db.VarChar(64)
+  expiresAt          DateTime
+  consumedAt         DateTime?
+  createdAt          DateTime             @default(now())
+
+  @@index([provider, expiresAt, consumedAt])
+  @@index([expiresAt])
 }
 
 model OnboardingPlanSelection {
@@ -114,6 +161,39 @@ model PasswordCredential {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model PasswordAuthenticationState {
+  userId          String    @id @db.Uuid
+  failedAttempts  Int       @default(0)
+  windowStartedAt DateTime?
+  lockedUntil     DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([lockedUntil])
+}
+
+model PasswordLockNotificationIntent {
+  id             String              @id @default(uuid()) @db.Uuid
+  userId         String              @db.Uuid
+  lockStartedAt  DateTime
+  status         EmailDeliveryStatus @default(PENDING)
+  attempts       Int                 @default(0)
+  nextAttemptAt  DateTime
+  leaseOwner     String?             @db.VarChar(128)
+  leaseExpiresAt DateTime?
+  deliveredAt    DateTime?
+  terminalAt     DateTime?
+  providerId     String?             @db.VarChar(256)
+  lastErrorCode  String?             @db.VarChar(64)
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([userId, lockStartedAt])
+  @@index([status, nextAttemptAt])
 }
 
 model ConsentRecord {

@@ -4,7 +4,7 @@ import {
   randomInt,
   timingSafeEqual,
 } from 'node:crypto';
-import { argon2id, hash } from 'argon2';
+import { argon2id, hash, verify } from 'argon2';
 
 export function createOnboardingSecurity({
   passwordPepper,
@@ -22,6 +22,14 @@ export function createOnboardingSecurity({
         memoryCost: 19_456,
         timeCost: 2,
         parallelism: 1,
+        secret: Buffer.from(passwordPepper),
+      });
+    },
+    async verifyPassword(
+      passwordHash: string,
+      password: string,
+    ): Promise<boolean> {
+      return verify(passwordHash, password, {
         secret: Buffer.from(passwordPepper),
       });
     },

@@ -27,7 +27,29 @@ import {
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
   verifyOnboardingEmailResponseSchema,
+  loginRequestSchema,
+  loginResponseSchema,
 } from './index.js';
+
+describe('login contract [user-login REQ-003, REQ-004, REQ-020]', () => {
+  it('normalizes credentials and accepts only server-owned destinations', () => {
+    expect(
+      loginRequestSchema.parse({
+        email: '  OWNER@Example.com ',
+        password: 'Correct horse battery staple!7',
+      }),
+    ).toEqual({
+      email: 'owner@example.com',
+      password: 'Correct horse battery staple!7',
+    });
+    expect(loginResponseSchema.parse({ destination: '/dashboard' })).toEqual({
+      destination: '/dashboard',
+    });
+    expect(() =>
+      loginResponseSchema.parse({ destination: 'https://attacker.example' }),
+    ).toThrow();
+  });
+});
 
 describe('dashboard contract [dashboard-home REQ-005, REQ-007]', () => {
   const response = {

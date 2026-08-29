@@ -83,6 +83,45 @@ test('onboarding account creation is accessible and visually stable [AC-053, REQ
   });
 });
 
+test('login is accessible and visually stable at desktop, narrow, and 200% zoom [user-login AC-005, REQ-019, REQ-022]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=authentication-login--default&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Log in to your account' }),
+  ).toBeVisible();
+  await expect(page.getByLabel('Email')).toHaveCSS('font-family', /Figtree/);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('login-default.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  await expect(page).toHaveScreenshot('login-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  await expect(
+    page.getByRole('link', { name: 'Continue with Apple' }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(640);
+});
+
 test('personal profile is accessible and visually stable [REQ-086]', async ({
   page,
 }) => {
