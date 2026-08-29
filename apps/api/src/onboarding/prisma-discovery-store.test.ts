@@ -4,7 +4,8 @@ import { createPrismaDiscoveryStore } from './prisma-discovery-store.js';
 const now = new Date('2026-08-28T02:00:00Z');
 const future = new Date('2026-08-28T02:15:00Z');
 
-function harness() {
+function harness(welcomeEmailEnabled = true) {
+  const recordEvent = vi.fn();
   const transaction = {
     onboardingContinuation: {
       findUnique: vi
@@ -29,6 +30,9 @@ function harness() {
       update: vi.fn(),
     },
     onboardingDiscoveryResponse: { create: vi.fn() },
+    emailDeliveryIntent: {
+      create: vi.fn().mockResolvedValue({ id: 'delivery-id' }),
+    },
     applicationSessionFamily: { create: vi.fn() },
   };
   const prisma = {
@@ -39,8 +43,13 @@ function harness() {
     ),
   };
   return {
-    store: createPrismaDiscoveryStore(prisma as never),
+    store: createPrismaDiscoveryStore(
+      prisma as never,
+      welcomeEmailEnabled,
+      recordEvent,
+    ),
     prisma,
+    recordEvent,
     transaction,
   };
 }
@@ -70,7 +79,7 @@ const completeInput = {
   },
 };
 
-describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017]', () => {
+describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017; onboarding-welcome-email REQ-001..REQ-003, REQ-014, REQ-016]', () => {
   it('prepares a key only for the owner journey at discovery', async () => {
     const { store, transaction } = harness();
     await expect(store.prepare(prepareInput)).resolves.toBe(true);
@@ -124,7 +133,7 @@ describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017
       },
     ],
   ])('atomically completes a %s response', async (_name, answers) => {
-    const { store, transaction } = harness();
+    const { store, transaction, recordEvent } = harness();
     await expect(store.complete({ ...completeInput, answers })).resolves.toBe(
       'created',
     );
@@ -162,6 +171,23 @@ describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017
         },
       },
     });
+    expect(transaction.emailDeliveryIntent.create).toHaveBeenCalledWith({
+      data: {
+        journeyId: 'journey',
+        kind: 'ONBOARDING_WELCOME',
+        nextAttemptAt: now,
+      },
+      select: { id: true },
+    });
+    expect(recordEvent).toHaveBeenCalledWith('welcome_email_intent_created', {
+      correlationId: 'delivery-id',
+      intentId: 'delivery-id',
+      template: 'ONBOARDING_WELCOME',
+      state: 'pending',
+      attempt: 0,
+      ageSeconds: 0,
+      category: 'created',
+    });
   });
 
   it('returns replay or conflict before checking the deleted continuation', async () => {
@@ -179,6 +205,12 @@ describe('Prisma discovery store [onboarding-discovery REQ-005..REQ-009, REQ-017
     await expect(
       replay.store.complete({ ...completeInput, requestDigest: 'different' }),
     ).resolves.toBe('conflict');
+  });
+
+  it('does not create a Welcome delivery intent while rollout is disabled', async () => {
+    const { store, transaction } = harness(false);
+    await expect(store.complete(completeInput)).resolves.toBe('created');
+    expect(transaction.emailDeliveryIntent.create).not.toHaveBeenCalled();
   });
 
   it('rejects invalid and concurrent completion without writing a response', async () => {

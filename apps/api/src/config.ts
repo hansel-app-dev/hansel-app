@@ -10,6 +10,7 @@ interface BaseAppConfig {
   passwordPepper: string;
   port: number;
   verificationDigestKey: string;
+  welcomeEmailEnabled: boolean;
 }
 
 export type AppConfig = BaseAppConfig &
@@ -21,6 +22,39 @@ export type AppConfig = BaseAppConfig &
         resendFromEmail: string;
       }
   );
+
+function applicationOrigin(
+  value: string,
+  runtimeEnvironment: BaseAppConfig['runtimeEnvironment'],
+): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('ALLOWED_ORIGIN must be an absolute application origin');
+  }
+  if (
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  )
+    throw new Error('ALLOWED_ORIGIN must contain only a trusted origin');
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (
+    url.protocol !== 'https:' &&
+    !(runtimeEnvironment === 'test' && url.protocol === 'http:' && loopback)
+  )
+    throw new Error(
+      'ALLOWED_ORIGIN must use HTTPS or local/test HTTP loopback',
+    );
+  return url.origin;
+}
+
+export function dashboardUrl(config: Pick<AppConfig, 'allowedOrigin'>): string {
+  return new URL('/dashboard', config.allowedOrigin).toString();
+}
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
   const value = environment[name]?.trim();
@@ -46,8 +80,16 @@ export function loadConfig(
     runtimeEnvironment === 'test'
       ? verificationDigestKey
       : required(environment, 'APPLICATION_SESSION_DIGEST_KEY');
+  const allowedOrigin = applicationOrigin(
+    environment.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+    runtimeEnvironment,
+  );
+  const welcomeEmailEnabled =
+    environment.WELCOME_EMAIL_ENABLED === 'true' ||
+    (environment.WELCOME_EMAIL_ENABLED === undefined &&
+      runtimeEnvironment !== 'production');
   const base = {
-    allowedOrigin: environment.ALLOWED_ORIGIN ?? 'http://localhost:5173',
+    allowedOrigin,
     applicationSessionDigestKey,
     contactSalesDestination:
       environment.CONTACT_SALES_DESTINATION ??
@@ -72,6 +114,7 @@ export function loadConfig(
     passwordPepper: required(environment, 'PASSWORD_PEPPER'),
     port: parsedPort,
     verificationDigestKey,
+    welcomeEmailEnabled,
   };
   if (!base.contactSalesDestination.startsWith('https://'))
     throw new Error('CONTACT_SALES_DESTINATION must use HTTPS');
@@ -80,12 +123,23 @@ export function loadConfig(
     throw new Error('EMAIL_DELIVERY_MODE must be console or resend');
   }
   if (emailDeliveryMode === 'console') {
+    if (runtimeEnvironment === 'production')
+      throw new Error('Production email delivery requires Resend');
     return { ...base, emailDeliveryMode: 'console' };
   }
+  const resendApiKey = required(environment, 'RESEND_API_KEY');
+  const resendFromEmail = required(environment, 'RESEND_FROM_EMAIL');
+  if (runtimeEnvironment === 'production' && !resendApiKey.startsWith('re_'))
+    throw new Error('RESEND_API_KEY is invalid');
+  if (
+    runtimeEnvironment === 'production' &&
+    !/^(?:[^<>]+\s<)?[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+>?$/.test(resendFromEmail)
+  )
+    throw new Error('RESEND_FROM_EMAIL is invalid');
   return {
     ...base,
     emailDeliveryMode: 'resend',
-    resendApiKey: required(environment, 'RESEND_API_KEY'),
-    resendFromEmail: required(environment, 'RESEND_FROM_EMAIL'),
+    resendApiKey,
+    resendFromEmail,
   };
 }

@@ -8,6 +8,11 @@ on:
         required: true
         type: choice
         options: [development, staging, production]
+      enable_welcome_email:
+        description: Enable Welcome delivery only after migration and checks
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -38,4 +43,88 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
-      - run: pnpm --filter @hansel/infra cdk deploy --require-approval never --context stage=${{ inputs.environment }} --context deployWeb=true --context domainName=${{ vars.DOMAIN_NAME }} --context certificateArn=${{ vars.CLOUDFRONT_CERTIFICATE_ARN }}
+      - name: Prepare release without changing service traffic
+        id: prepare
+        shell: bash
+        env:
+          STACK_NAME: Hansel-${{ inputs.environment }}
+          CHANGE_SET_NAME: hansel-${{ inputs.environment }}-${{ github.run_id }}
+          WELCOME_EMAIL_ENABLED: ${{ inputs.enable_welcome_email }}
+          DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
+          CERTIFICATE_ARN: ${{ vars.CLOUDFRONT_CERTIFICATE_ARN }}
+        run: |
+          if aws cloudformation describe-stacks --stack-name "$STACK_NAME" >/dev/null 2>&1; then
+            pnpm --filter @hansel/infra cdk deploy \
+              --method prepare-change-set \
+              --change-set-name "$CHANGE_SET_NAME" \
+              --require-approval never \
+              --context stage=${{ inputs.environment }} \
+              --context deployWeb=true \
+              --context welcomeEmailEnabled="$WELCOME_EMAIL_ENABLED" \
+              --context domainName="$DOMAIN_NAME" \
+              --context certificateArn="$CERTIFICATE_ARN"
+            echo "bootstrap=false" >> "$GITHUB_OUTPUT"
+          else
+            pnpm --filter @hansel/infra cdk deploy \
+              --require-approval never \
+              --context stage=${{ inputs.environment }} \
+              --context deployWeb=true \
+              --context migrationBootstrap=true \
+              --context welcomeEmailEnabled=false \
+              --context domainName="$DOMAIN_NAME" \
+              --context certificateArn="$CERTIFICATE_ARN"
+            echo "bootstrap=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Run Prisma migration before service rollout
+        shell: bash
+        env:
+          STACK_NAME: Hansel-${{ inputs.environment }}
+        run: |
+          STACK_RESOURCES="$(aws cloudformation list-stack-resources --stack-name "$STACK_NAME")"
+          CLUSTER_NAME="$(jq -r '.StackResourceSummaries[] | select(.ResourceType == "AWS::ECS::Cluster") | .PhysicalResourceId' <<<"$STACK_RESOURCES")"
+          SERVICE_NAME="$(jq -r '.StackResourceSummaries[] | select(.ResourceType == "AWS::ECS::Service") | .PhysicalResourceId' <<<"$STACK_RESOURCES")"
+          DATABASE_ID="$(jq -r '.StackResourceSummaries[] | select(.ResourceType == "AWS::RDS::DBCluster") | .PhysicalResourceId' <<<"$STACK_RESOURCES")"
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$CLUSTER_NAME" --services "$SERVICE_NAME")"
+          CURRENT_TASK_DEFINITION="$(jq -r '.services[0].taskDefinition' <<<"$SERVICE_JSON")"
+          TASK_JSON="$(aws ecs describe-task-definition --task-definition "$CURRENT_TASK_DEFINITION" --query taskDefinition)"
+          CONTAINER_NAME="$(jq -r '.containerDefinitions[0].name' <<<"$TASK_JSON")"
+          NETWORK_CONFIGURATION="$(jq -c '{awsvpcConfiguration: .services[0].networkConfiguration.awsvpcConfiguration}' <<<"$SERVICE_JSON")"
+          DATABASE_JSON="$(aws rds describe-db-clusters --db-cluster-identifier "$DATABASE_ID" --query 'DBClusters[0]')"
+          DB_HOST="$(jq -r '.Endpoint' <<<"$DATABASE_JSON")"
+          DB_PORT="$(jq -r '.Port | tostring' <<<"$DATABASE_JSON")"
+          DB_NAME="$(jq -r '.DatabaseName' <<<"$DATABASE_JSON")"
+          ASSET_MANIFEST="infra/cdk.out/$STACK_NAME.assets.json"
+          IMAGE_URI="$(jq -r '.dockerImages | to_entries[0].value.destinations | to_entries[0].value | "\(.repositoryName):\(.imageTag)"' "$ASSET_MANIFEST")"
+          DEPLOY_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+          DEPLOY_REGION="${AWS_REGION:?AWS_REGION is required}"
+          IMAGE_URI="$DEPLOY_ACCOUNT_ID.dkr.ecr.$DEPLOY_REGION.amazonaws.com/$IMAGE_URI"
+          MIGRATION_TASK="$(jq -c \
+            --arg image "$IMAGE_URI" \
+            --arg name "$CONTAINER_NAME" \
+            --arg host "$DB_HOST" \
+            --arg port "$DB_PORT" \
+            --arg database "$DB_NAME" \
+            '{family:(.family + "-migration"),taskRoleArn,executionRoleArn,networkMode,volumes,requiresCompatibilities,cpu,memory,runtimePlatform,containerDefinitions:(.containerDefinitions | map(if .name == $name then .image=$image | .command=["node","scripts/migrate.mjs"] | .environment=(((.environment // []) | map(select(.name != "DB_HOST" and .name != "DB_PORT" and .name != "DB_NAME"))) + [{name:"DB_HOST",value:$host},{name:"DB_PORT",value:$port},{name:"DB_NAME",value:$database}]) else . end))} | with_entries(select(.value != null))' \
+            <<<"$TASK_JSON")"
+          TASK_DEFINITION="$(aws ecs register-task-definition --cli-input-json "$MIGRATION_TASK" --query 'taskDefinition.taskDefinitionArn' --output text)"
+          TASK_ARN="$(aws ecs run-task \
+            --cluster "$CLUSTER_NAME" \
+            --task-definition "$TASK_DEFINITION" \
+            --launch-type FARGATE \
+            --network-configuration "$NETWORK_CONFIGURATION" \
+            --query 'tasks[0].taskArn' \
+            --output text)"
+          test "$TASK_ARN" != "None"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER_NAME" --tasks "$TASK_ARN"
+          EXIT_CODE="$(aws ecs describe-tasks \
+            --cluster "$CLUSTER_NAME" \
+            --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' \
+            --output text)"
+          test "$EXIT_CODE" = "0"
+      - name: Roll out the prepared service after successful migration
+        if: ${{ steps.prepare.outputs.bootstrap == 'false' }}
+        run: pnpm --filter @hansel/infra cdk deploy --method execute-change-set --change-set-name hansel-${{ inputs.environment }}-${{ github.run_id }} --require-approval never --context stage=${{ inputs.environment }}
+      - name: Roll out service after first-environment migration
+        if: ${{ steps.prepare.outputs.bootstrap == 'true' }}
+        run: pnpm --filter @hansel/infra cdk deploy --require-approval never --context stage=${{ inputs.environment }} --context deployWeb=true --context welcomeEmailEnabled=${{ inputs.enable_welcome_email }} --context domainName=${{ vars.DOMAIN_NAME }} --context certificateArn=${{ vars.CLOUDFRONT_CERTIFICATE_ARN }}

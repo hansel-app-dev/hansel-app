@@ -94,7 +94,7 @@ const skipped = {
 };
 
 integration(
-  'PostgreSQL discovery completion [onboarding-discovery REQ-005..REQ-009, REQ-017]',
+  'PostgreSQL discovery completion [onboarding-discovery REQ-005..REQ-009, REQ-017; onboarding-welcome-email REQ-001..REQ-003, REQ-017]',
   () => {
     afterAll(() => prisma.$disconnect());
 
@@ -139,6 +139,14 @@ integration(
         'ACCESS',
         'REFRESH',
       ]);
+      await expect(
+        prisma.emailDeliveryIntent.count({
+          where: {
+            journeyId: seeded.journey.id,
+            kind: 'ONBOARDING_WELCOME',
+          },
+        }),
+      ).resolves.toBe(1);
     });
 
     it('permits one concurrent winner, replays equivalent input, and rejects changed input', async () => {
@@ -168,6 +176,11 @@ integration(
       await expect(
         prisma.applicationSessionFamily.count({
           where: { userId: seeded.user.id, tenantId: seeded.tenant.id },
+        }),
+      ).resolves.toBe(1);
+      await expect(
+        prisma.emailDeliveryIntent.count({
+          where: { journeyId: seeded.journey.id },
         }),
       ).resolves.toBe(1);
     });
@@ -221,6 +234,55 @@ integration(
           where: { userId: seeded.user.id, tenantId: seeded.tenant.id },
         }),
       ).resolves.toBe(0);
+      await expect(
+        prisma.emailDeliveryIntent.count({
+          where: { journeyId: seeded.journey.id },
+        }),
+      ).resolves.toBe(0);
+    });
+
+    it('rolls back completion when the Welcome intent cannot be persisted', async () => {
+      const seeded = await seed();
+      await prisma.emailDeliveryIntent.create({
+        data: {
+          journeyId: seeded.journey.id,
+          kind: 'ONBOARDING_WELCOME',
+          nextAttemptAt: now(),
+        },
+      });
+      const store = createPrismaDiscoveryStore(prisma);
+      const key = await prepare(store, seeded.credentialDigest);
+
+      await expect(
+        store.complete({
+          credentialDigest: seeded.credentialDigest,
+          submissionKeyDigest: key,
+          requestDigest: `request-${randomUUID()}`,
+          now: now(),
+          answers: submitted,
+          applicationSession: applicationSession(),
+        }),
+      ).resolves.toBe('rejected');
+      await expect(
+        prisma.onboardingJourney.findUniqueOrThrow({
+          where: { id: seeded.journey.id },
+        }),
+      ).resolves.toMatchObject({ currentStep: 'DISCOVERY', completedAt: null });
+      await expect(
+        prisma.onboardingDiscoveryResponse.count({
+          where: { journeyId: seeded.journey.id },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.applicationSessionFamily.count({
+          where: { userId: seeded.user.id },
+        }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.onboardingContinuation.count({
+          where: { userId: seeded.user.id },
+        }),
+      ).resolves.toBe(1);
     });
   },
 );

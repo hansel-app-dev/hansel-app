@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from './config.js';
+import { dashboardUrl, loadConfig } from './config.js';
 
-describe('loadConfig [REQ-002, REQ-008]', () => {
+describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-013, REQ-016]', () => {
   const required = {
     PASSWORD_PEPPER: 'password-pepper',
     VERIFICATION_DIGEST_KEY: 'verification-digest-key',
@@ -19,6 +19,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
       organizationProfileEnabled: true,
+      welcomeEmailEnabled: true,
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -44,6 +45,7 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
       organizationProfileEnabled: true,
+      welcomeEmailEnabled: true,
       port: 8080,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
@@ -55,38 +57,53 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
   });
 
   it('identifies the production runtime [onboarding-plan-selection REQ-018]', () => {
-    expect(loadConfig({ ...required, NODE_ENV: 'production' })).toMatchObject({
+    const production = {
+      ...required,
+      NODE_ENV: 'production',
+      ALLOWED_ORIGIN: 'https://app.hanselapp.io',
+    };
+    expect(loadConfig(production)).toMatchObject({
       runtimeEnvironment: 'production',
       dashboardEnabled: false,
       discoveryEnabled: false,
       planSelectionEnabled: false,
       organizationProfileEnabled: false,
+      welcomeEmailEnabled: false,
     });
     expect(
       loadConfig({
-        ...required,
-        NODE_ENV: 'production',
+        ...production,
         PLAN_SELECTION_ENABLED: 'true',
       }).planSelectionEnabled,
     ).toBe(true);
     expect(
       loadConfig({
-        ...required,
-        NODE_ENV: 'production',
+        ...production,
+        WELCOME_EMAIL_ENABLED: 'true',
+      }).welcomeEmailEnabled,
+    ).toBe(true);
+    expect(() =>
+      loadConfig({
+        ...production,
+        ALLOWED_ORIGIN: 'http://localhost:5173',
+        WELCOME_EMAIL_ENABLED: 'true',
+      }),
+    ).toThrow('ALLOWED_ORIGIN must use HTTPS');
+    expect(
+      loadConfig({
+        ...production,
         ORGANIZATION_PROFILE_ENABLED: 'true',
       }).organizationProfileEnabled,
     ).toBe(true);
     expect(
       loadConfig({
-        ...required,
-        NODE_ENV: 'production',
+        ...production,
         DISCOVERY_ENABLED: 'true',
       }).discoveryEnabled,
     ).toBe(true);
     expect(
       loadConfig({
-        ...required,
-        NODE_ENV: 'production',
+        ...production,
         DASHBOARD_ENABLED: 'true',
       }).dashboardEnabled,
     ).toBe(true);
@@ -107,12 +124,62 @@ describe('loadConfig [REQ-002, REQ-008]', () => {
       runtimeEnvironment: 'test',
       planSelectionEnabled: true,
       organizationProfileEnabled: true,
+      welcomeEmailEnabled: true,
       port: 3000,
       passwordPepper: 'password-pepper',
       verificationDigestKey: 'verification-digest-key',
       applicationSessionDigestKey: 'verification-digest-key',
       emailDeliveryMode: 'console',
     });
+  });
+
+  it('builds only a trusted absolute dashboard URL', () => {
+    expect(dashboardUrl(loadConfig(required))).toBe(
+      'http://localhost:5173/dashboard',
+    );
+    expect(
+      dashboardUrl(
+        loadConfig({ ...required, ALLOWED_ORIGIN: 'https://app.hansel.io/' }),
+      ),
+    ).toBe('https://app.hansel.io/dashboard');
+    for (const origin of [
+      'http://example.com',
+      'ftp://localhost',
+      'https://user:password@app.hansel.io',
+      'https://app.hansel.io/path',
+      'https://app.hansel.io?tenant=private',
+      'not-a-url',
+    ])
+      expect(() => loadConfig({ ...required, ALLOWED_ORIGIN: origin })).toThrow(
+        'ALLOWED_ORIGIN',
+      );
+  });
+
+  it('fails closed for console or invalid Resend configuration in production', () => {
+    expect(() =>
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        EMAIL_DELIVERY_MODE: 'console',
+        ALLOWED_ORIGIN: 'https://app.hansel.io',
+      }),
+    ).toThrow('Production email delivery requires Resend');
+    expect(() =>
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        RESEND_API_KEY: 'invalid',
+        ALLOWED_ORIGIN: 'https://app.hansel.io',
+      }),
+    ).toThrow('RESEND_API_KEY is invalid');
+    expect(() =>
+      loadConfig({
+        ...required,
+        NODE_ENV: 'production',
+        RESEND_FROM_EMAIL: 'invalid',
+        ALLOWED_ORIGIN: 'https://app.hansel.io',
+      }),
+    ).toThrow('RESEND_FROM_EMAIL is invalid');
   });
 
   it('rejects an unsupported email delivery mode', () => {

@@ -1,10 +1,15 @@
 import * as cdk from 'aws-cdk-lib';
 import { Match, Template } from 'aws-cdk-lib/assertions';
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { HanselStack } from './hansel-stack.js';
 
-function template(stage: string): Template {
+function template(
+  stage: string,
+  context: Record<string, string> = {},
+): Template {
   const app = new cdk.App();
+  for (const [key, value] of Object.entries(context))
+    app.node.setContext(key, value);
   if (stage === 'production') {
     app.node.setContext('domainName', 'hansel.example.com');
     app.node.setContext(
@@ -15,7 +20,7 @@ function template(stage: string): Template {
   return Template.fromStack(new HanselStack(app, `Test-${stage}`, { stage }));
 }
 
-describe('HanselStack [REQ-004]', () => {
+describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () => {
   it('uses private compute and an encrypted, protected production database', () => {
     const output = template('production');
     output.hasResourceProperties('AWS::RDS::DBCluster', {
@@ -29,11 +34,18 @@ describe('HanselStack [REQ-004]', () => {
       ContainerDefinitions: Match.arrayWith([
         Match.objectLike({
           Environment: Match.arrayWith([
+            { Name: 'DB_NAME', Value: 'hansel' },
+            { Name: 'EMAIL_DELIVERY_MODE', Value: 'resend' },
             { Name: 'DISCOVERY_ENABLED', Value: 'false' },
             { Name: 'DASHBOARD_ENABLED', Value: 'false' },
+            { Name: 'WELCOME_EMAIL_ENABLED', Value: 'false' },
           ]),
           Secrets: Match.arrayWith([
             Match.objectLike({ Name: 'APPLICATION_SESSION_DIGEST_KEY' }),
+            Match.objectLike({ Name: 'PASSWORD_PEPPER' }),
+            Match.objectLike({ Name: 'VERIFICATION_DIGEST_KEY' }),
+            Match.objectLike({ Name: 'RESEND_API_KEY' }),
+            Match.objectLike({ Name: 'RESEND_FROM_EMAIL' }),
           ]),
         }),
       ]),
@@ -62,7 +74,21 @@ describe('HanselStack [REQ-004]', () => {
         Match.objectLike({ MetricNamespace: 'Hansel/Onboarding' }),
       ]),
     });
-    output.resourceCountIs('AWS::CloudWatch::Alarm', 7);
+    for (const metricName of [
+      'WelcomeEmailCreated',
+      'WelcomeEmailClaimed',
+      'WelcomeEmailDelivered',
+      'WelcomeEmailTransientFailures',
+      'WelcomeEmailLeaseRecoveries',
+      'WelcomeEmailRetryExhausted',
+      'WelcomeEmailAttemptCount',
+    ])
+      output.hasResourceProperties('AWS::Logs::MetricFilter', {
+        MetricTransformations: Match.arrayWith([
+          Match.objectLike({ MetricName: metricName }),
+        ]),
+      });
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 9);
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({
@@ -70,6 +96,22 @@ describe('HanselStack [REQ-004]', () => {
         }),
       ]),
     });
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({ MetricName: 'WelcomeEmailTerminalFailures' }),
+      ]),
+    });
+    output.hasResourceProperties('AWS::Logs::MetricFilter', {
+      MetricTransformations: Match.arrayWith([
+        Match.objectLike({
+          MetricName: 'WelcomeEmailOldestPendingAgeSeconds',
+          MetricValue: '$.ageSeconds',
+        }),
+      ]),
+    });
+    expect(
+      JSON.stringify(output.findResources('AWS::CloudWatch::Dashboard')),
+    ).toContain('Welcome email delivery');
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({ MetricName: 'DiscoveryUnexpectedFailures' }),
@@ -101,5 +143,10 @@ describe('HanselStack [REQ-004]', () => {
         ]),
       }),
     });
+  });
+
+  it('bootstraps migration infrastructure without serving traffic', () => {
+    const output = template('test', { migrationBootstrap: 'true' });
+    output.hasResourceProperties('AWS::ECS::Service', { DesiredCount: 0 });
   });
 });

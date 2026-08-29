@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Resend } from 'resend';
 import { createApp } from './app.js';
-import { loadConfig } from './config.js';
+import { dashboardUrl, loadConfig } from './config.js';
 import { createConsoleVerificationSender } from './onboarding/console-verification-sender.js';
 import { createAccountRegistration } from './onboarding/create-account.js';
 import { createPrismaPendingAccountStore } from './onboarding/prisma-account-store.js';
@@ -34,20 +34,45 @@ import {
 import { createPrismaDiscoveryStore } from './onboarding/prisma-discovery-store.js';
 import { createDashboardSession } from './dashboard/session.js';
 import { createPrismaDashboardSessionStore } from './dashboard/prisma-session-store.js';
+import {
+  createConsoleWelcomeSender,
+  createResendWelcomeSender,
+  type WelcomeEmailInput,
+} from './onboarding/welcome-email.js';
+import { createWelcomeEmailDispatcher } from './onboarding/welcome-email-dispatcher.js';
+import { createPrismaWelcomeEmailStore } from './onboarding/prisma-welcome-email-store.js';
+import { createWelcomeEmailWorker } from './onboarding/welcome-email-worker.js';
+import { configureDatabaseUrl } from './database-url.js';
+import { readFileSync } from 'node:fs';
 
+configureDatabaseUrl();
 const config = loadConfig();
 const logger = new Logger({ serviceName: 'hansel-api' });
 const prisma = new PrismaClient();
 const security = createOnboardingSecurity(config);
+const approvedLogoSvg = readFileSync(
+  new URL('../../web/public/assets/hansel-logo-beta.svg', import.meta.url),
+  'utf8',
+);
 let sendVerificationCode: (email: string, code: string) => Promise<void>;
+let sendWelcomeEmail: (input: WelcomeEmailInput) => Promise<string>;
 if (config.emailDeliveryMode === 'resend') {
   const resend = new Resend(config.resendApiKey);
   sendVerificationCode = createResendVerificationSender(
     resend,
     config.resendFromEmail,
   );
+  sendWelcomeEmail = createResendWelcomeSender(
+    resend,
+    config.resendFromEmail,
+    dashboardUrl(config),
+    approvedLogoSvg,
+  );
 } else {
   sendVerificationCode = createConsoleVerificationSender();
+  sendWelcomeEmail = createConsoleWelcomeSender((name, details) => {
+    logger.info(name, details);
+  });
 }
 const verification = createEmailVerification({
   ...security,
@@ -135,7 +160,13 @@ const onboarding = {
   })(),
   ...(() => {
     const feature = createDiscovery({
-      ...createPrismaDiscoveryStore(prisma),
+      ...createPrismaDiscoveryStore(
+        prisma,
+        config.welcomeEmailEnabled,
+        (name, details) => {
+          logger.info(name, details);
+        },
+      ),
       ...discoveryDigests,
       createSubmissionKey: () => randomBytes(32).toString('base64url'),
       digestOnboardingCredential: (credential) =>
@@ -172,6 +203,28 @@ const dashboard = createDashboardSession({
     logger.info(name, { correlationId: randomUUID() });
   },
 });
+const welcomeEmailDispatcher = createWelcomeEmailDispatcher({
+  ...createPrismaWelcomeEmailStore(prisma),
+  send: sendWelcomeEmail,
+  workerId: randomUUID(),
+  now: () => new Date(),
+  jitter: Math.random,
+  recordEvent: (name, details) => {
+    logger.info(name, { ...details });
+  },
+});
+const welcomeEmailWorker = createWelcomeEmailWorker({
+  runOnce: () => welcomeEmailDispatcher.runOnce(),
+  schedule: (callback, intervalMs) => setInterval(callback, intervalMs),
+  cancel: (timer) => {
+    clearInterval(timer as NodeJS.Timeout);
+  },
+  intervalMs: 1_000,
+  recordEvent: (name) => {
+    logger.error(name, { correlationId: randomUUID() });
+  },
+});
+if (config.welcomeEmailEnabled) welcomeEmailWorker.start();
 const server = createApp(config, undefined, onboarding, {
   ...dashboard,
   recordEvent: (name) => {
@@ -188,6 +241,7 @@ const server = createApp(config, undefined, onboarding, {
 });
 
 function shutdown(signal: string): void {
+  welcomeEmailWorker.stop();
   console.log(
     JSON.stringify({ level: 'INFO', message: 'Shutting down', signal }),
   );

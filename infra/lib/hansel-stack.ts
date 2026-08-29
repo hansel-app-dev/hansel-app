@@ -24,6 +24,14 @@ export class HanselStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: HanselStackProps) {
     super(scope, id, props);
     const production = props.stage === 'production';
+    const welcomeEmailContext = this.node.tryGetContext(
+      'welcomeEmailEnabled',
+    ) as string | undefined;
+    const welcomeEmailEnabled =
+      welcomeEmailContext === 'true' ||
+      (welcomeEmailContext === undefined && !production);
+    const migrationBootstrap =
+      this.node.tryGetContext('migrationBootstrap') === 'true';
     const domainName = this.node.tryGetContext('domainName') as
       string | undefined;
     const certificateArn = this.node.tryGetContext('certificateArn') as
@@ -71,6 +79,22 @@ export class HanselStack extends cdk.Stack {
       this,
       'ApplicationSessionDigestSecret',
       { generateSecretString: { excludePunctuation: true } },
+    );
+    const passwordPepperSecret = new secretsmanager.Secret(
+      this,
+      'PasswordPepperSecret',
+      { generateSecretString: { excludePunctuation: true } },
+    );
+    const verificationDigestSecret = new secretsmanager.Secret(
+      this,
+      'VerificationDigestSecret',
+      { generateSecretString: { excludePunctuation: true } },
+    );
+    const resendSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'ResendSecret',
+      (this.node.tryGetContext('resendSecretName') as string | undefined) ??
+        `/hansel/${props.stage}/resend`,
     );
     const database = new rds.DatabaseCluster(this, 'Database', {
       engine: rds.DatabaseClusterEngine.auroraPostgres({
@@ -140,12 +164,30 @@ export class HanselStack extends cdk.Stack {
           }),
           environment: {
             PORT: '3000',
+            DB_HOST: database.clusterEndpoint.hostname,
+            DB_PORT: database.clusterEndpoint.port.toString(),
+            DB_NAME: 'hansel',
+            EMAIL_DELIVERY_MODE: 'resend',
             DISCOVERY_ENABLED: production ? 'false' : 'true',
             DASHBOARD_ENABLED: production ? 'false' : 'true',
+            WELCOME_EMAIL_ENABLED: welcomeEmailEnabled ? 'true' : 'false',
           },
           secrets: {
             APPLICATION_SESSION_DIGEST_KEY: ecs.Secret.fromSecretsManager(
               applicationSessionDigestSecret,
+            ),
+            PASSWORD_PEPPER:
+              ecs.Secret.fromSecretsManager(passwordPepperSecret),
+            VERIFICATION_DIGEST_KEY: ecs.Secret.fromSecretsManager(
+              verificationDigestSecret,
+            ),
+            RESEND_API_KEY: ecs.Secret.fromSecretsManager(
+              resendSecret,
+              'apiKey',
+            ),
+            RESEND_FROM_EMAIL: ecs.Secret.fromSecretsManager(
+              resendSecret,
+              'fromEmail',
             ),
             DB_USERNAME: ecs.Secret.fromSecretsManager(
               databaseSecret,
@@ -159,6 +201,8 @@ export class HanselStack extends cdk.Stack {
         },
       },
     );
+    if (migrationBootstrap)
+      (api.service.node.defaultChild as ecs.CfnService).desiredCount = 0;
     api.targetGroup.configureHealthCheck({
       path: '/api/health',
       healthyHttpCodes: '200',
@@ -167,17 +211,19 @@ export class HanselStack extends cdk.Stack {
       behavior: ecs.AlarmBehavior.ROLLBACK_ON_ALARM,
     });
     database.connections.allowDefaultPortFrom(api.service);
-    const scalable = api.service.autoScaleTaskCount({
-      minCapacity: production ? 2 : 1,
-      maxCapacity: production ? 20 : 4,
-    });
-    scalable.scaleOnCpuUtilization('CpuScaling', {
-      targetUtilizationPercent: 60,
-    });
-    scalable.scaleOnRequestCount('RequestScaling', {
-      requestsPerTarget: 1000,
-      targetGroup: api.targetGroup,
-    });
+    if (!migrationBootstrap) {
+      const scalable = api.service.autoScaleTaskCount({
+        minCapacity: production ? 2 : 1,
+        maxCapacity: production ? 20 : 4,
+      });
+      scalable.scaleOnCpuUtilization('CpuScaling', {
+        targetUtilizationPercent: 60,
+      });
+      scalable.scaleOnRequestCount('RequestScaling', {
+        requestsPerTarget: 1000,
+        targetGroup: api.targetGroup,
+      });
+    }
 
     const api5xxAlarm = new cloudwatch.Alarm(this, 'Api5xxAlarm', {
       metric: api.loadBalancer.metrics.httpCodeElb(
@@ -313,6 +359,127 @@ export class HanselStack extends cdk.Stack {
       evaluationPeriods: 2,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
+    const welcomeMetric = (
+      id: string,
+      message: string,
+      metricName: string,
+      metricValue = '1',
+    ) =>
+      new logs.MetricFilter(this, id, {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          message,
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName,
+        metricValue,
+      });
+    const welcomeEmailCreatedFilter = welcomeMetric(
+      'WelcomeEmailCreatedMetric',
+      'welcome_email_intent_created',
+      'WelcomeEmailCreated',
+    );
+    const welcomeEmailClaimedFilter = welcomeMetric(
+      'WelcomeEmailClaimedMetric',
+      'welcome_email_claimed',
+      'WelcomeEmailClaimed',
+    );
+    const welcomeEmailDeliveredFilter = welcomeMetric(
+      'WelcomeEmailDeliveredMetric',
+      'welcome_email_delivered',
+      'WelcomeEmailDelivered',
+    );
+    const welcomeEmailTransientFilter = welcomeMetric(
+      'WelcomeEmailTransientMetric',
+      'welcome_email_transient_failure',
+      'WelcomeEmailTransientFailures',
+    );
+    const welcomeEmailLeaseRecoveryFilter = welcomeMetric(
+      'WelcomeEmailLeaseRecoveryMetric',
+      'welcome_email_lease_recovered',
+      'WelcomeEmailLeaseRecoveries',
+    );
+    const welcomeEmailExhaustedFilter = welcomeMetric(
+      'WelcomeEmailExhaustedMetric',
+      'welcome_email_retry_exhausted',
+      'WelcomeEmailRetryExhausted',
+    );
+    const welcomeEmailAttemptsFilter = welcomeMetric(
+      'WelcomeEmailAttemptsMetric',
+      'welcome_email_claimed',
+      'WelcomeEmailAttemptCount',
+      '$.attempt',
+    );
+    const welcomeEmailTerminalFilter = new logs.MetricFilter(
+      this,
+      'WelcomeEmailTerminalMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.any(
+          logs.FilterPattern.stringValue(
+            '$.message',
+            '=',
+            'welcome_email_provider_permanent',
+          ),
+          logs.FilterPattern.stringValue(
+            '$.message',
+            '=',
+            'welcome_email_retry_exhausted',
+          ),
+          logs.FilterPattern.stringValue(
+            '$.message',
+            '=',
+            'welcome_email_ambiguous_window_exhausted',
+          ),
+          logs.FilterPattern.stringValue(
+            '$.message',
+            '=',
+            'welcome_email_retry_window_exhausted',
+          ),
+          logs.FilterPattern.stringValue(
+            '$.message',
+            '=',
+            'welcome_email_profile_unavailable',
+          ),
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName: 'WelcomeEmailTerminalFailures',
+        metricValue: '1',
+      },
+    );
+    new cloudwatch.Alarm(this, 'WelcomeEmailTerminalAlarm', {
+      metric: welcomeEmailTerminalFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    const welcomeEmailPendingFilter = new logs.MetricFilter(
+      this,
+      'WelcomeEmailPendingMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'welcome_email_pending_age_observed',
+        ),
+        metricNamespace: 'Hansel/Onboarding',
+        metricName: 'WelcomeEmailOldestPendingAgeSeconds',
+        metricValue: '$.ageSeconds',
+      },
+    );
+    new cloudwatch.Alarm(this, 'WelcomeEmailPendingAlarm', {
+      metric: welcomeEmailPendingFilter.metric({
+        statistic: cloudwatch.Stats.MAXIMUM,
+      }),
+      threshold: 15 * 60,
+      evaluationPeriods: 1,
+      treatMissingData: welcomeEmailEnabled
+        ? cloudwatch.TreatMissingData.BREACHING
+        : cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
     const dashboard = new cloudwatch.Dashboard(this, 'OperationsDashboard');
     dashboard.addWidgets(
       new cloudwatch.GraphWidget({
@@ -332,6 +499,24 @@ export class HanselStack extends cdk.Stack {
         left: [
           dashboardUnexpectedFailureFilter.metric(),
           dashboardRefreshFailureFilter.metric(),
+        ],
+      }),
+      new cloudwatch.GraphWidget({
+        title: 'Welcome email delivery',
+        left: [
+          welcomeEmailCreatedFilter.metric(),
+          welcomeEmailClaimedFilter.metric(),
+          welcomeEmailDeliveredFilter.metric(),
+          welcomeEmailTransientFilter.metric(),
+          welcomeEmailLeaseRecoveryFilter.metric(),
+          welcomeEmailExhaustedFilter.metric(),
+          welcomeEmailAttemptsFilter.metric({
+            statistic: cloudwatch.Stats.MAXIMUM,
+          }),
+          welcomeEmailTerminalFilter.metric(),
+          welcomeEmailPendingFilter.metric({
+            statistic: cloudwatch.Stats.MAXIMUM,
+          }),
         ],
       }),
     );
@@ -460,6 +645,12 @@ export class HanselStack extends cdk.Stack {
         : {}),
       enableLogging: true,
     });
+    api.taskDefinition.defaultContainer?.addEnvironment(
+      'ALLOWED_ORIGIN',
+      domainName
+        ? `https://${domainName}`
+        : `https://${distribution.distributionDomainName}`,
+    );
 
     if (this.node.tryGetContext('deployWeb') === 'true') {
       new s3deploy.BucketDeployment(this, 'WebDeployment', {
@@ -479,6 +670,15 @@ export class HanselStack extends cdk.Stack {
     });
     new cdk.CfnOutput(this, 'DashboardName', {
       value: dashboard.dashboardName,
+    });
+    new cdk.CfnOutput(this, 'EcsClusterName', {
+      value: cluster.clusterName,
+    });
+    new cdk.CfnOutput(this, 'ApiServiceName', {
+      value: api.service.serviceName,
+    });
+    new cdk.CfnOutput(this, 'ApiContainerName', {
+      value: api.taskDefinition.defaultContainer?.containerName ?? 'web',
     });
   }
 }

@@ -71,6 +71,9 @@ importers:
       helmet:
         specifier: ^8.1.0
         version: 8.3.0
+      prisma:
+        specifier: ^6.15.0
+        version: 6.19.3(magicast@0.3.5)(typescript@5.9.3)
       resend:
         specifier: ^6.24.0
         version: 6.24.0
@@ -96,9 +99,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^3.2.4
         version: 3.2.7(vitest@3.2.7(@types/node@24.13.3)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.23.12)(yaml@2.9.0))
-      prisma:
-        specifier: ^6.15.0
-        version: 6.19.3(magicast@0.3.5)(typescript@5.9.3)
       supertest:
         specifier: ^7.1.4
         version: 7.2.2
