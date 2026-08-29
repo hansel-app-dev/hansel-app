@@ -70,6 +70,42 @@ integration(
   () => {
     afterAll(() => prisma.$disconnect());
 
+    it('revokes represented session families without changing unrelated families [dashboard-logout REQ-005, REQ-007]', async () => {
+      const current = await seedSession();
+      const unrelated = await seedSession();
+      const store = createPrismaDashboardSessionStore(prisma, () => undefined);
+
+      await store.revokeFamilies({
+        credentialDigests: [current.accessDigest, current.refreshDigest],
+        now,
+      });
+      await expect(
+        prisma.applicationSessionFamily.findUniqueOrThrow({
+          where: { id: current.family.id },
+        }),
+      ).resolves.toMatchObject({
+        revokedAt: now,
+        revocationReason: 'user_logout',
+      });
+      await expect(
+        prisma.applicationSessionFamily.findUniqueOrThrow({
+          where: { id: unrelated.family.id },
+        }),
+      ).resolves.toMatchObject({ revokedAt: null, revocationReason: null });
+
+      await expect(
+        store.revokeFamilies({
+          credentialDigests: [current.accessDigest, 'unknown'],
+          now: new Date('2026-08-30T00:00:00.000Z'),
+        }),
+      ).resolves.toBeUndefined();
+      await expect(
+        prisma.applicationSessionFamily.findUniqueOrThrow({
+          where: { id: current.family.id },
+        }),
+      ).resolves.toMatchObject({ revokedAt: now });
+    });
+
     it('uses current tenant membership and rejects expiry or membership removal', async () => {
       const seeded = await seedSession();
       const store = createPrismaDashboardSessionStore(prisma, () => undefined);

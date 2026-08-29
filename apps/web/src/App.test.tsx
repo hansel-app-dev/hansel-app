@@ -118,6 +118,48 @@ describe('App [REQ-002]', () => {
     expect(window.location.pathname).toBe('/onboarding');
   });
 
+  it('logs out from the dashboard and replaces navigation with onboarding [dashboard-logout REQ-004, REQ-009]', async () => {
+    window.history.replaceState({}, '', '/dashboard');
+    window.sessionStorage.setItem(
+      'hansel.verificationEmail',
+      'stale@example.com',
+    );
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            viewer: {
+              displayName: 'Nabin Singh',
+              initials: 'NS',
+              roleLabel: 'Owner',
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetcher);
+
+    render(<App />);
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Nabin Singh, Owner' }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Log out' }));
+    expect(
+      await screen.findByRole('heading', { name: "Let's get started" }),
+    ).toBeVisible();
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/dashboard/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+    expect(window.location.pathname).toBe('/onboarding');
+    expect(
+      window.sessionStorage.getItem('hansel.verificationEmail'),
+    ).toBeNull();
+  });
+
   it('renders discovery and follows only the server-owned dashboard destination [onboarding-discovery REQ-001, REQ-010]', async () => {
     document.cookie = 'hansel_onboarding_csrf=proof; path=/';
     const openExternal = vi.fn();

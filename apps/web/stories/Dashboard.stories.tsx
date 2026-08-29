@@ -1,4 +1,4 @@
-/** @spec dashboard-home REQ-001, REQ-015..REQ-017 @figma 40:502 */
+/** @spec dashboard-home REQ-001, REQ-015..REQ-017; dashboard-logout REQ-011 @figma 40:502 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { Dashboard } from '../src/dashboard/Dashboard.js';
@@ -14,7 +14,10 @@ const owner = {
 const meta = {
   title: 'Dashboard/Home',
   component: Dashboard,
-  args: { loadDashboard: () => Promise.resolve(owner) },
+  args: {
+    loadDashboard: () => Promise.resolve(owner),
+    logout: () => Promise.resolve(),
+  },
   parameters: {
     layout: 'fullscreen',
     docs: {
@@ -41,6 +44,18 @@ export const AuthenticatedOwner: Story = {
 };
 
 export const FigmaSample: Story = {};
+
+export const AccountMenuOpen: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'John Smith, Admin' }),
+    );
+    await expect(
+      canvas.getByRole('menuitem', { name: 'Log out' }),
+    ).toHaveFocus();
+  },
+};
 
 export const LongIdentity: Story = {
   args: {

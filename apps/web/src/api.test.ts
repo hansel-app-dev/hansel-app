@@ -14,6 +14,7 @@ import {
   loadDiscovery,
   completeDiscovery,
   loadDashboard,
+  logoutDashboard,
   DashboardAuthenticationRequiredError,
 } from './api.js';
 import {
@@ -25,6 +26,28 @@ import {
 } from '@hansel/contracts';
 
 describe('dashboard API [dashboard-home REQ-007, REQ-012, REQ-013]', () => {
+  it('logs out with one credentialed bodyless POST [dashboard-logout REQ-004]', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(logoutDashboard('', fetcher)).resolves.toBeUndefined();
+    expect(fetcher).toHaveBeenCalledWith('/api/dashboard/logout', {
+      method: 'POST',
+      credentials: 'include',
+    });
+  });
+
+  it('maps rejected logout to one retryable client error [dashboard-logout REQ-010]', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(logoutDashboard('', fetcher)).rejects.toThrow(
+      'dashboard_logout_failed',
+    );
+  });
+
   it('loads and strictly parses the private viewer with credentials', async () => {
     const result = {
       viewer: {

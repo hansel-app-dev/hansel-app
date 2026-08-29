@@ -1,4 +1,4 @@
-/** @spec dashboard-home REQ-005, REQ-007, REQ-009..REQ-011, REQ-019 */
+/** @spec dashboard-home REQ-005, REQ-007, REQ-009..REQ-011, REQ-019; dashboard-logout REQ-005, REQ-007, REQ-008 */
 import type { DashboardResponse } from '@hansel/contracts';
 
 interface ViewerIdentity {
@@ -22,6 +22,10 @@ interface DashboardSessionDependencies {
   }): Promise<
     { status: 'accepted'; viewer: ViewerIdentity } | { status: 'rejected' }
   >;
+  revokeFamilies(input: {
+    credentialDigests: string[];
+    now: Date;
+  }): Promise<void>;
   createCredential(): string;
   digestCredential(value: string): string;
   now(): Date;
@@ -53,6 +57,28 @@ export function createDashboardSession(
   dependencies: DashboardSessionDependencies,
 ) {
   return {
+    async logout(input: {
+      accessCredential: string | null;
+      refreshCredential: string | null;
+    }): Promise<void> {
+      const credentialDigests = [
+        input.accessCredential,
+        input.refreshCredential,
+      ]
+        .filter((credential): credential is string => credential !== null)
+        .map((credential) => dependencies.digestCredential(credential));
+      try {
+        if (credentialDigests.length > 0)
+          await dependencies.revokeFamilies({
+            credentialDigests: [...new Set(credentialDigests)],
+            now: dependencies.now(),
+          });
+        dependencies.recordEvent('dashboard_logout_succeeded');
+      } catch (error) {
+        dependencies.recordEvent('dashboard_logout_failed');
+        throw error;
+      }
+    },
     async load(input: {
       accessCredential: string | null;
       refreshCredential: string | null;

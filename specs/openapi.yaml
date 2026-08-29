@@ -130,6 +130,51 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/dashboard/logout:
+    post:
+      operationId: logoutDashboard
+      summary: Revoke the current application session and clear its cookies
+      description: Accepts no request body. The Origin header must exactly match the configured application origin. Credentials are optional so repeated or cookie-less logout remains idempotent.
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          description: Exact trusted application origin used for logout CSRF protection.
+          schema:
+            type: string
+            format: uri
+      security:
+        - {}
+        - applicationAccess: []
+        - applicationRefresh: []
+      responses:
+        '204':
+          description: Represented session families are revoked and both HttpOnly, SameSite=Lax application cookies are cleared using their original paths and Secure policy.
+          headers:
+            Cache-Control:
+              required: true
+              schema: { type: string, const: 'private, no-store' }
+            Set-Cookie:
+              required: true
+              description: Clears hansel_access at / and hansel_refresh at /api/dashboard.
+              schema:
+                type: array
+                items: { type: string }
+        '403':
+          description: The Origin header is missing or is not the trusted application origin
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: The dashboard rollout boundary is disabled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: Session revocation is temporarily unavailable; cookies are retained for retry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
   /api/onboarding/email-verification/verify:
     post:
       operationId: verifyOnboardingEmail

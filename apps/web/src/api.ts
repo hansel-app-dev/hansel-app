@@ -54,6 +54,17 @@ export async function loadDashboard(
   return dashboardResponseSchema.parse(await response.json());
 }
 
+export async function logoutDashboard(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  const response = await fetcher(`${baseUrl}/api/dashboard/logout`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (response.status !== 204) throw new Error('dashboard_logout_failed');
+}
+
 export async function loadDiscovery(
   baseUrl: string,
   fetcher: typeof fetch = fetch,

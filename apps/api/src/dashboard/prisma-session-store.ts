@@ -1,4 +1,4 @@
-/** @spec dashboard-home REQ-007, REQ-010, REQ-011, REQ-018 */
+/** @spec dashboard-home REQ-007, REQ-010, REQ-011, REQ-018; dashboard-logout REQ-005, REQ-007 */
 import type { PrismaClient } from '@prisma/client';
 
 export function createPrismaDashboardSessionStore(
@@ -6,6 +6,23 @@ export function createPrismaDashboardSessionStore(
   recordEvent: (name: string) => void,
 ) {
   return {
+    async revokeFamilies(input: {
+      credentialDigests: string[];
+      now: Date;
+    }): Promise<void> {
+      const credentials = await prisma.applicationSessionCredential.findMany({
+        where: { credentialDigest: { in: input.credentialDigests } },
+        select: { familyId: true },
+      });
+      const familyIds = [
+        ...new Set(credentials.map(({ familyId }) => familyId)),
+      ];
+      if (familyIds.length === 0) return;
+      await prisma.applicationSessionFamily.updateMany({
+        where: { id: { in: familyIds }, revokedAt: null },
+        data: { revokedAt: input.now, revocationReason: 'user_logout' },
+      });
+    },
     async authorizeAccess(input: {
       credentialDigest: string;
       now: Date;

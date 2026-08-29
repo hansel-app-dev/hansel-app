@@ -5,6 +5,56 @@ const now = new Date('2026-08-29T00:00:00.000Z');
 const future = new Date('2026-08-29T00:15:00.000Z');
 
 describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-011]', () => {
+  it('revokes only active families represented by credential digests [dashboard-logout REQ-005, REQ-007]', async () => {
+    const prisma = {
+      applicationSessionCredential: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { familyId: 'family-a' },
+            { familyId: 'family-a' },
+            { familyId: 'family-b' },
+          ]),
+      },
+      applicationSessionFamily: {
+        updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+      },
+    };
+    const store = createPrismaDashboardSessionStore(prisma as never, vi.fn());
+
+    await expect(
+      store.revokeFamilies({
+        credentialDigests: ['access-digest', 'refresh-digest'],
+        now,
+      }),
+    ).resolves.toBeUndefined();
+    expect(prisma.applicationSessionCredential.findMany).toHaveBeenCalledWith({
+      where: {
+        credentialDigest: { in: ['access-digest', 'refresh-digest'] },
+      },
+      select: { familyId: true },
+    });
+    expect(prisma.applicationSessionFamily.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['family-a', 'family-b'] }, revokedAt: null },
+      data: { revokedAt: now, revocationReason: 'user_logout' },
+    });
+  });
+
+  it('does nothing when logout credentials represent no family [dashboard-logout REQ-007]', async () => {
+    const prisma = {
+      applicationSessionCredential: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      applicationSessionFamily: { updateMany: vi.fn() },
+    };
+    const store = createPrismaDashboardSessionStore(prisma as never, vi.fn());
+
+    await expect(
+      store.revokeFamilies({ credentialDigests: ['unknown'], now }),
+    ).resolves.toBeUndefined();
+    expect(prisma.applicationSessionFamily.updateMany).not.toHaveBeenCalled();
+  });
+
   it('authorizes a current access credential through its active tenant membership', async () => {
     const prisma = {
       applicationSessionCredential: {

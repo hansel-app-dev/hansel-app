@@ -1,5 +1,5 @@
-/** @spec dashboard-home REQ-001..REQ-017 @figma 40:502 */
-import { useEffect, useState } from 'react';
+/** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010 @figma 40:502 */
+import { useEffect, useRef, useState } from 'react';
 import type { DashboardResponse } from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
 
@@ -31,14 +31,22 @@ function Symbol({
 
 export function Dashboard({
   loadDashboard,
+  logout,
 }: {
   loadDashboard: () => Promise<DashboardResponse>;
+  logout: () => Promise<void>;
 }) {
   const [viewer, setViewer] = useState<DashboardResponse['viewer'] | null>(
     null,
   );
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const [logoutError, setLogoutError] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
+  const logoutButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +63,26 @@ export function Dashboard({
       active = false;
     };
   }, [attempt, loadDashboard]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    logoutButtonRef.current?.focus();
+    const closeOutside = (event: MouseEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node))
+        setMenuOpen(false);
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setMenuOpen(false);
+      accountButtonRef.current?.focus();
+    };
+    document.addEventListener('mousedown', closeOutside);
+    document.addEventListener('keydown', closeWithEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOutside);
+      document.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [menuOpen]);
 
   return (
     <main className="flex min-h-screen bg-surface text-content max-md:flex-col">
@@ -96,28 +124,78 @@ export function Dashboard({
             ))}
           </div>
         </nav>
-        <section
-          className="mt-8 flex min-h-14 items-center gap-4 max-md:mt-6"
-          aria-label="Signed-in account"
-        >
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#e9e9e9] text-sm text-[#444]">
-            {viewer?.initials ?? '—'}
-          </span>
-          <div className="min-w-0">
-            {viewer ? (
-              <>
-                <p className="truncate text-[16px]">{viewer.displayName}</p>
-                <p className="mt-1 truncate text-[14px] text-[#737373]">
-                  {viewer.roleLabel}
+        <div ref={accountMenuRef} className="relative mt-8 max-md:mt-6">
+          {menuOpen ? (
+            <div
+              id="dashboard-account-menu"
+              role="menu"
+              aria-label="Account"
+              className="absolute bottom-full left-0 z-10 mb-2 w-full rounded-lg border border-[#dddddd] bg-surface p-2 shadow-[0_8px_24px_rgb(0_0_0/0.12)]"
+            >
+              <button
+                ref={logoutButtonRef}
+                type="button"
+                role="menuitem"
+                disabled={logoutPending}
+                className="flex min-h-11 w-full items-center gap-3 rounded px-3 text-left text-[15px] hover:bg-[#f3f3f3] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-wait disabled:opacity-60"
+                onClick={() => {
+                  setLogoutPending(true);
+                  setLogoutError(false);
+                  void logout()
+                    .then(() => {
+                      setMenuOpen(false);
+                    })
+                    .catch(() => {
+                      setMenuOpen(true);
+                      setLogoutError(true);
+                    })
+                    .finally(() => {
+                      setLogoutPending(false);
+                    });
+                }}
+              >
+                <Symbol>logout</Symbol>
+                {logoutPending ? 'Logging out…' : 'Log out'}
+              </button>
+              {logoutError ? (
+                <p role="alert" className="px-3 pb-2 pt-1 text-sm text-danger">
+                  We couldn't log you out. Please try again.
                 </p>
-              </>
-            ) : loadError ? null : (
-              <p role="status" className="text-sm text-[#737373]">
-                Loading account…
-              </p>
-            )}
-          </div>
-        </section>
+              ) : null}
+            </div>
+          ) : null}
+          {viewer ? (
+            <button
+              ref={accountButtonRef}
+              type="button"
+              aria-label={`${viewer.displayName}, ${viewer.roleLabel}`}
+              aria-haspopup="menu"
+              aria-controls="dashboard-account-menu"
+              aria-expanded={menuOpen}
+              className="flex min-h-14 w-full items-center gap-4 rounded text-left hover:bg-[#f7f7f7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              onClick={() => {
+                setLogoutError(false);
+                setMenuOpen((open) => !open);
+              }}
+            >
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#e9e9e9] text-sm text-[#444]">
+                {viewer.initials}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[16px]">
+                  {viewer.displayName}
+                </span>
+                <span className="mt-1 block truncate text-[14px] text-[#737373]">
+                  {viewer.roleLabel}
+                </span>
+              </span>
+            </button>
+          ) : loadError ? null : (
+            <p role="status" className="min-h-14 text-sm text-[#737373]">
+              Loading account…
+            </p>
+          )}
+        </div>
       </aside>
       <section className="min-w-0 flex-1" aria-labelledby="dashboard-content">
         <h2 id="dashboard-content" className="sr-only">

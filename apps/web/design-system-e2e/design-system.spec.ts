@@ -345,6 +345,32 @@ test('dashboard retry is keyboard reachable and accessible [dashboard-home REQ-0
   });
 });
 
+test('dashboard account menu is accessible and reflows at 320px [dashboard-logout REQ-001..REQ-003, REQ-011]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=dashboard-home--account-menu-open&viewMode=story',
+  );
+  await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeFocused();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('dashboard-account-menu.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('dashboard-account-menu-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

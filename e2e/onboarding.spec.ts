@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { seedPlanSelectionJourney } from '../apps/api/e2e-support/plan-selection.js';
 import { seedOrganizationProfileJourney } from '../apps/api/e2e-support/organization-profile.js';
 import { seedDiscoveryJourney } from '../apps/api/e2e-support/discovery.js';
+import { seedDashboardSession } from '../apps/api/e2e-support/dashboard.js';
 import {
   countryOptions,
   discoveryManagementOptions,
@@ -170,6 +171,85 @@ test('dashboard redirects generic authentication failures and retries server fai
   await expect(page.getByRole('button', { name: 'Retry' })).toBeFocused();
   await page.getByRole('button', { name: 'Retry' }).click();
   await expect(page.getByText('Nabin Singh')).toBeVisible();
+});
+
+test('authenticated user logs out through the account menu and cannot return with Back [dashboard-logout REQ-001..REQ-012]', async ({
+  browser,
+}) => {
+  const seeded = await seedDashboardSession();
+  const context = await browser.newContext({
+    baseURL: 'http://127.0.0.1:5173',
+  });
+  try {
+    await context.addCookies([
+      {
+        name: 'hansel_access',
+        value: seeded.accessCredential,
+        domain: '127.0.0.1',
+        path: '/',
+        httpOnly: true,
+        sameSite: 'Lax',
+      },
+      {
+        name: 'hansel_refresh',
+        value: seeded.refreshCredential,
+        domain: '127.0.0.1',
+        path: '/api/dashboard',
+        httpOnly: true,
+        sameSite: 'Lax',
+      },
+    ]);
+    const page = await context.newPage();
+    await page.route('**/api/dashboard**', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const response = await route.fetch({
+        url: `${seeded.apiUrl}${requestUrl.pathname}${requestUrl.search}`,
+      });
+      await route.fulfill({ response });
+    });
+    await page.goto('/');
+    await page.goto('/dashboard');
+    const account = page.getByRole('button', { name: 'Nabin Singh, Owner' });
+    await account.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeFocused();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+    await page.setViewportSize({ width: 320, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(320);
+    const logoutResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/dashboard/logout') &&
+        response.request().method() === 'POST',
+    );
+    await page.getByRole('menuitem', { name: 'Log out' }).click();
+    expect((await logoutResponse).status()).toBe(204);
+    await expect(page).toHaveURL(/\/onboarding$/);
+    await expect(
+      page.getByRole('heading', { name: "Let's get started" }),
+    ).toBeVisible();
+    expect(
+      (await context.cookies()).filter(({ name }) =>
+        ['hansel_access', 'hansel_refresh'].includes(name),
+      ),
+    ).toEqual([]);
+    expect(await seeded.readFamily()).toMatchObject({
+      revokedAt: expect.any(Date),
+      revocationReason: 'user_logout',
+    });
+
+    await page.evaluate(() => {
+      window.history.back();
+    });
+    await expect(page).not.toHaveURL(/\/dashboard$/);
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/onboarding$/);
+  } finally {
+    await context.close();
+    await seeded.disconnect();
+  }
 });
 
 test('matches the Figma-derived flow and validates required values [AC-002, AC-035, AC-052, REQ-005, REQ-016, REQ-082]', async ({

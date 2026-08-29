@@ -141,6 +141,10 @@ export interface DashboardModule {
       })
     | null
   >;
+  logout(input: {
+    accessCredential: string | null;
+    refreshCredential: string | null;
+  }): Promise<void>;
   recordEvent?(name: string): void;
 }
 
@@ -328,6 +332,33 @@ export function createApp(
         path: '/api/dashboard',
       });
     };
+    app.post('/api/dashboard/logout', async (request, response) => {
+      if (config.dashboardEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      if (request.headers.origin !== config.allowedOrigin) {
+        response.status(403).json({ error: 'forbidden' });
+        return;
+      }
+      response.set('Cache-Control', 'private, no-store');
+      try {
+        await dashboard.logout({
+          accessCredential: readCookie(
+            request.headers.cookie,
+            applicationAccessCookieName,
+          ),
+          refreshCredential: readCookie(
+            request.headers.cookie,
+            applicationRefreshCookieName,
+          ),
+        });
+        clearApplicationSession(response);
+        response.status(204).send();
+      } catch {
+        response.status(503).json({ error: 'logout_unavailable' });
+      }
+    });
     app.get('/api/dashboard', async (request, response) => {
       if (config.dashboardEnabled === false) {
         response.status(404).json({ error: 'not_found' });

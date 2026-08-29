@@ -39,6 +39,90 @@ const planPage = {
 const app = createApp({ allowedOrigin: 'https://app.example.com' });
 
 describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]', () => {
+  it('logs out from a trusted origin and clears both application cookies [dashboard-logout REQ-004..REQ-007]', async () => {
+    const dashboard = {
+      load: vi.fn(),
+      logout: vi.fn().mockResolvedValue(undefined),
+    };
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', dashboardEnabled: true },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .post('/api/dashboard/logout')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', 'hansel_access=access; hansel_refresh=refresh')
+      .expect(204);
+
+    expect(dashboard.logout).toHaveBeenCalledWith({
+      accessCredential: 'access',
+      refreshCredential: 'refresh',
+    });
+    const cookies = response.headers['set-cookie'] as unknown as string[];
+    expect(cookies).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(
+          /^hansel_access=;.*Path=\/;.*HttpOnly;.*Secure;.*SameSite=Lax$/,
+        ),
+        expect.stringMatching(
+          /^hansel_refresh=;.*Path=\/api\/dashboard;.*HttpOnly;.*Secure;.*SameSite=Lax$/,
+        ),
+      ]),
+    );
+  });
+
+  it('rejects untrusted logout before session access and honors the dashboard flag [dashboard-logout REQ-006]', async () => {
+    const dashboard = { load: vi.fn(), logout: vi.fn() };
+    const enabled = createApp(
+      { allowedOrigin: 'https://app.example.com', dashboardEnabled: true },
+      undefined,
+      undefined,
+      dashboard,
+    );
+    for (const origin of [undefined, 'null', 'https://attacker.example']) {
+      let call = request(enabled).post('/api/dashboard/logout');
+      if (origin) call = call.set('Origin', origin);
+      const response = await call.expect(403, { error: 'forbidden' });
+      expect(response.headers['set-cookie']).toBeUndefined();
+    }
+    expect(dashboard.logout).not.toHaveBeenCalled();
+
+    await request(
+      createApp(
+        { allowedOrigin: 'https://app.example.com', dashboardEnabled: false },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .post('/api/dashboard/logout')
+      .set('Origin', 'https://app.example.com')
+      .expect(404, { error: 'not_found' });
+    expect(dashboard.logout).not.toHaveBeenCalled();
+  });
+
+  it('keeps cookies when logout persistence is unavailable [dashboard-logout REQ-008]', async () => {
+    const dashboard = {
+      load: vi.fn(),
+      logout: vi.fn().mockRejectedValue(new Error('database unavailable')),
+    };
+    const response = await request(
+      createApp(
+        { allowedOrigin: 'http://localhost:5173' },
+        undefined,
+        undefined,
+        dashboard,
+      ),
+    )
+      .post('/api/dashboard/logout')
+      .set('Origin', 'http://localhost:5173')
+      .expect(503, { error: 'logout_unavailable' });
+    expect(response.headers['set-cookie']).toBeUndefined();
+  });
+
   it('returns only the private authenticated viewer DTO', async () => {
     const dashboard = {
       load: vi.fn().mockResolvedValue({
@@ -48,6 +132,7 @@ describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]',
           roleLabel: 'Owner',
         },
       }),
+      logout: vi.fn(),
       recordEvent: vi.fn(),
     };
     const response = await request(
@@ -92,6 +177,7 @@ describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]',
           refreshCredential: 'new-refresh',
         },
       }),
+      logout: vi.fn(),
     };
     const response = await request(
       createApp(
@@ -123,6 +209,7 @@ describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]',
   it('fails closed, clears credentials, and honors the rollout flag', async () => {
     const dashboard = {
       load: vi.fn().mockResolvedValue(null),
+      logout: vi.fn(),
       recordEvent: vi.fn(),
     };
     const enabled = createApp(
@@ -164,6 +251,7 @@ describe('dashboard routes [dashboard-home REQ-006, REQ-007, REQ-010..REQ-013]',
       .mockImplementation(() => undefined);
     const dashboard = {
       load: vi.fn().mockRejectedValue(new Error('database unavailable')),
+      logout: vi.fn(),
       recordEvent: vi.fn(),
     };
     await request(

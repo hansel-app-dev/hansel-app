@@ -13,6 +13,7 @@ import {
   completeDiscovery,
   OnboardingSessionExpiredError,
   loadDashboard,
+  logoutDashboard,
   DashboardAuthenticationRequiredError,
 } from './api.js';
 import { AboutYou } from './onboarding/AboutYou.js';
@@ -94,6 +95,11 @@ export function App({
               returnToOnboarding();
             throw error;
           }
+        }}
+        logout={async () => {
+          await logoutDashboard(apiUrl);
+          window.sessionStorage.removeItem(verificationEmailKey);
+          returnToOnboarding();
         }}
       />
     );
