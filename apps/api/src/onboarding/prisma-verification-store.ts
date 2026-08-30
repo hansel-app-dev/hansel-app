@@ -1,17 +1,5 @@
-import type { OnboardingStep, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { timingSafeEqual } from 'node:crypto';
-
-type VerificationNextStep =
-  'personal-profile' | 'plan-selection' | 'organization-profile';
-
-function toVerificationNextStep(
-  step: OnboardingStep,
-): VerificationNextStep | null {
-  if (step === 'PERSONAL_PROFILE') return 'personal-profile';
-  if (step === 'PLAN_SELECTION') return 'plan-selection';
-  if (step === 'ORGANIZATION_PROFILE') return 'organization-profile';
-  return null;
-}
 
 function digestsMatch(left: string, right: string): boolean {
   const leftBytes = Buffer.from(left, 'utf8');
@@ -55,17 +43,10 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             },
           });
           const challenge = user?.challenges[0];
-          const recoveryJourney = user?.journeys[0];
-          const recoveryNextStep =
-            user?.emailVerifiedAt &&
-            user.journeys.length === 1 &&
-            recoveryJourney
-              ? toVerificationNextStep(recoveryJourney.currentStep)
-              : null;
           if (
             !user ||
             !challenge ||
-            (user.emailVerifiedAt && !recoveryNextStep) ||
+            user.emailVerifiedAt ||
             challenge.consumedAt ||
             challenge.expiresAt <= input.now ||
             challenge.failedAttempts >= 5
@@ -93,18 +74,16 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
             data: { consumedAt: input.now },
           });
           if (consumed.count !== 1) return false;
-          if (!recoveryNextStep) {
-            await transaction.user.update({
-              where: { id: user.id },
-              data: { emailVerifiedAt: input.now },
-            });
-            const transition = await transaction.onboardingJourney.updateMany({
-              where: { userId: user.id, currentStep: 'VERIFY_EMAIL' },
-              data: { currentStep: 'PERSONAL_PROFILE' },
-            });
-            if (transition.count !== 1)
-              throw new VerificationTransitionRejected();
-          }
+          await transaction.user.update({
+            where: { id: user.id },
+            data: { emailVerifiedAt: input.now },
+          });
+          const transition = await transaction.onboardingJourney.updateMany({
+            where: { userId: user.id, currentStep: 'VERIFY_EMAIL' },
+            data: { currentStep: 'PERSONAL_PROFILE' },
+          });
+          if (transition.count !== 1)
+            throw new VerificationTransitionRejected();
           await transaction.onboardingContinuation.upsert({
             where: { userId: user.id },
             create: {
@@ -117,7 +96,7 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
               expiresAt: input.onboardingCredentialExpiresAt,
             },
           });
-          return recoveryNextStep ?? 'personal-profile';
+          return 'personal-profile';
         });
       } catch (error) {
         if (error instanceof VerificationTransitionRejected) return false;
@@ -142,12 +121,7 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
               where: {
                 entryPath: 'NEW_ORGANIZATION',
                 currentStep: {
-                  in: [
-                    'VERIFY_EMAIL',
-                    'PERSONAL_PROFILE',
-                    'PLAN_SELECTION',
-                    'ORGANIZATION_PROFILE',
-                  ],
+                  equals: 'VERIFY_EMAIL',
                 },
                 completedAt: null,
               },
@@ -170,19 +144,13 @@ export function createPrismaVerificationStore(prisma: PrismaClient) {
               },
             })
           : 0;
-        const hasResumableJourney = Boolean(
-          user?.emailVerifiedAt &&
-          user.journeys.length === 1 &&
-          user.journeys[0]?.currentStep !== 'VERIFY_EMAIL',
-        );
-        const canBootstrapChallenge =
-          !user?.emailVerifiedAt &&
+        const hasVerificationJourney =
           user?.journeys.length === 1 &&
           user.journeys[0]?.currentStep === 'VERIFY_EMAIL';
         if (
           !user ||
-          (user.emailVerifiedAt && !hasResumableJourney) ||
-          (!latest && !canBootstrapChallenge) ||
+          user.emailVerifiedAt ||
+          !hasVerificationJourney ||
           sendsInLastHour >= 5 ||
           (latest && input.now.getTime() - latest.sentAt.getTime() < 60_000)
         )

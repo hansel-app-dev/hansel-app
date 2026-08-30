@@ -119,12 +119,12 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
   });
 
   it.each([
-    ['PERSONAL_PROFILE', 'personal-profile'],
-    ['PLAN_SELECTION', 'plan-selection'],
-    ['ORGANIZATION_PROFILE', 'organization-profile'],
+    'PERSONAL_PROFILE',
+    'PLAN_SELECTION',
+    'ORGANIZATION_PROFILE',
   ] as const)(
-    'returns the saved %s step while re-establishing continuation without replaying verification [REQ-088]',
-    async (currentStep, nextStep) => {
+    'rejects a verified account at saved step %s so login owns resumption [REQ-088]',
+    async (currentStep) => {
       const { store, transaction } = harness({
         id: 'user',
         emailVerifiedAt: new Date('2026-08-27T00:30:00Z'),
@@ -132,23 +132,12 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
         challenges: [challenge()],
       });
 
-      await expect(store.verify(validVerification)).resolves.toBe(nextStep);
+      await expect(store.verify(validVerification)).resolves.toBe(false);
       expect(transaction.user.update).not.toHaveBeenCalled();
       expect(transaction.onboardingJourney.updateMany).not.toHaveBeenCalled();
-      expect(transaction.onboardingContinuation.upsert).toHaveBeenCalledOnce();
+      expect(transaction.onboardingContinuation.upsert).not.toHaveBeenCalled();
     },
   );
-
-  it('rejects recovery for an onboarding step that is not implemented [REQ-088]', async () => {
-    const { store } = harness({
-      id: 'user',
-      emailVerifiedAt: new Date('2026-08-27T00:30:00Z'),
-      journeys: [{ id: 'journey', currentStep: 'PAYMENT' }],
-      challenges: [challenge()],
-    });
-
-    await expect(store.verify(validVerification)).resolves.toBe(false);
-  });
 
   it('rejects a missing or duplicate journey transition [REQ-012, REQ-086]', async () => {
     const { store, transaction } = harness(
@@ -210,6 +199,7 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
     const { store, transaction } = harness({
       id: 'user',
       emailVerifiedAt: null,
+      journeys: [{ id: 'journey', currentStep: 'VERIFY_EMAIL' }],
       challenges: [challenge({ sentAt: new Date('2026-08-27T00:58:00Z') })],
     });
     await expect(
@@ -240,26 +230,6 @@ describe('Prisma verification store [REQ-006, REQ-007]', () => {
         now,
       }),
     ).resolves.toBe(true);
-    expect(transaction.verificationChallenge.create).toHaveBeenCalled();
-  });
-
-  it('replaces the recovery code for a verified personal-profile journey [REQ-088]', async () => {
-    const { store, transaction } = harness({
-      id: 'user',
-      emailVerifiedAt: now,
-      journeys: [{ id: 'journey', currentStep: 'PERSONAL_PROFILE' }],
-      challenges: [challenge({ sentAt: new Date('2026-08-27T00:58:00Z') })],
-    });
-
-    await expect(
-      store.resend({
-        email: 'owner@example.com',
-        codeDigest: 'recovery',
-        expiresAt: new Date('2026-08-27T01:15:00Z'),
-        now,
-      }),
-    ).resolves.toBe(true);
-    expect(transaction.verificationChallenge.updateMany).toHaveBeenCalled();
     expect(transaction.verificationChallenge.create).toHaveBeenCalled();
   });
 });

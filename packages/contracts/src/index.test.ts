@@ -338,11 +338,11 @@ describe('email verification contract [REQ-006, REQ-007, REQ-084]', () => {
         nextStep: 'personal-profile',
       }),
     ).toEqual({ nextStep: 'personal-profile' });
-    expect(
+    expect(() =>
       verifyOnboardingEmailResponseSchema.parse({
         nextStep: 'plan-selection',
       }),
-    ).toEqual({ nextStep: 'plan-selection' });
+    ).toThrow();
   });
 
   it.each(['12345', '1234567', '12345a'])('rejects invalid code %s', (code) => {
@@ -490,6 +490,9 @@ describe('createOnboardingAccount contract [REQ-005, REQ-023, REQ-049]', () => {
         nextStep: 'verify-email',
       }),
     ).toEqual({ nextStep: 'verify-email' });
+    expect(
+      createOnboardingAccountResponseSchema.parse({ nextStep: 'login' }),
+    ).toEqual({ nextStep: 'login' });
   });
 
   it.each([

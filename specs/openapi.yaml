@@ -198,7 +198,7 @@ paths:
   /api/onboarding/accounts:
     post:
       operationId: createOnboardingAccount
-      summary: Begin or recover email and password onboarding generically
+      summary: Begin email and password onboarding or route an existing account to login
       requestBody:
         required: true
         content:
@@ -207,7 +207,7 @@ paths:
               $ref: '#/components/schemas/CreateOnboardingAccountRequest'
       responses:
         '202':
-          description: The generic verification step is ready; an eligible verified resumable journey may receive a fresh recovery code without revealing account state
+          description: A new account continues to verification; any existing account continues to login without receiving a verification code or disclosing its verification or journey state
           content:
             application/json:
               schema:
@@ -312,7 +312,7 @@ paths:
               $ref: '#/components/schemas/VerifyOnboardingEmailRequest'
       responses:
         '200':
-          description: Email verified or an eligible verified continuation re-established at its latest resumable step
+          description: A previously unverified account is verified and continues to personal profile
           content:
             application/json:
               schema:
@@ -653,7 +653,7 @@ components:
       properties:
         nextStep:
           type: string
-          const: verify-email
+          enum: [verify-email, login]
     ErrorResponse:
       type: object
       additionalProperties: false
@@ -682,7 +682,7 @@ components:
       properties:
         nextStep:
           type: string
-          enum: [personal-profile, plan-selection, organization-profile]
+          const: personal-profile
     ResendOnboardingVerificationRequest:
       type: object
       additionalProperties: false

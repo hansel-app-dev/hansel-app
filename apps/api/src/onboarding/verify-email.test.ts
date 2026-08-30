@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEmailVerification } from './verify-email.js';
 
 describe('email verification [REQ-006, REQ-007, REQ-084]', () => {
-  it('returns the server-authoritative resumable step after accepting the current code [REQ-088]', async () => {
-    const verify = vi.fn().mockResolvedValue('plan-selection');
+  it('continues a newly verified account to personal profile', async () => {
+    const verify = vi.fn().mockResolvedValue('personal-profile');
     const service = createEmailVerification({
       verify,
       resend: vi.fn(),
@@ -18,7 +18,7 @@ describe('email verification [REQ-006, REQ-007, REQ-084]', () => {
     await expect(
       service.verifyEmail({ email: 'owner@example.com', code: '123456' }),
     ).resolves.toEqual({
-      nextStep: 'plan-selection',
+      nextStep: 'personal-profile',
       onboardingCredential: 'opaque-credential',
       csrfProof: 'csrf:opaque-credential',
     });

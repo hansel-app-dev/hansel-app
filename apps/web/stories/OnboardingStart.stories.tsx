@@ -17,7 +17,7 @@ const meta = {
     layout: 'fullscreen',
   },
   args: {
-    createAccount: async () => Promise.resolve(),
+    createAccount: async () => Promise.resolve({ nextStep: 'verify-email' }),
   },
 } satisfies Meta<typeof OnboardingStart>;
 

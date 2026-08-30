@@ -17,7 +17,10 @@ interface AccountRegistrationDependencies {
   hashPassword(password: string): Promise<string>;
   createVerificationCode(): string;
   digestVerificationCode(code: string): string;
-  storePendingAccount(input: PendingAccount): Promise<{ shouldSend: boolean }>;
+  storePendingAccount(input: PendingAccount): Promise<{
+    shouldSend: boolean;
+    nextStep: CreateOnboardingAccountResponse['nextStep'];
+  }>;
   sendVerificationCode(email: string, code: string): Promise<void>;
   now(): Date;
 }
@@ -45,6 +48,6 @@ export function createAccountRegistration(
       await dependencies.sendVerificationCode(input.email, code);
     }
 
-    return { nextStep: 'verify-email' };
+    return { nextStep: stored.nextStep };
   };
 }

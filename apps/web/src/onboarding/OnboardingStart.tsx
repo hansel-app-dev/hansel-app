@@ -1,5 +1,8 @@
 import { yupResolver } from '@hookform/resolvers/yup';
-import type { CreateOnboardingAccountRequest } from '@hansel/contracts';
+import type {
+  CreateOnboardingAccountRequest,
+  CreateOnboardingAccountResponse,
+} from '@hansel/contracts';
 import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
 import { Button, TextField } from '../design-system/index.js';
@@ -87,8 +90,13 @@ const providers = [
 ] as const;
 
 export interface OnboardingStartProps {
-  createAccount: (input: CreateOnboardingAccountRequest) => Promise<unknown>;
-  onCreated?: (email: string) => void;
+  createAccount: (
+    input: CreateOnboardingAccountRequest,
+  ) => Promise<CreateOnboardingAccountResponse>;
+  onCreated?: (
+    email: string,
+    nextStep: CreateOnboardingAccountResponse['nextStep'],
+  ) => void;
 }
 
 export function OnboardingStart({
@@ -105,13 +113,13 @@ export function OnboardingStart({
   });
 
   const submit = handleSubmit(async (values) => {
-    await createAccount({
+    const result = await createAccount({
       ...values,
       acceptsTerms: true,
       termsVersion: policyVersion,
       privacyVersion: policyVersion,
     });
-    onCreated?.(values.email);
+    onCreated?.(values.email, result.nextStep);
   });
 
   return (

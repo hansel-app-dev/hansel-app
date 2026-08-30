@@ -75,7 +75,7 @@ describe('OnboardingStart [REQ-005, REQ-016, REQ-023, REQ-049, REQ-056]', () => 
         privacyVersion: '2026-08-27',
       });
     });
-    expect(onCreated).toHaveBeenCalledOnce();
+    expect(onCreated).toHaveBeenCalledWith('owner@example.com', 'verify-email');
   });
 
   it('rejects passwords over 128 Unicode characters', async () => {

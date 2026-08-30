@@ -31,7 +31,10 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
       consentedAt: new Date('2026-08-27T00:00:00.000Z'),
     };
 
-    await expect(store(input)).resolves.toEqual({ shouldSend: true });
+    await expect(store(input)).resolves.toEqual({
+      shouldSend: true,
+      nextStep: 'verify-email',
+    });
     const user = await prisma.user.findUniqueOrThrow({
       where: { email: input.email },
       include: {
@@ -80,7 +83,7 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
 
     await expect(
       store({ ...input, passwordHash: 'replacement-hash' }),
-    ).resolves.toEqual({ shouldSend: false });
+    ).resolves.toEqual({ shouldSend: false, nextStep: 'login' });
     await expect(
       prisma.passwordCredential.findUniqueOrThrow({
         where: {
@@ -96,7 +99,7 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
     );
   });
 
-  it('issues a fresh challenge without overwriting a verified plan-selection journey [REQ-088]', async () => {
+  it('routes a verified account to login without challenging or overwriting it [REQ-088]', async () => {
     const store = createPrismaPendingAccountStore(prisma);
     const initial = {
       email: 'owner@example.com',
@@ -138,8 +141,8 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
         termsVersion: initial.termsVersion,
         privacyVersion: initial.privacyVersion,
       }),
-    ).resolves.toEqual({ nextStep: 'verify-email' });
-    expect(sendVerificationCode).toHaveBeenCalledWith(initial.email, '654321');
+    ).resolves.toEqual({ nextStep: 'login' });
+    expect(sendVerificationCode).not.toHaveBeenCalled();
 
     await expect(
       prisma.passwordCredential.findUniqueOrThrow({
@@ -155,7 +158,6 @@ describe('Prisma pending account store [REQ-006, REQ-012, REQ-024, REQ-049, REQ-
       }),
     ).resolves.toEqual([
       expect.objectContaining({ codeDigest: 'original-digest' }),
-      expect.objectContaining({ codeDigest: 'recovery-digest' }),
     ]);
     await expect(
       prisma.consentRecord.count({ where: { userId: user.id } }),

@@ -28,11 +28,6 @@ import { Dashboard } from './dashboard/Dashboard.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
-const verificationNextStepRoutes = {
-  'personal-profile': '/onboarding/about-you',
-  'plan-selection': '/onboarding/plan-selection',
-  'organization-profile': '/onboarding/organization-profile',
-} as const;
 
 function Home() {
   return (
@@ -149,7 +144,13 @@ export function App({
     return (
       <OnboardingStart
         createAccount={(input) => createOnboardingAccount(input, apiUrl)}
-        onCreated={(email) => {
+        onCreated={(email, nextStep) => {
+          if (nextStep === 'login') {
+            window.sessionStorage.removeItem(verificationEmailKey);
+            setVerificationEmail('');
+            navigate('/login');
+            return;
+          }
           const normalizedEmail = email.trim().toLowerCase();
           window.sessionStorage.setItem(verificationEmailKey, normalizedEmail);
           setVerificationEmail(normalizedEmail);
@@ -165,9 +166,9 @@ export function App({
         resendAvailableInSeconds={verificationEmail ? 60 : 0}
         verify={(input) => verifyOnboardingEmail(input, apiUrl)}
         resend={(input) => resendOnboardingVerification(input, apiUrl)}
-        onVerified={(nextStep) => {
+        onVerified={() => {
           window.sessionStorage.removeItem(verificationEmailKey);
-          navigate(verificationNextStepRoutes[nextStep]);
+          navigate('/onboarding/about-you');
         }}
       />
     );

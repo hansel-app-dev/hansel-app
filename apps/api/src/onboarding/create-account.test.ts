@@ -3,7 +3,9 @@ import { createAccountRegistration } from './create-account.js';
 
 describe('account registration [REQ-005, REQ-006, REQ-007, REQ-023, REQ-024, REQ-049, REQ-050]', () => {
   it('stores protected account material and delivers the raw verification code', async () => {
-    const storePendingAccount = vi.fn().mockResolvedValue({ shouldSend: true });
+    const storePendingAccount = vi
+      .fn()
+      .mockResolvedValue({ shouldSend: true, nextStep: 'verify-email' });
     const sendVerificationCode = vi.fn().mockResolvedValue(undefined);
     const register = createAccountRegistration({
       hashPassword: vi.fn().mockResolvedValue('argon2id-hash'),
@@ -42,14 +44,16 @@ describe('account registration [REQ-005, REQ-006, REQ-007, REQ-023, REQ-024, REQ
     );
   });
 
-  it('returns the same result without sending when the account already exists', async () => {
+  it('routes an existing account to login without sending verification [REQ-088]', async () => {
     const sendVerificationCode = vi.fn();
     const hashPassword = vi.fn().mockResolvedValue('unused-hash');
     const register = createAccountRegistration({
       hashPassword,
       createVerificationCode: () => '123456',
       digestVerificationCode: () => 'unused-digest',
-      storePendingAccount: vi.fn().mockResolvedValue({ shouldSend: false }),
+      storePendingAccount: vi
+        .fn()
+        .mockResolvedValue({ shouldSend: false, nextStep: 'login' }),
       sendVerificationCode,
       now: () => new Date('2026-08-27T00:00:00.000Z'),
     });
@@ -62,7 +66,7 @@ describe('account registration [REQ-005, REQ-006, REQ-007, REQ-023, REQ-024, REQ
         termsVersion: '2026-08-27',
         privacyVersion: '2026-08-27',
       }),
-    ).resolves.toEqual({ nextStep: 'verify-email' });
+    ).resolves.toEqual({ nextStep: 'login' });
 
     expect(hashPassword).toHaveBeenCalledOnce();
     expect(sendVerificationCode).not.toHaveBeenCalled();

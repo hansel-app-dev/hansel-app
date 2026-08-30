@@ -678,45 +678,6 @@ describe('App [REQ-002]', () => {
     });
   });
 
-  it('resumes the server-authoritative plan-selection step after verification [REQ-088]', async () => {
-    window.history.replaceState({}, '', '/onboarding/verify-email');
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          new Response(JSON.stringify({ nextStep: 'plan-selection' }), {
-            status: 200,
-          }),
-        )
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              firstName: 'Nabin',
-              selectedInterval: 'annual',
-              selectedPriceId: null,
-              plans: planFixtures,
-            }),
-            { status: 200 },
-          ),
-        ),
-    );
-
-    render(<App apiUrl="https://api.example" />);
-    fireEvent.change(screen.getByLabelText('Verification code'), {
-      target: { value: '123456' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Welcome Nabin, choose your plan',
-      }),
-    ).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/onboarding/plan-selection');
-    window.history.replaceState({}, '', '/');
-  });
-
   it('submits personal details and advances to plan selection', async () => {
     window.history.replaceState({}, '', '/onboarding/about-you');
     document.cookie = 'hansel_onboarding_csrf=csrf-proof; path=/';
@@ -922,6 +883,39 @@ describe('App [REQ-002]', () => {
       'owner@example.com',
     );
     window.history.replaceState({}, '', '/');
+  });
+
+  it('routes an existing account to login without retaining a verification destination [REQ-088]', async () => {
+    window.history.replaceState({}, '', '/onboarding');
+    window.sessionStorage.setItem(
+      'hansel.verificationEmail',
+      'stale@example.com',
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ nextStep: 'login' }), { status: 202 }),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 401 })),
+    );
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: 'owner@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), {
+      target: { value: 'Correct horse battery staple!7' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create with email' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Log in to your account' }),
+    ).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/login');
+    expect(
+      window.sessionStorage.getItem('hansel.verificationEmail'),
+    ).toBeNull();
   });
 
   it('resends to the stored destination after a same-tab reload [REQ-084]', async () => {

@@ -78,6 +78,26 @@ test('password login resumes incomplete onboarding and verification [user-login 
   }
 });
 
+test('account creation routes an existing account to login without sending verification [onboarding REQ-088]', async ({
+  page,
+}) => {
+  const account = await seedLoginAccount('incomplete');
+  try {
+    await page.goto('/onboarding');
+    await page.getByLabel('Email').fill(account.email);
+    await page.getByLabel('Password').fill(account.password);
+    await page.getByRole('button', { name: 'Create with email' }).click();
+
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(
+      page.getByRole('heading', { name: 'Log in to your account' }),
+    ).toBeVisible();
+    await expect(account.readVerificationChallengeCount()).resolves.toBe(0);
+  } finally {
+    await account.disconnect();
+  }
+});
+
 test('login remains accessible, responsive, and provider actions are operable [user-login AC-004, AC-005]', async ({
   page,
 }) => {
