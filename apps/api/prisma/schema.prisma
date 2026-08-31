@@ -60,23 +60,24 @@ enum ExternalAuthIntent {
 }
 
 model User {
-  id                          String                           @id @default(uuid()) @db.Uuid
-  email                       String                           @unique
-  emailVerifiedAt             DateTime?
-  password                    PasswordCredential?
-  consents                    ConsentRecord[]
-  challenges                  VerificationChallenge[]
-  journeys                    OnboardingJourney[]
-  memberships                 Membership[]
-  personalProfile             PersonalProfile?
-  planSelection               OnboardingPlanSelection?
-  continuation                OnboardingContinuation?
-  sessionFamilies             ApplicationSessionFamily[]
-  passwordAuthenticationState PasswordAuthenticationState?
-  passwordLockNotifications   PasswordLockNotificationIntent[]
-  externalIdentities          ExternalIdentity[]
-  createdAt                   DateTime                         @default(now())
-  updatedAt                   DateTime                         @updatedAt
+  id                            String                               @id @default(uuid()) @db.Uuid
+  email                         String                               @unique
+  emailVerifiedAt               DateTime?
+  password                      PasswordCredential?
+  consents                      ConsentRecord[]
+  challenges                    VerificationChallenge[]
+  journeys                      OnboardingJourney[]
+  memberships                   Membership[]
+  personalProfile               PersonalProfile?
+  planSelection                 OnboardingPlanSelection?
+  continuation                  OnboardingContinuation?
+  sessionFamilies               ApplicationSessionFamily[]
+  passwordAuthenticationState   PasswordAuthenticationState?
+  passwordLockNotifications     PasswordLockNotificationIntent[]
+  passwordRecoveryNotifications PasswordRecoveryNotificationIntent[]
+  externalIdentities            ExternalIdentity[]
+  createdAt                     DateTime                             @default(now())
+  updatedAt                     DateTime                             @updatedAt
 }
 
 model ExternalIdentity {
@@ -193,6 +194,37 @@ model PasswordLockNotificationIntent {
   updatedAt      DateTime            @updatedAt
 
   @@unique([userId, lockStartedAt])
+  @@index([status, nextAttemptAt])
+}
+
+model PasswordRecoveryInitiation {
+  id               String   @id @default(uuid()) @db.Uuid
+  identifierDigest String   @db.VarChar(64)
+  requestedAt      DateTime @default(now())
+  expiresAt        DateTime
+
+  @@index([identifierDigest, requestedAt])
+  @@index([expiresAt])
+  @@index([requestedAt])
+}
+
+model PasswordRecoveryNotificationIntent {
+  id               String              @id @default(uuid()) @db.Uuid
+  userId           String              @db.Uuid
+  resetChallengeId String              @unique @db.Uuid
+  status           EmailDeliveryStatus @default(PENDING)
+  attempts         Int                 @default(0)
+  nextAttemptAt    DateTime
+  leaseOwner       String?             @db.VarChar(128)
+  leaseExpiresAt   DateTime?
+  deliveredAt      DateTime?
+  terminalAt       DateTime?
+  providerId       String?             @db.VarChar(256)
+  lastErrorCode    String?             @db.VarChar(64)
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
   @@index([status, nextAttemptAt])
 }
 

@@ -72,6 +72,9 @@ describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
     expect(
       screen.getByRole('link', { name: 'Create an account' }),
     ).toHaveAttribute('href', '/onboarding');
+    expect(
+      screen.getByRole('link', { name: 'Forgot password?' }),
+    ).toHaveAttribute('href', '/forgot-password');
 
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: '  OWNER@Example.com ' },
@@ -88,6 +91,15 @@ describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
       });
     });
     expect(onLoggedIn).toHaveBeenCalledWith('/dashboard', 'owner@example.com');
+  });
+
+  it('announces a completed password reset without exposing the query value', () => {
+    window.history.replaceState({}, '', '/login?password_reset=success');
+    render(<Login login={vi.fn()} />);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Your password has been reset. Log in with your new password.',
+    );
+    expect(screen.queryByText('success')).not.toBeInTheDocument();
   });
 
   it.each([

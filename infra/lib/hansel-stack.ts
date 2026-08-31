@@ -31,6 +31,9 @@ export class HanselStack extends cdk.Stack {
       welcomeEmailContext === 'true' ||
       (welcomeEmailContext === undefined && !production);
     const loginEnabled = this.node.tryGetContext('loginEnabled') === 'true';
+    const passwordRecoveryEnabled =
+      this.node.tryGetContext('passwordRecoveryEnabled') === 'true' &&
+      loginEnabled;
     const externalAuthEnabled =
       this.node.tryGetContext('externalAuthEnabled') === 'true' && loginEnabled;
     const configuredAppleCallbackUrl = this.node.tryGetContext(
@@ -194,6 +197,9 @@ export class HanselStack extends cdk.Stack {
             DISCOVERY_ENABLED: production ? 'false' : 'true',
             DASHBOARD_ENABLED: production ? 'false' : 'true',
             LOGIN_ENABLED: loginEnabled ? 'true' : 'false',
+            PASSWORD_RECOVERY_ENABLED: passwordRecoveryEnabled
+              ? 'true'
+              : 'false',
             EXTERNAL_AUTH_ENABLED: externalAuthEnabled ? 'true' : 'false',
             WELCOME_EMAIL_ENABLED: welcomeEmailEnabled ? 'true' : 'false',
             ...(externalAuthEnabled
@@ -592,6 +598,96 @@ export class HanselStack extends cdk.Stack {
       'external_provider_unavailable',
       'ExternalProviderUnavailable',
     );
+    const recoverySuppressedFilter = authMetric(
+      'PasswordRecoverySuppressedMetric',
+      'password_recovery_request_suppressed',
+      'PasswordRecoveryRequestsSuppressed',
+    );
+    const recoveryAcceptedFilter = authMetric(
+      'PasswordRecoveryAcceptedMetric',
+      'password_recovery_request_accepted',
+      'PasswordRecoveryRequestsAccepted',
+    );
+    const recoveryEmailAttemptedFilter = authMetric(
+      'PasswordRecoveryEmailAttemptedMetric',
+      'password_recovery_email_attempted',
+      'PasswordRecoveryEmailsAttempted',
+    );
+    const recoveryEmailSentFilter = authMetric(
+      'PasswordRecoveryEmailSentMetric',
+      'password_recovery_email_sent',
+      'PasswordRecoveryEmailsSent',
+    );
+    const recoveryEmailFailedFilter = authMetric(
+      'PasswordRecoveryEmailFailedMetric',
+      'password_recovery_email_failed',
+      'PasswordRecoveryEmailFailures',
+    );
+    const resetSucceededFilter = authMetric(
+      'PasswordResetSucceededMetric',
+      'password_reset_succeeded',
+      'PasswordResetsSucceeded',
+    );
+    const resetRejectedFilter = authMetric(
+      'PasswordResetRejectedMetric',
+      'password_reset_rejected',
+      'PasswordResetsRejected',
+    );
+    const recoveryUnexpectedFilter = authMetric(
+      'PasswordRecoveryUnexpectedMetric',
+      'password_recovery_unexpected_failure',
+      'PasswordRecoveryUnexpectedFailures',
+    );
+    const resetUnexpectedFilter = authMetric(
+      'PasswordResetUnexpectedMetric',
+      'password_reset_unexpected_failure',
+      'PasswordResetUnexpectedFailures',
+    );
+    const resetUnavailableFilter = authMetric(
+      'PasswordResetUnavailableMetric',
+      'password_reset_unavailable',
+      'PasswordResetUnavailable',
+    );
+    const recoverySessionsRevokedFilter = new logs.MetricFilter(
+      this,
+      'PasswordRecoverySessionsRevokedMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'password_recovery_sessions_revoked',
+        ),
+        metricNamespace: 'Hansel/Authentication',
+        metricName: 'PasswordRecoverySessionsRevoked',
+        metricValue: '$.count',
+      },
+    );
+    const resetNotificationCreatedFilter = authMetric(
+      'PasswordResetNotificationCreatedMetric',
+      'password_reset_notification_created',
+      'PasswordResetNotificationsCreated',
+    );
+    const resetNotificationTerminalFilter = authMetric(
+      'PasswordResetNotificationTerminalMetric',
+      'password_reset_notification_terminal_failure',
+      'PasswordResetNotificationTerminalFailures',
+    );
+    const resetNotificationPendingFilter = new logs.MetricFilter(
+      this,
+      'PasswordResetNotificationPendingMetric',
+      {
+        logGroup: apiLogGroup,
+        filterPattern: logs.FilterPattern.stringValue(
+          '$.message',
+          '=',
+          'password_reset_notification_pending_age_observed',
+        ),
+        metricNamespace: 'Hansel/Authentication',
+        metricName: 'PasswordResetNotificationOldestPendingAgeSeconds',
+        metricValue: '$.ageSeconds',
+      },
+    );
     new cloudwatch.Alarm(this, 'LoginRejectionSpikeAlarm', {
       metric: loginRejectionFilter.metric(),
       threshold: 50,
@@ -621,6 +717,34 @@ export class HanselStack extends cdk.Stack {
       threshold: 5,
       evaluationPeriods: 1,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'PasswordRecoveryUnexpectedAlarm', {
+      metric: recoveryUnexpectedFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'PasswordResetUnexpectedAlarm', {
+      metric: resetUnexpectedFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'PasswordResetNotificationTerminalAlarm', {
+      metric: resetNotificationTerminalFilter.metric(),
+      threshold: 1,
+      evaluationPeriods: 1,
+      treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+    });
+    new cloudwatch.Alarm(this, 'PasswordResetNotificationPendingAlarm', {
+      metric: resetNotificationPendingFilter.metric({
+        statistic: cloudwatch.Stats.MAXIMUM,
+      }),
+      threshold: 15 * 60,
+      evaluationPeriods: 1,
+      treatMissingData: passwordRecoveryEnabled
+        ? cloudwatch.TreatMissingData.BREACHING
+        : cloudwatch.TreatMissingData.NOT_BREACHING,
     });
     const dashboard = new cloudwatch.Dashboard(this, 'OperationsDashboard');
     dashboard.addWidgets(
@@ -669,6 +793,22 @@ export class HanselStack extends cdk.Stack {
           lockEmailTerminalFilter.metric(),
           loginUnexpectedFilter.metric(),
           providerUnavailableFilter.metric(),
+          recoverySuppressedFilter.metric(),
+          recoveryAcceptedFilter.metric(),
+          recoveryEmailAttemptedFilter.metric(),
+          recoveryEmailSentFilter.metric(),
+          recoveryEmailFailedFilter.metric(),
+          resetSucceededFilter.metric(),
+          resetRejectedFilter.metric(),
+          recoveryUnexpectedFilter.metric(),
+          resetUnexpectedFilter.metric(),
+          resetUnavailableFilter.metric(),
+          recoverySessionsRevokedFilter.metric(),
+          resetNotificationCreatedFilter.metric(),
+          resetNotificationTerminalFilter.metric(),
+          resetNotificationPendingFilter.metric({
+            statistic: cloudwatch.Stats.MAXIMUM,
+          }),
           api.loadBalancer.metrics.targetResponseTime({
             statistic: 'p95',
           }),
@@ -801,6 +941,14 @@ export class HanselStack extends cdk.Stack {
       additionalBehaviors: {
         'api/*': apiBehavior,
         login: {
+          ...apiBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+        'forgot-password': {
+          ...apiBehavior,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        },
+        'reset-password': {
           ...apiBehavior,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         },

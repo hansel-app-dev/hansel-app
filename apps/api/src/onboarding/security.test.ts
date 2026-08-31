@@ -21,7 +21,7 @@ describe('onboarding security [REQ-006, REQ-007, REQ-024]', () => {
     ).resolves.toBe(false);
   });
 
-  it('creates six-digit codes and stable keyed digests', () => {
+  it('creates six-digit codes and stable keyed digests [password-recovery REQ-005, REQ-007]', () => {
     const code = security.createVerificationCode();
 
     expect(code).toMatch(/^\d{6}$/);
@@ -32,6 +32,15 @@ describe('onboarding security [REQ-006, REQ-007, REQ-024]', () => {
       security.digestVerificationCode('654321'),
     );
     expect(security.digestVerificationCode('123456')).not.toContain('123456');
+    expect(security.digestPasswordRecoveryIdentifier('owner@example.com')).toBe(
+      security.digestPasswordRecoveryIdentifier('owner@example.com'),
+    );
+    expect(
+      security.digestPasswordRecoveryIdentifier('owner@example.com'),
+    ).not.toContain('owner@example.com');
+    expect(
+      security.digestPasswordRecoveryIdentifier('owner@example.com'),
+    ).not.toBe(security.digestVerificationCode('owner@example.com'));
   });
 
   it('creates opaque onboarding credentials and domain-separated digests [REQ-086]', () => {

@@ -41,6 +41,11 @@ export function createOnboardingSecurity({
         .update(code)
         .digest('hex');
     },
+    digestPasswordRecoveryIdentifier(email: string): string {
+      return createHmac('sha256', verificationDigestKey)
+        .update(`password-recovery-identifier:${email}`)
+        .digest('hex');
+    },
     createOnboardingCredential(): string {
       return randomBytes(32).toString('base64url');
     },

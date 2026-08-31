@@ -18,6 +18,9 @@ import {
   DashboardAuthenticationRequiredError,
   login,
   LoginAuthenticationError,
+  requestPasswordRecovery,
+  resetPassword,
+  PasswordResetRejectedError,
 } from './api.js';
 import {
   countryOptions,
@@ -68,6 +71,68 @@ describe('login API [user-login REQ-003, REQ-004, REQ-008]', () => {
         unavailable,
       ),
     ).rejects.toThrow('login_unavailable');
+  });
+});
+
+describe('password recovery API [password-recovery REQ-004, REQ-010, REQ-016]', () => {
+  it('submits the generic request and closed reset result', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: 'accepted' }), { status: 202 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ destination: '/login' }), {
+          status: 200,
+        }),
+      );
+    await expect(
+      requestPasswordRecovery({ email: 'owner@example.com' }, '', fetcher),
+    ).resolves.toEqual({ status: 'accepted' });
+    await expect(
+      resetPassword(
+        {
+          email: 'owner@example.com',
+          code: '123456',
+          password: 'Correct horse battery staple!7',
+        },
+        '',
+        fetcher,
+      ),
+    ).resolves.toEqual({ destination: '/login' });
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      '/api/auth/password-recovery/request',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      '/api/auth/password-recovery/reset',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('distinguishes reset rejection from temporary failure', async () => {
+    const rejected = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 400 }));
+    const unavailable = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    const input = {
+      email: 'owner@example.com',
+      code: '123456',
+      password: 'Correct horse battery staple!7',
+    };
+    await expect(resetPassword(input, '', rejected)).rejects.toBeInstanceOf(
+      PasswordResetRejectedError,
+    );
+    await expect(resetPassword(input, '', unavailable)).rejects.toThrow(
+      'password_reset_unavailable',
+    );
+    await expect(
+      requestPasswordRecovery({ email: input.email }, '', unavailable),
+    ).rejects.toThrow('password_recovery_unavailable');
   });
 });
 

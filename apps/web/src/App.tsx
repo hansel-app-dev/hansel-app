@@ -16,8 +16,12 @@ import {
   logoutDashboard,
   DashboardAuthenticationRequiredError,
   login as loginWithPassword,
+  requestPasswordRecovery,
+  resetPassword,
 } from './api.js';
+import { ForgotPassword } from './auth/ForgotPassword.js';
 import { Login } from './auth/Login.js';
+import { ResetPassword } from './auth/ResetPassword.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
@@ -28,6 +32,7 @@ import { Dashboard } from './dashboard/Dashboard.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
+const passwordRecoveryEmailKey = 'hansel.passwordRecoveryEmail';
 
 function Home() {
   return (
@@ -48,6 +53,9 @@ export function App({
 }) {
   const [verificationEmail, setVerificationEmail] = useState(
     () => window.sessionStorage.getItem(verificationEmailKey) ?? '',
+  );
+  const [passwordRecoveryEmail, setPasswordRecoveryEmail] = useState(
+    () => window.sessionStorage.getItem(passwordRecoveryEmailKey) ?? '',
   );
   const [currentPath, setCurrentPath] = useState(path);
   const [loginReady, setLoginReady] = useState(path !== '/login');
@@ -136,6 +144,37 @@ export function App({
             window.sessionStorage.removeItem(verificationEmailKey);
           }
           navigate(destination);
+        }}
+      />
+    );
+  }
+  if (currentPath === '/forgot-password') {
+    return (
+      <ForgotPassword
+        requestRecovery={(input) => requestPasswordRecovery(input, apiUrl)}
+        onRequested={(email) => {
+          window.sessionStorage.setItem(passwordRecoveryEmailKey, email);
+          setPasswordRecoveryEmail(email);
+          navigate('/reset-password');
+        }}
+      />
+    );
+  }
+  if (currentPath === '/reset-password') {
+    return (
+      <ResetPassword
+        email={passwordRecoveryEmail}
+        requestRecovery={(input) => requestPasswordRecovery(input, apiUrl)}
+        resetPassword={(input) => resetPassword(input, apiUrl)}
+        onReset={() => {
+          window.sessionStorage.removeItem(passwordRecoveryEmailKey);
+          window.history.pushState({}, '', '/login?password_reset=success');
+          setCurrentPath('/login');
+        }}
+        onBackToLogin={() => {
+          window.sessionStorage.removeItem(passwordRecoveryEmailKey);
+          setPasswordRecoveryEmail('');
+          navigate('/login');
         }}
       />
     );

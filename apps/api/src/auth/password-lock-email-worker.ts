@@ -4,6 +4,7 @@ export function createPasswordLockEmailWorker(dependencies: {
   schedule(callback: () => void, intervalMs: number): unknown;
   cancel(timer: unknown): void;
   recordEvent(name: string): void;
+  failureEvent?: string;
 }) {
   let timer: unknown;
   let active = false;
@@ -13,7 +14,9 @@ export function createPasswordLockEmailWorker(dependencies: {
     void dependencies
       .runOnce()
       .catch(() => {
-        dependencies.recordEvent('password_lock_email_worker_failure');
+        dependencies.recordEvent(
+          dependencies.failureEvent ?? 'password_lock_email_worker_failure',
+        );
       })
       .finally(() => {
         active = false;

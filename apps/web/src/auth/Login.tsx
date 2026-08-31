@@ -86,6 +86,9 @@ export interface LoginProps {
 }
 
 export function Login({ login, onLoggedIn }: LoginProps) {
+  const passwordResetSucceeded =
+    new URLSearchParams(window.location.search).get('password_reset') ===
+    'success';
   const [serverError, setServerError] = useState(() => {
     const callbackError = new URLSearchParams(window.location.search).get(
       'error',
@@ -141,6 +144,12 @@ export function Login({ login, onLoggedIn }: LoginProps) {
           Log in to your account
         </h1>
 
+        {passwordResetSucceeded ? (
+          <p className="text-sm text-content-muted" role="status">
+            Your password has been reset. Log in with your new password.
+          </p>
+        ) : null}
+
         {serverError ? (
           <p className="text-sm text-danger" role="alert">
             {serverError}
@@ -164,6 +173,12 @@ export function Login({ login, onLoggedIn }: LoginProps) {
             type="password"
             {...register('password')}
           />
+          <a
+            className="justify-self-start text-sm underline"
+            href="/forgot-password"
+          >
+            Forgot password?
+          </a>
           <Button
             className="justify-self-start !border-[#485463] !bg-[#485463] !text-white hover:!bg-[#3d4855]"
             disabled={isSubmitting}

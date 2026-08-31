@@ -75,6 +75,89 @@ afterEach(() => {
 });
 
 describe('App [REQ-002]', () => {
+  it('carries the normalized recovery email from request to reset [password-recovery REQ-002, REQ-008]', async () => {
+    window.history.replaceState({}, '', '/forgot-password');
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: 'accepted' }), { status: 202 }),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Email'), {
+      target: { value: ' OWNER@Example.com ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send reset code' }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Reset your password' }),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Email')).toHaveValue('owner@example.com');
+    expect(window.location.pathname).toBe('/reset-password');
+    expect(window.sessionStorage.getItem('hansel.passwordRecoveryEmail')).toBe(
+      'owner@example.com',
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Request a new code' }));
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('returns a completed reset to login with a safe success message [password-recovery REQ-010]', async () => {
+    window.history.replaceState({}, '', '/reset-password');
+    window.sessionStorage.setItem(
+      'hansel.passwordRecoveryEmail',
+      'owner@example.com',
+    );
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ destination: '/login' }), {
+          status: 200,
+        }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetcher);
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText('Reset code'), {
+      target: { value: '123456' },
+    });
+    fireEvent.change(screen.getByLabelText('New password'), {
+      target: { value: 'Correct horse battery staple!7' },
+    });
+    fireEvent.change(screen.getByLabelText('Confirm new password'), {
+      target: { value: 'Correct horse battery staple!7' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset password' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Your password has been reset.',
+      ),
+    );
+    expect(window.location.pathname).toBe('/login');
+    expect(window.location.search).toBe('?password_reset=success');
+    expect(
+      window.sessionStorage.getItem('hansel.passwordRecoveryEmail'),
+    ).toBeNull();
+  });
+
+  it('clears the recovery email when returning to login [password-recovery REQ-018]', () => {
+    window.history.replaceState({}, '', '/reset-password');
+    window.sessionStorage.setItem(
+      'hansel.passwordRecoveryEmail',
+      'owner@example.com',
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole('link', { name: 'Back to log in' }));
+    expect(window.location.pathname).toBe('/login');
+    expect(
+      window.sessionStorage.getItem('hansel.passwordRecoveryEmail'),
+    ).toBeNull();
+  });
+
   it('routes only /dashboard to the authenticated dashboard module [dashboard-home REQ-006]', async () => {
     vi.stubGlobal(
       'fetch',

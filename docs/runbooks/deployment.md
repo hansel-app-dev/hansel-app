@@ -14,9 +14,13 @@ CI verifies source, builds the SPA and API image asset, and prepares a CloudForm
 
 Before enabling Welcome delivery, confirm the Aurora backup is current; the `/hansel/<environment>/resend` secret (or the configured `resendSecretName`) contains `apiKey` and `fromEmail`; the Resend domain and sender are verified; the API task can read that secret; a controlled non-production delivery contains both HTML and plain text; and the Welcome alarms and dashboard widget exist. Leave `enable_welcome_email` false if any check fails.
 
+Before enabling password recovery, deploy both additive password-recovery migrations while `PASSWORD_RECOVERY_ENABLED` is false. Confirm the Resend sender/domain, existing `/api/auth` WAF coverage, trusted-source application limiter, recovery and post-change HTML/plain-text deliveries, generic unknown-account behavior, serializable concurrency test, session revocation, and all password-recovery alarms. Enable the flag only after these gates pass.
+
 ## Roll back
 
 Disable Welcome delivery first, then re-deploy the last known-good Git commit/image. ECS circuit breaker automatically rolls back unhealthy tasks. Leave the additive delivery table and its pending, delivered, and terminal evidence in place; do not reverse a destructive database migration or delete pending intents. Deploy a forward repair before resuming claims. CloudFront invalidation occurs with web asset deployment.
+
+For password recovery rollback, disable `PASSWORD_RECOVERY_ENABLED` and notification claims before deploying the previous artifact. Preserve initiation, challenge, notification, credential, and session evidence. Do not restore an old password, reactivate a revoked session, unconsume a challenge, or delete pending notification intents.
 
 ## Alarm response
 
@@ -25,3 +29,9 @@ Check the generated CloudWatch dashboard, ECS service events, ALB target health,
 For `WelcomeEmailTerminalAlarm`, inspect only the categorical structured fields (`intentId`, `template`, `state`, `attempt`, `ageSeconds`, and `category`). Check Resend service health, sender/domain verification, and secret injection. Do not copy recipient data or message bodies into logs or tickets. Keep delivery disabled when failures indicate configuration or authorization problems; deploy a forward repair before an operator-approved retry.
 
 For `WelcomeEmailPendingAlarm`, confirm the API worker is polling, ECS tasks are healthy, Aurora is reachable, and expired leases are recovering. The `WelcomeEmailOldestPendingAgeSeconds` metric must remain at or below 900 seconds; missing observations are treated as a breach while the feature is enabled. If pending age continues to rise, disable new claims, preserve the outbox records, and repair the worker before re-enabling delivery.
+
+For `PasswordRecoveryUnexpectedAlarm` or `PasswordResetUnexpectedAlarm`, inspect categorical events and dependency health without querying by email, identifier digest, code, password, cookie, source address, or provider body. Disable recovery if failures persist or atomicity cannot be established.
+
+For `PasswordResetNotificationTerminalAlarm`, verify Resend health, sender/domain status, secret injection, and sanitized terminal categories. A completed reset must not be reversed. Preserve notification evidence and deploy a forward repair before retrying.
+
+For `PasswordResetNotificationPendingAlarm`, verify worker polling, ECS and Aurora health, and lease recovery. `PasswordResetNotificationOldestPendingAgeSeconds` must remain at or below 900 seconds; missing observations breach only while recovery is enabled. Disable claims, preserve the outbox, and repair before resuming.

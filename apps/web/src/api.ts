@@ -35,6 +35,12 @@ import {
   loginResponseSchema,
   type LoginRequest,
   type LoginResponse,
+  passwordRecoveryRequestResponseSchema,
+  passwordResetResponseSchema,
+  type PasswordRecoveryRequest,
+  type PasswordRecoveryRequestResponse,
+  type PasswordResetRequest,
+  type PasswordResetResponse,
 } from '@hansel/contracts';
 
 export class OnboardingSessionExpiredError extends Error {
@@ -47,6 +53,47 @@ export class DashboardAuthenticationRequiredError extends Error {
 
 export class LoginAuthenticationError extends Error {
   readonly code = 'authentication_failed';
+}
+
+export class PasswordResetRejectedError extends Error {
+  readonly code = 'password_reset_rejected';
+}
+
+export async function requestPasswordRecovery(
+  input: PasswordRecoveryRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PasswordRecoveryRequestResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/auth/password-recovery/request`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error('password_recovery_unavailable');
+  return passwordRecoveryRequestResponseSchema.parse(await response.json());
+}
+
+export async function resetPassword(
+  input: PasswordResetRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PasswordResetResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/auth/password-recovery/reset`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (response.status === 400) throw new PasswordResetRejectedError();
+  if (!response.ok) throw new Error('password_reset_unavailable');
+  return passwordResetResponseSchema.parse(await response.json());
 }
 
 export async function login(

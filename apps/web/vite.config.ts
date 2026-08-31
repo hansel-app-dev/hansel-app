@@ -10,6 +10,8 @@ export default defineConfig({
       '/api': { target: 'http://localhost:3000' },
       '/auth': { target: 'http://localhost:3000' },
       '/login': { target: 'http://localhost:3000' },
+      '/forgot-password': { target: 'http://localhost:3000' },
+      '/reset-password': { target: 'http://localhost:3000' },
       '/onboarding/about-you': { target: 'http://localhost:3000' },
       '/onboarding/plan-selection': { target: 'http://localhost:3000' },
     },

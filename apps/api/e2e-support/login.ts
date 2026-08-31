@@ -66,6 +66,18 @@ export async function seedLoginAccount(
   return {
     email,
     password,
+    issuePasswordRecoveryCode: async (code: string) => {
+      const now = new Date();
+      await prisma.verificationChallenge.create({
+        data: {
+          userId: user.id,
+          purpose: 'PASSWORD_RECOVERY',
+          codeDigest: security.digestVerificationCode(code),
+          sentAt: now,
+          expiresAt: new Date(now.getTime() + 15 * 60_000),
+        },
+      });
+    },
     readVerificationChallengeCount: () =>
       prisma.verificationChallenge.count({ where: { userId: user.id } }),
     disconnect: async () => {

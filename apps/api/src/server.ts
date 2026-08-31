@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Resend } from 'resend';
 import { createApp, type AuthenticationModule } from './app.js';
-import { dashboardUrl, loadConfig } from './config.js';
+import { dashboardUrl, loadConfig, passwordResetUrl } from './config.js';
 import { createConsoleVerificationSender } from './onboarding/console-verification-sender.js';
 import { createAccountRegistration } from './onboarding/create-account.js';
 import { createPrismaPendingAccountStore } from './onboarding/prisma-account-store.js';
@@ -61,6 +61,19 @@ import {
 import { createPasswordLockEmailDispatcher } from './auth/password-lock-email-dispatcher.js';
 import { createPrismaPasswordLockEmailStore } from './auth/prisma-password-lock-email-store.js';
 import { createPasswordLockEmailWorker } from './auth/password-lock-email-worker.js';
+import { createPasswordRecovery } from './auth/password-recovery.js';
+import { createPrismaPasswordRecoveryStore } from './auth/prisma-password-recovery-store.js';
+import {
+  createConsolePasswordRecoverySender,
+  createResendPasswordRecoverySender,
+  type PasswordRecoveryEmailInput,
+} from './auth/password-recovery-email.js';
+import {
+  createConsolePasswordResetNotificationSender,
+  createResendPasswordResetNotificationSender,
+} from './auth/password-reset-notification-email.js';
+import { createPasswordResetNotificationDispatcher } from './auth/password-reset-notification-dispatcher.js';
+import { createPrismaPasswordResetNotificationStore } from './auth/prisma-password-reset-notification-store.js';
 
 configureDatabaseUrl();
 const config = loadConfig();
@@ -74,6 +87,13 @@ const approvedLogoSvg = readFileSync(
 let sendVerificationCode: (email: string, code: string) => Promise<void>;
 let sendWelcomeEmail: (input: WelcomeEmailInput) => Promise<string>;
 let sendPasswordLockEmail: (input: {
+  recipient: string;
+  intentId: string;
+}) => Promise<string>;
+let sendPasswordRecoveryEmail: (
+  input: PasswordRecoveryEmailInput,
+) => Promise<void>;
+let sendPasswordResetNotification: (input: {
   recipient: string;
   intentId: string;
 }) => Promise<string>;
@@ -93,6 +113,16 @@ if (config.emailDeliveryMode === 'resend') {
     resend,
     config.resendFromEmail,
   );
+  sendPasswordRecoveryEmail = createResendPasswordRecoverySender(
+    resend,
+    config.resendFromEmail,
+    passwordResetUrl(config),
+    approvedLogoSvg,
+  );
+  sendPasswordResetNotification = createResendPasswordResetNotificationSender(
+    resend,
+    config.resendFromEmail,
+  );
 } else {
   sendVerificationCode = createConsoleVerificationSender();
   sendWelcomeEmail = createConsoleWelcomeSender((name, details) => {
@@ -101,12 +131,38 @@ if (config.emailDeliveryMode === 'resend') {
   sendPasswordLockEmail = createConsolePasswordLockSender((name) => {
     logger.info(name, { correlationId: randomUUID() });
   });
+  sendPasswordRecoveryEmail = createConsolePasswordRecoverySender((name) => {
+    logger.info(name, { correlationId: randomUUID() });
+  });
+  sendPasswordResetNotification = createConsolePasswordResetNotificationSender(
+    (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  );
 }
 const verification = createEmailVerification({
   ...security,
   ...createPrismaVerificationStore(prisma),
   sendVerificationCode,
   now: () => new Date(),
+});
+const passwordRecovery = createPasswordRecovery({
+  ...createPrismaPasswordRecoveryStore(prisma, (name, details) => {
+    logger.info(name, { correlationId: randomUUID(), ...details });
+  }),
+  createCode: () => security.createVerificationCode(),
+  digestCode: (code) => security.digestVerificationCode(code),
+  digestIdentifier: (email) => security.digestPasswordRecoveryIdentifier(email),
+  hashPassword: (password) => security.hashPassword(password),
+  passwordPepperVersion: 1,
+  sendResetEmail: sendPasswordRecoveryEmail,
+  schedule: (task) => {
+    queueMicrotask(task);
+  },
+  now: () => new Date(),
+  recordEvent: (name) => {
+    logger.info(name, { correlationId: randomUUID() });
+  },
 });
 const authentication: AuthenticationModule = {
   login: createPasswordLogin({
@@ -132,6 +188,8 @@ const authentication: AuthenticationModule = {
       logger.info(name, { correlationId: randomUUID() });
     },
   }),
+  requestPasswordRecovery: (input) => passwordRecovery.request(input),
+  resetPassword: (input) => passwordRecovery.reset(input),
   recordEvent: (name) => {
     logger.error(name, { correlationId: randomUUID() });
   },
@@ -364,6 +422,28 @@ const passwordLockEmailWorker = createPasswordLockEmailWorker({
   },
 });
 if (config.loginEnabled) passwordLockEmailWorker.start();
+const passwordResetNotificationDispatcher =
+  createPasswordResetNotificationDispatcher({
+    ...createPrismaPasswordResetNotificationStore(prisma),
+    send: sendPasswordResetNotification,
+    workerId: randomUUID(),
+    now: () => new Date(),
+    recordEvent: (name, details) => {
+      logger.info(name, { correlationId: randomUUID(), ...details });
+    },
+  });
+const passwordResetNotificationWorker = createPasswordLockEmailWorker({
+  runOnce: () => passwordResetNotificationDispatcher.runOnce(),
+  schedule: (callback, intervalMs) => setInterval(callback, intervalMs),
+  cancel: (timer) => {
+    clearInterval(timer as NodeJS.Timeout);
+  },
+  failureEvent: 'password_reset_notification_worker_failure',
+  recordEvent: (name) => {
+    logger.error(name, { correlationId: randomUUID() });
+  },
+});
+if (config.passwordRecoveryEnabled) passwordResetNotificationWorker.start();
 const server = createApp(
   config,
   undefined,
@@ -388,6 +468,7 @@ const server = createApp(
 function shutdown(signal: string): void {
   welcomeEmailWorker.stop();
   passwordLockEmailWorker.stop();
+  passwordResetNotificationWorker.stop();
   console.log(
     JSON.stringify({ level: 'INFO', message: 'Shutting down', signal }),
   );

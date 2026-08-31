@@ -29,6 +29,20 @@ export const loginResponseSchema = z
   .strict();
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
 
+export const passwordRecoveryRequestSchema = z
+  .object({ email: z.string().trim().toLowerCase().pipe(z.email()) })
+  .strict();
+export type PasswordRecoveryRequest = z.infer<
+  typeof passwordRecoveryRequestSchema
+>;
+
+export const passwordRecoveryRequestResponseSchema = z
+  .object({ status: z.literal('accepted') })
+  .strict();
+export type PasswordRecoveryRequestResponse = z.infer<
+  typeof passwordRecoveryRequestResponseSchema
+>;
+
 const passwordSchema = z
   .string()
   .refine((password) => {
@@ -39,6 +53,20 @@ const passwordSchema = z
   .regex(/\p{Ll}/u, 'Password must contain a lowercase letter')
   .regex(/\p{N}/u, 'Password must contain a number')
   .regex(/[\p{P}\p{S}]/u, 'Password must contain a special character');
+
+export const passwordResetRequestSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().pipe(z.email()),
+    code: z.string().regex(/^\d{6}$/),
+    password: passwordSchema,
+  })
+  .strict();
+export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
+
+export const passwordResetResponseSchema = z
+  .object({ destination: z.literal('/login') })
+  .strict();
+export type PasswordResetResponse = z.infer<typeof passwordResetResponseSchema>;
 
 export const createOnboardingAccountRequestSchema = z
   .object({

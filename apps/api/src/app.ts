@@ -12,6 +12,10 @@ import {
   dashboardResponseSchema,
   loginRequestSchema,
   loginResponseSchema,
+  passwordRecoveryRequestSchema,
+  passwordRecoveryRequestResponseSchema,
+  passwordResetRequestSchema,
+  passwordResetResponseSchema,
   healthResponseSchema,
   departmentOptions,
   jobTitleOptions,
@@ -35,6 +39,10 @@ import {
   type DiscoveryResponse,
   type DashboardResponse,
   type LoginRequest,
+  type PasswordRecoveryRequest,
+  type PasswordRecoveryRequestResponse,
+  type PasswordResetRequest,
+  type PasswordResetResponse,
   type ResendOnboardingVerificationRequest,
   type ResendOnboardingVerificationResponse,
   type VerifyOnboardingEmailRequest,
@@ -50,6 +58,7 @@ import {
   type OrganizationProfileResponse,
 } from '@hansel/contracts';
 import type { PasswordLoginResult } from './auth/password-login.js';
+import { PasswordResetRejectedError } from './auth/password-recovery.js';
 import type {
   ExternalLoginResult,
   ExternalProvider,
@@ -159,6 +168,10 @@ export interface DashboardModule {
 
 export interface AuthenticationModule {
   login(input: LoginRequest): Promise<PasswordLoginResult>;
+  requestPasswordRecovery?(
+    input: PasswordRecoveryRequest,
+  ): Promise<PasswordRecoveryRequestResponse>;
+  resetPassword?(input: PasswordResetRequest): Promise<PasswordResetResponse>;
   startExternal?(provider: ExternalProvider, intent: 'login'): Promise<string>;
   callbackExternal?(
     provider: ExternalProvider,
@@ -188,6 +201,21 @@ function escapeHtml(value: unknown): string {
     : '';
 }
 
+function bodyString(
+  body: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  const value = body[field];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function preventRecoveryResponseReuse(response: express.Response): void {
+  response
+    .set('Cache-Control', 'private, no-store')
+    .vary('Origin')
+    .vary('Cookie');
+}
+
 function renderOptions(
   options: readonly { id: string; label: string }[],
   selected: unknown,
@@ -204,8 +232,27 @@ function renderOptions(
 function renderLoginForm(
   values: Record<string, unknown> = {},
   error = '',
+  status = '',
 ): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Log in — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="login-heading"><h1 id="login-heading">Log in to your account</h1>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/login" method="post"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required maxlength="128"><button type="submit">Log in</button></form><div class="divider" aria-hidden="true"><span>or log in with</span><i></i></div><nav aria-label="External login providers"><a href="/auth/start/google?intent=login">Continue with Google</a><a href="/auth/start/microsoft?intent=login">Continue with Microsoft</a><a href="/auth/start/apple?intent=login">Continue with Apple</a></nav><p>Don&#39;t have an account? <a href="/onboarding">Create an account</a></p></section></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Log in — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="login-heading"><h1 id="login-heading">Log in to your account</h1>${status ? `<p role="status">${escapeHtml(status)}</p>` : ''}${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/login" method="post"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required maxlength="128"><p><a href="/forgot-password">Forgot password?</a></p><button type="submit">Log in</button></form><div class="divider" aria-hidden="true"><span>or log in with</span><i></i></div><nav aria-label="External login providers"><a href="/auth/start/google?intent=login">Continue with Google</a><a href="/auth/start/microsoft?intent=login">Continue with Microsoft</a><a href="/auth/start/apple?intent=login">Continue with Apple</a></nav><p>Don&#39;t have an account? <a href="/onboarding">Create an account</a></p></section></main></body></html>`;
+}
+
+function renderForgotPasswordForm(
+  values: Record<string, unknown> = {},
+  error = '',
+): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Forgot password — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="forgot-password-heading"><h1 id="forgot-password-heading">Forgot your password?</h1><p>Enter your email and we&#39;ll send you a code to reset your password.</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/password-recovery/request" method="post"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"><button type="submit">Send reset code</button></form><p><a href="/login">Back to log in</a></p></section></main></body></html>`;
+}
+
+function renderResetPasswordForm(
+  values: Record<string, unknown> = {},
+  error = '',
+  requested = false,
+): string {
+  const status = requested
+    ? "If an eligible Hansel account exists for that email, we've sent a reset code. Check your inbox and spam folder."
+    : '';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reset password — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section aria-labelledby="reset-password-heading"><h1 id="reset-password-heading">Reset your password</h1>${status ? `<p role="status">${escapeHtml(status)}</p>` : ''}${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/password-recovery/reset" method="post"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"><label for="code">Reset code</label><input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required><label for="password">New password</label><input id="password" name="password" type="password" autocomplete="new-password" maxlength="128" required><label for="confirmPassword">Confirm new password</label><input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" maxlength="128" required><button type="submit">Reset password</button></form><p><a href="/forgot-password">Request a new code</a></p><p><a href="/login">Back to log in</a></p></section></main></body></html>`;
 }
 
 function renderAboutYouForm(
@@ -335,6 +382,7 @@ export function createApp(
     discoveryEnabled?: boolean;
     dashboardEnabled?: boolean;
     loginEnabled?: boolean;
+    passwordRecoveryEnabled?: boolean;
     externalAuthEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
@@ -414,7 +462,7 @@ export function createApp(
     const isExternalProvider = (value: string): value is ExternalProvider =>
       externalProviders.some((provider) => provider === value);
     app.get('/auth/start/:provider', async (request, response) => {
-      response.set('Cache-Control', 'private, no-store');
+      preventRecoveryResponseReuse(response);
       response.vary('Cookie');
       if (
         config.externalAuthEnabled !== true ||
@@ -439,7 +487,7 @@ export function createApp(
       request: express.Request,
       response: express.Response,
     ) => {
-      response.set('Cache-Control', 'private, no-store');
+      preventRecoveryResponseReuse(response);
       response.vary('Cookie');
       const provider = request.params.provider;
       if (
@@ -510,7 +558,17 @@ export function createApp(
           // A dashboard dependency failure must not make login unavailable.
         }
       }
-      response.type('html').send(renderLoginForm());
+      response
+        .type('html')
+        .send(
+          renderLoginForm(
+            {},
+            '',
+            request.query.password_reset === 'success'
+              ? 'Your password has been reset. Log in with your new password.'
+              : '',
+          ),
+        );
     });
     app.post('/api/auth/login', async (request, response) => {
       if (config.loginEnabled === false) {
@@ -586,6 +644,195 @@ export function createApp(
               ),
             );
         else response.status(503).json({ error: 'login_unavailable' });
+      }
+    });
+
+    app.get('/forgot-password', (_request, response) => {
+      if (
+        config.passwordRecoveryEnabled === false ||
+        !authentication.requestPasswordRecovery
+      ) {
+        response.status(404).send('Not found');
+        return;
+      }
+      preventRecoveryResponseReuse(response);
+      response.type('html').send(renderForgotPasswordForm());
+    });
+    app.get('/reset-password', (request, response) => {
+      if (
+        config.passwordRecoveryEnabled === false ||
+        !authentication.resetPassword
+      ) {
+        response.status(404).send('Not found');
+        return;
+      }
+      preventRecoveryResponseReuse(response);
+      response
+        .type('html')
+        .send(renderResetPasswordForm({}, '', request.query.requested === '1'));
+    });
+    app.post(
+      '/api/auth/password-recovery/request',
+      async (request, response) => {
+        if (
+          config.passwordRecoveryEnabled === false ||
+          !authentication.requestPasswordRecovery
+        ) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        const isHtmlForm = request.is('application/x-www-form-urlencoded');
+        preventRecoveryResponseReuse(response);
+        if (
+          isHtmlForm
+            ? !hasAllowedFormOrigin(request, config.allowedOrigin)
+            : request.headers.origin !== config.allowedOrigin
+        ) {
+          response.status(403).json({ error: 'forbidden' });
+          return;
+        }
+        const rawBody: unknown = request.body;
+        const input = passwordRecoveryRequestSchema.safeParse(rawBody);
+        if (!input.success) {
+          if (isHtmlForm)
+            response
+              .status(400)
+              .type('html')
+              .send(
+                renderForgotPasswordForm(
+                  {
+                    email: bodyString(
+                      rawBody as Record<string, unknown>,
+                      'email',
+                    ),
+                  },
+                  'Enter a valid email address.',
+                ),
+              );
+          else response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        try {
+          await authentication.requestPasswordRecovery(input.data);
+          const output = passwordRecoveryRequestResponseSchema.parse({
+            status: 'accepted',
+          });
+          if (isHtmlForm) response.redirect(303, '/reset-password?requested=1');
+          else response.status(202).json(output);
+        } catch {
+          authentication.recordEvent?.('password_recovery_unexpected_failure');
+          if (isHtmlForm)
+            response
+              .status(503)
+              .type('html')
+              .send(
+                renderForgotPasswordForm(
+                  { email: input.data.email },
+                  'Password recovery is temporarily unavailable. Please try again.',
+                ),
+              );
+          else
+            response
+              .status(503)
+              .json({ error: 'password_recovery_unavailable' });
+        }
+      },
+    );
+    app.post('/api/auth/password-recovery/reset', async (request, response) => {
+      if (
+        config.passwordRecoveryEnabled === false ||
+        !authentication.resetPassword
+      ) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const isHtmlForm = request.is('application/x-www-form-urlencoded');
+      preventRecoveryResponseReuse(response);
+      if (
+        isHtmlForm
+          ? !hasAllowedFormOrigin(request, config.allowedOrigin)
+          : request.headers.origin !== config.allowedOrigin
+      ) {
+        response.status(403).json({ error: 'forbidden' });
+        return;
+      }
+      const submittedBody: unknown = request.body;
+      const submittedForm = submittedBody as Record<string, unknown>;
+      const allowedFormFields = new Set([
+        'email',
+        'code',
+        'password',
+        'confirmPassword',
+      ]);
+      const hasStrictMatchingConfirmation =
+        !isHtmlForm ||
+        (typeof submittedBody === 'object' &&
+          submittedBody !== null &&
+          Object.keys(submittedForm).every((key) =>
+            allowedFormFields.has(key),
+          ) &&
+          bodyString(submittedForm, 'password') ===
+            bodyString(submittedForm, 'confirmPassword'));
+      const rawBody: unknown = isHtmlForm
+        ? {
+            email: bodyString(submittedForm, 'email'),
+            code: bodyString(submittedForm, 'code'),
+            password: bodyString(submittedForm, 'password'),
+          }
+        : submittedBody;
+      const input = passwordResetRequestSchema.safeParse(rawBody);
+      if (!input.success || !hasStrictMatchingConfirmation) {
+        if (isHtmlForm)
+          response
+            .status(400)
+            .type('html')
+            .send(
+              renderResetPasswordForm(
+                {
+                  email: bodyString(
+                    submittedBody as Record<string, unknown>,
+                    'email',
+                  ),
+                },
+                'Enter a valid email, six-digit code, and compliant new password.',
+              ),
+            );
+        else response.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+      try {
+        const result = await authentication.resetPassword(input.data);
+        const output = passwordResetResponseSchema.parse(result);
+        if (isHtmlForm) response.redirect(303, '/login?password_reset=success');
+        else response.json(output);
+      } catch (error) {
+        if (error instanceof PasswordResetRejectedError) {
+          if (isHtmlForm)
+            response
+              .status(400)
+              .type('html')
+              .send(
+                renderResetPasswordForm(
+                  { email: input.data.email },
+                  "We couldn't reset your password. Request a new code and try again.",
+                ),
+              );
+          else response.status(400).json({ error: 'password_reset_rejected' });
+          return;
+        }
+        authentication.recordEvent?.('password_reset_unexpected_failure');
+        authentication.recordEvent?.('password_reset_unavailable');
+        if (isHtmlForm)
+          response
+            .status(503)
+            .type('html')
+            .send(
+              renderResetPasswordForm(
+                { email: input.data.email },
+                'Password reset is temporarily unavailable. Please try again.',
+              ),
+            );
+        else response.status(503).json({ error: 'password_reset_unavailable' });
       }
     });
   }

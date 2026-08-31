@@ -8,6 +8,7 @@ interface BaseAppConfig {
   planSelectionEnabled: boolean;
   organizationProfileEnabled: boolean;
   passwordPepper: string;
+  passwordRecoveryEnabled: boolean;
   port: number;
   verificationDigestKey: string;
   welcomeEmailEnabled: boolean;
@@ -75,6 +76,12 @@ function applicationOrigin(
 
 export function dashboardUrl(config: Pick<AppConfig, 'allowedOrigin'>): string {
   return new URL('/dashboard', config.allowedOrigin).toString();
+}
+
+export function passwordResetUrl(
+  config: Pick<AppConfig, 'allowedOrigin'>,
+): string {
+  return new URL('/reset-password', config.allowedOrigin).toString();
 }
 
 function required(environment: NodeJS.ProcessEnv, name: string): string {
@@ -204,6 +211,10 @@ export function loadConfig(
       (environment.ORGANIZATION_PROFILE_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
     passwordPepper: required(environment, 'PASSWORD_PEPPER'),
+    passwordRecoveryEnabled:
+      environment.PASSWORD_RECOVERY_ENABLED === 'true' ||
+      (environment.PASSWORD_RECOVERY_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
     port: parsedPort,
     verificationDigestKey,
     welcomeEmailEnabled,

@@ -29,7 +29,68 @@ import {
   verifyOnboardingEmailResponseSchema,
   loginRequestSchema,
   loginResponseSchema,
+  passwordRecoveryRequestSchema,
+  passwordRecoveryRequestResponseSchema,
+  passwordResetRequestSchema,
+  passwordResetResponseSchema,
 } from './index.js';
+
+describe('password recovery request contract [password-recovery REQ-003, REQ-004]', () => {
+  it('normalizes only an email and exposes one generic accepted response', () => {
+    expect(
+      passwordRecoveryRequestSchema.parse({ email: '  OWNER@Example.com ' }),
+    ).toEqual({ email: 'owner@example.com' });
+    expect(
+      passwordRecoveryRequestResponseSchema.parse({ status: 'accepted' }),
+    ).toEqual({ status: 'accepted' });
+    expect(() =>
+      passwordRecoveryRequestSchema.parse({
+        email: 'owner@example.com',
+        userId: 'caller-controlled',
+      }),
+    ).toThrow();
+  });
+});
+
+describe('password reset contract [password-recovery REQ-009, REQ-010, REQ-016]', () => {
+  it('accepts one normalized reset and only the closed login destination', () => {
+    expect(
+      passwordResetRequestSchema.parse({
+        email: ' OWNER@Example.com ',
+        code: '123456',
+        password: 'Correct horse battery staple!7',
+      }),
+    ).toEqual({
+      email: 'owner@example.com',
+      code: '123456',
+      password: 'Correct horse battery staple!7',
+    });
+    expect(
+      passwordResetResponseSchema.parse({ destination: '/login' }),
+    ).toEqual({ destination: '/login' });
+    expect(() =>
+      passwordResetResponseSchema.parse({ destination: '/dashboard' }),
+    ).toThrow();
+  });
+
+  it.each([
+    { code: '12345', password: 'Correct horse battery staple!7' },
+    { code: '12345a', password: 'Correct horse battery staple!7' },
+    { code: '123456', password: 'short!A1' },
+    { code: '123456', password: 'correct horse battery staple!7' },
+    { code: '123456', password: 'CORRECT HORSE BATTERY STAPLE!7' },
+    { code: '123456', password: 'Correct horse battery staple!' },
+    { code: '123456', password: 'Correct horse battery staple 7' },
+  ])('rejects an invalid reset input', ({ code, password }) => {
+    expect(() =>
+      passwordResetRequestSchema.parse({
+        email: 'owner@example.com',
+        code,
+        password,
+      }),
+    ).toThrow();
+  });
+});
 
 describe('login contract [user-login REQ-003, REQ-004, REQ-020]', () => {
   it('normalizes credentials and accepts only server-owned destinations', () => {

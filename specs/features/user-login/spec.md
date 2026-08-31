@@ -16,11 +16,11 @@ An eligible registered user can authenticate with email/password or a previously
 
 ## Non-goals
 
-- Password reset, saved-recovery-code entry, multi-factor authentication, remembered-login duration controls, and compromised-password screening.
+- Saved-recovery-code entry, multi-factor authentication, remembered-login duration controls, and compromised-password screening. Password reset is governed separately by the approved `password-recovery` specification.
 - Account-linking or unlinking UI, provider-management UI, session-management UI, `Log out everywhere`, and ownership recovery.
 - A multi-organization chooser. This release authenticates a completed account only when exactly one active eligible membership can be selected safely; a separate approved feature must define organization selection.
 - Creating an account from `/login`. New external-provider accounts begin only from the existing onboarding entry and remain subject to the onboarding consent and state-machine contracts.
-- Adding a show-password control, remember-me checkbox, password-policy helper, forgot-password link, or other UI absent from the approved frame.
+- Adding a show-password control, remember-me checkbox, password-policy helper, or other UI absent from the approved frame. The underlined forgot-password link is the narrowly approved addition governed by password-recovery REQ-001.
 
 ## Requirements
 

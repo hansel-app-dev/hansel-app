@@ -40,6 +40,7 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
             { Name: 'DISCOVERY_ENABLED', Value: 'false' },
             { Name: 'DASHBOARD_ENABLED', Value: 'false' },
             { Name: 'LOGIN_ENABLED', Value: 'false' },
+            { Name: 'PASSWORD_RECOVERY_ENABLED', Value: 'false' },
             { Name: 'EXTERNAL_AUTH_ENABLED', Value: 'false' },
             { Name: 'WELCOME_EMAIL_ENABLED', Value: 'false' },
           ]),
@@ -56,6 +57,32 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
     });
     output.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', {
       HealthCheckPath: '/api/health',
+    });
+  });
+
+  it('enables password recovery only through the explicit login-coupled context [password-recovery REQ-021]', () => {
+    const disabled = template('test', { passwordRecoveryEnabled: 'true' });
+    disabled.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'PASSWORD_RECOVERY_ENABLED', Value: 'false' },
+          ]),
+        }),
+      ]),
+    });
+    const enabled = template('test', {
+      loginEnabled: 'true',
+      passwordRecoveryEnabled: 'true',
+    });
+    enabled.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'PASSWORD_RECOVERY_ENABLED', Value: 'true' },
+          ]),
+        }),
+      ]),
     });
   });
 
@@ -98,7 +125,28 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
           Match.objectLike({ MetricName: metricName }),
         ]),
       });
-    output.resourceCountIs('AWS::CloudWatch::Alarm', 14);
+    output.resourceCountIs('AWS::CloudWatch::Alarm', 18);
+    for (const metricName of [
+      'PasswordRecoveryRequestsSuppressed',
+      'PasswordRecoveryRequestsAccepted',
+      'PasswordRecoveryEmailsAttempted',
+      'PasswordRecoveryEmailsSent',
+      'PasswordRecoveryEmailFailures',
+      'PasswordResetsSucceeded',
+      'PasswordResetsRejected',
+      'PasswordRecoveryUnexpectedFailures',
+      'PasswordResetUnexpectedFailures',
+      'PasswordResetUnavailable',
+      'PasswordRecoverySessionsRevoked',
+      'PasswordResetNotificationsCreated',
+      'PasswordResetNotificationTerminalFailures',
+      'PasswordResetNotificationOldestPendingAgeSeconds',
+    ])
+      output.hasResourceProperties('AWS::Logs::MetricFilter', {
+        MetricTransformations: Match.arrayWith([
+          Match.objectLike({ MetricName: metricName }),
+        ]),
+      });
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({
@@ -125,6 +173,11 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
     expect(
       JSON.stringify(output.findResources('AWS::CloudWatch::Dashboard')),
     ).toContain('Authentication safety');
+    const distribution = JSON.stringify(
+      output.findResources('AWS::CloudFront::Distribution'),
+    );
+    expect(distribution).toContain('forgot-password');
+    expect(distribution).toContain('reset-password');
     output.hasResourceProperties('AWS::Logs::MetricFilter', {
       MetricTransformations: Match.arrayWith([
         Match.objectLike({ MetricName: 'DiscoveryUnexpectedFailures' }),

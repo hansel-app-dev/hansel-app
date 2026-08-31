@@ -13,6 +13,7 @@ import {
   DiscoveryConflictError,
   DiscoveryTransitionError,
 } from './onboarding/discovery.js';
+import { PasswordResetRejectedError } from './auth/password-recovery.js';
 import {
   countryOptions,
   discoveryManagementOptions,
@@ -122,17 +123,14 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
   });
 
   it('serves the accessible progressive login page without JavaScript', async () => {
-    const response = await request(
-      createApp(
-        { allowedOrigin: 'https://app.example.com', loginEnabled: true },
-        undefined,
-        undefined,
-        undefined,
-        { login: vi.fn() },
-      ),
-    )
-      .get('/login')
-      .expect(200);
+    const loginApp = createApp(
+      { allowedOrigin: 'https://app.example.com', loginEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn() },
+    );
+    const response = await request(loginApp).get('/login').expect(200);
 
     expect(response.headers['cache-control']).toBe('private, no-store');
     expect(response.text).toContain(
@@ -143,6 +141,10 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     for (const provider of ['google', 'microsoft', 'apple'])
       expect(response.text).toContain(`/auth/start/${provider}?intent=login`);
     expect(response.text).not.toContain('By creating an account');
+    const reset = await request(loginApp)
+      .get('/login?password_reset=success')
+      .expect(200);
+    expect(reset.text).toContain('Your password has been reset.');
   });
 
   it('redirects an existing valid application session away from login', async () => {
@@ -531,6 +533,289 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     expect(form.text).toContain(
       'Login is temporarily unavailable. Please try again.',
     );
+  });
+});
+
+describe('password recovery routes [password-recovery REQ-002..REQ-019]', () => {
+  function recoveryApp(
+    overrides: Record<string, unknown> = {},
+    enabled = true,
+  ) {
+    return createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: true,
+        passwordRecoveryEnabled: enabled,
+      },
+      undefined,
+      undefined,
+      undefined,
+      {
+        login: vi.fn(),
+        requestPasswordRecovery: vi
+          .fn()
+          .mockResolvedValue({ status: 'accepted' }),
+        resetPassword: vi.fn().mockResolvedValue({ destination: '/login' }),
+        ...overrides,
+      },
+    );
+  }
+
+  it('renders progressive pages and accepts a generic normalized request', async () => {
+    const requestPasswordRecovery = vi
+      .fn()
+      .mockResolvedValue({ status: 'accepted' });
+    const recoveryApp = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: true,
+        passwordRecoveryEnabled: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+      {
+        login: vi.fn(),
+        requestPasswordRecovery,
+        resetPassword: vi.fn(),
+      },
+    );
+
+    const forgot = await request(recoveryApp)
+      .get('/forgot-password')
+      .expect('Cache-Control', 'private, no-store')
+      .expect('Vary', /Origin.*Cookie/)
+      .expect(200);
+    expect(forgot.text).toContain('Forgot your password?');
+    expect(forgot.text).toContain(
+      'action="/api/auth/password-recovery/request"',
+    );
+    const reset = await request(recoveryApp)
+      .get('/reset-password')
+      .expect('Cache-Control', 'private, no-store')
+      .expect('Vary', /Origin.*Cookie/)
+      .expect(200);
+    expect(reset.text).toContain('Reset your password');
+    expect(reset.text).toContain('autocomplete="one-time-code"');
+
+    await request(recoveryApp)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: '  OWNER@Example.com ' })
+      .expect(202, { status: 'accepted' });
+    expect(requestPasswordRecovery).toHaveBeenCalledWith({
+      email: 'owner@example.com',
+    });
+  });
+
+  it('keeps request dependency failures generic', async () => {
+    const recordEvent = vi.fn();
+    const recoveryApp = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        passwordRecoveryEnabled: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+      {
+        login: vi.fn(),
+        requestPasswordRecovery: vi
+          .fn()
+          .mockRejectedValue(new Error('private detail')),
+        resetPassword: vi.fn(),
+        recordEvent,
+      },
+    );
+    await request(recoveryApp)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'owner@example.com' })
+      .expect(503, { error: 'password_recovery_unavailable' });
+    expect(recordEvent).toHaveBeenCalledWith(
+      'password_recovery_unexpected_failure',
+    );
+  });
+
+  it('closes disabled and incomplete recovery modules', async () => {
+    const disabled = recoveryApp({}, false);
+    await request(disabled).get('/forgot-password').expect(404);
+    await request(disabled).get('/reset-password').expect(404);
+    await request(disabled)
+      .post('/api/auth/password-recovery/request')
+      .send({})
+      .expect(404);
+    await request(disabled)
+      .post('/api/auth/password-recovery/reset')
+      .send({})
+      .expect(404);
+
+    const incomplete = createApp(
+      {
+        allowedOrigin: 'https://app.example.com',
+        loginEnabled: true,
+        passwordRecoveryEnabled: true,
+      },
+      undefined,
+      undefined,
+      undefined,
+      { login: vi.fn() },
+    );
+    await request(incomplete).get('/forgot-password').expect(404);
+    await request(incomplete).get('/reset-password').expect(404);
+    await request(incomplete)
+      .post('/api/auth/password-recovery/reset')
+      .send({})
+      .expect(404);
+  });
+
+  it('rejects untrusted and malformed recovery requests in both representations', async () => {
+    const app = recoveryApp();
+    await request(app)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://evil.example')
+      .send({ email: 'owner@example.com' })
+      .expect(403);
+    await request(app)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'invalid' })
+      .expect(400, { error: 'invalid_request' });
+    const requestForm = await request(app)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'invalid' })
+      .expect(400);
+    expect(requestForm.text).toContain('Enter a valid email address.');
+
+    await request(app)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://evil.example')
+      .send({})
+      .expect(403);
+    await request(app)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: 'owner@example.com' })
+      .expect(400, { error: 'invalid_request' });
+    const resetForm = await request(app)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'owner@example.com', confirmPassword: 'ignored' })
+      .expect(400);
+    expect(resetForm.text).toContain('six-digit code');
+  });
+
+  it('supports progressive recovery request success and failure', async () => {
+    const accepted = recoveryApp();
+    await request(accepted)
+      .get('/reset-password?requested=1')
+      .expect(200)
+      .expect(/eligible Hansel account/);
+    await request(accepted)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: ' OWNER@Example.com ' })
+      .expect(303)
+      .expect('Location', '/reset-password?requested=1');
+
+    const failed = recoveryApp({
+      requestPasswordRecovery: vi.fn().mockRejectedValue(new Error('private')),
+    });
+    const response = await request(failed)
+      .post('/api/auth/password-recovery/request')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send({ email: 'owner@example.com' })
+      .expect(503);
+    expect(response.text).toContain('temporarily unavailable');
+  });
+
+  it('resets safely across JSON and progressive outcomes', async () => {
+    const valid = {
+      email: ' OWNER@Example.com ',
+      code: '123456',
+      password: 'Correct horse battery staple!7',
+      confirmPassword: 'Correct horse battery staple!7',
+    };
+    const resetPassword = vi.fn().mockResolvedValue({ destination: '/login' });
+    const accepted = recoveryApp({ resetPassword });
+    await request(accepted)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .send(valid)
+      .expect(400);
+    await request(accepted)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: valid.email, code: valid.code, password: valid.password })
+      .expect(200, { destination: '/login' });
+    await request(accepted)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send(valid)
+      .expect(303)
+      .expect('Location', '/login?password_reset=success');
+    expect(resetPassword).toHaveBeenCalledWith({
+      email: 'owner@example.com',
+      code: '123456',
+      password: valid.password,
+    });
+
+    for (const invalidForm of [
+      { ...valid, confirmPassword: 'Different password value!8A' },
+      { ...valid, unexpected: 'not-allowed' },
+    ])
+      await request(accepted)
+        .post('/api/auth/password-recovery/reset')
+        .set('Origin', 'https://app.example.com')
+        .type('form')
+        .send(invalidForm)
+        .expect(400);
+
+    const rejected = recoveryApp({
+      resetPassword: vi
+        .fn()
+        .mockRejectedValue(new PasswordResetRejectedError()),
+    });
+    await request(rejected)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: valid.email, code: valid.code, password: valid.password })
+      .expect(400, { error: 'password_reset_rejected' });
+    const rejectedForm = await request(rejected)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send(valid)
+      .expect(400);
+    expect(rejectedForm.text).toContain('couldn&#39;t reset your password');
+
+    const recordEvent = vi.fn();
+    const unavailable = recoveryApp({
+      resetPassword: vi.fn().mockRejectedValue(new Error('private')),
+      recordEvent,
+    });
+    await request(unavailable)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .send({ email: valid.email, code: valid.code, password: valid.password })
+      .expect(503, { error: 'password_reset_unavailable' });
+    const unavailableForm = await request(unavailable)
+      .post('/api/auth/password-recovery/reset')
+      .set('Origin', 'https://app.example.com')
+      .type('form')
+      .send(valid)
+      .expect(503);
+    expect(unavailableForm.text).toContain('temporarily unavailable');
+    expect(recordEvent).toHaveBeenCalledWith(
+      'password_reset_unexpected_failure',
+    );
+    expect(recordEvent).toHaveBeenCalledWith('password_reset_unavailable');
   });
 });
 

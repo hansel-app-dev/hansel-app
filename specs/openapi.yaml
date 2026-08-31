@@ -75,6 +75,113 @@ paths:
                   error: { type: string, const: login_unavailable }
             text/html:
               schema: { type: string }
+  /forgot-password:
+    get:
+      operationId: renderForgotPassword
+      summary: Render the progressive password-recovery request form
+      responses:
+        '200':
+          description: Accessible private HTML form usable without JavaScript
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+            Vary: { schema: { type: string } }
+          content:
+            text/html:
+              schema: { type: string }
+        '404': { description: Password recovery is disabled }
+  /reset-password:
+    get:
+      operationId: renderResetPassword
+      summary: Render the progressive password reset form
+      responses:
+        '200':
+          description: Accessible private HTML form usable without JavaScript
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+            Vary: { schema: { type: string } }
+          content:
+            text/html:
+              schema: { type: string }
+        '404': { description: Password recovery is disabled }
+  /api/auth/password-recovery/request:
+    post:
+      operationId: requestPasswordRecovery
+      summary: Generically request a one-time password reset code
+      description: Always returns the same accepted representation for valid input, regardless of account existence, eligibility, cooldown, or subject rate limiting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordRecoveryRequest' }
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/PasswordRecoveryRequest' }
+      responses:
+        '202':
+          description: Generic accepted result
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/PasswordRecoveryRequestResponse' }
+        '303':
+          description: Native form accepted and redirected to reset entry
+          headers:
+            Location:
+              schema: { type: string, const: '/reset-password?requested=1' }
+        '400':
+          description: Strict request validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvalidRequestError' }
+        '403': { description: Origin validation failed }
+        '404': { description: Password recovery is disabled }
+        '503':
+          description: Password recovery is temporarily unavailable
+          content:
+            application/json:
+              schema:
+                {
+                  $ref: '#/components/schemas/PasswordRecoveryUnavailableError',
+                }
+  /api/auth/password-recovery/reset:
+    post:
+      operationId: resetPassword
+      summary: Consume a reset code and replace the Hansel-managed password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordResetRequest' }
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/PasswordResetFormRequest' }
+      responses:
+        '200':
+          description: Password replaced, all sessions revoked, and no session created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordResetResponse' }
+        '303':
+          description: Native form reset accepted and redirected to login
+          headers:
+            Location:
+              schema: { type: string, const: '/login?password_reset=success' }
+        '400':
+          description: Strict validation or generic code rejection
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/InvalidRequestError'
+                  - $ref: '#/components/schemas/PasswordResetRejectedError'
+        '403': { description: Origin validation failed }
+        '404': { description: Password recovery is disabled }
+        '503':
+          description: Password reset is temporarily unavailable
+          content:
+            application/json:
+              schema:
+                { $ref: '#/components/schemas/PasswordResetUnavailableError' }
   /auth/start/{provider}:
     get:
       operationId: startExternalLogin
@@ -623,6 +730,64 @@ components:
       required: [destination]
       properties:
         destination: { $ref: '#/components/schemas/LoginDestination' }
+    PasswordRecoveryRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email }
+    PasswordRecoveryRequestResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { type: string, const: accepted }
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code, password]
+      properties:
+        email: { type: string, format: email }
+        code: { type: string, pattern: '^\d{6}$' }
+        password: { type: string, minLength: 15, maxLength: 128 }
+    PasswordResetFormRequest:
+      allOf:
+        - $ref: '#/components/schemas/PasswordResetRequest'
+        - type: object
+          required: [confirmPassword]
+          properties:
+            confirmPassword: { type: string, minLength: 15, maxLength: 128 }
+      unevaluatedProperties: false
+    PasswordResetResponse:
+      type: object
+      additionalProperties: false
+      required: [destination]
+      properties:
+        destination: { type: string, const: /login }
+    InvalidRequestError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: { type: string, const: invalid_request }
+    PasswordRecoveryUnavailableError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: { type: string, const: password_recovery_unavailable }
+    PasswordResetRejectedError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: { type: string, const: password_reset_rejected }
+    PasswordResetUnavailableError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: { type: string, const: password_reset_unavailable }
     CreateOnboardingAccountRequest:
       type: object
       additionalProperties: false

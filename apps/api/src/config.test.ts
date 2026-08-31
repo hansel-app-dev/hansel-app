@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { dashboardUrl, loadConfig } from './config.js';
+import { dashboardUrl, loadConfig, passwordResetUrl } from './config.js';
 
-describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-013, REQ-016]', () => {
+describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-013, REQ-016; password-recovery REQ-021]', () => {
   const required = {
     PASSWORD_PEPPER: 'password-pepper',
     VERIFICATION_DIGEST_KEY: 'verification-digest-key',
@@ -16,6 +16,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
       loginEnabled: true,
+      passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
       externalAuth: null,
       discoveryEnabled: true,
@@ -45,6 +46,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
       loginEnabled: true,
+      passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
       externalAuth: null,
       discoveryEnabled: true,
@@ -72,6 +74,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       runtimeEnvironment: 'production',
       dashboardEnabled: false,
       loginEnabled: false,
+      passwordRecoveryEnabled: false,
       externalAuthEnabled: false,
       discoveryEnabled: false,
       planSelectionEnabled: false,
@@ -121,6 +124,12 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
         LOGIN_ENABLED: 'true',
       }).loginEnabled,
     ).toBe(true);
+    expect(
+      loadConfig({
+        ...production,
+        PASSWORD_RECOVERY_ENABLED: 'true',
+      }).passwordRecoveryEnabled,
+    ).toBe(true);
   });
 
   it('supports local console email without AWS email configuration', () => {
@@ -135,6 +144,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
       loginEnabled: true,
+      passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
       externalAuth: null,
       discoveryEnabled: true,
@@ -268,6 +278,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
         loadConfig({ ...required, ALLOWED_ORIGIN: 'https://app.hansel.io/' }),
       ),
     ).toBe('https://app.hansel.io/dashboard');
+    expect(passwordResetUrl(loadConfig(required))).toBe(
+      'http://localhost:5173/reset-password',
+    );
     for (const origin of [
       'http://example.com',
       'ftp://localhost',

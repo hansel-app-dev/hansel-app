@@ -122,6 +122,45 @@ test('login is accessible and visually stable at desktop, narrow, and 200% zoom 
   ).toBeLessThanOrEqual(640);
 });
 
+for (const [name, storyId, heading] of [
+  [
+    'forgot-password',
+    'authentication-forgotpassword--default',
+    'Forgot your password?',
+  ],
+  [
+    'reset-password',
+    'authentication-resetpassword--default',
+    'Reset your password',
+  ],
+] as const) {
+  test(`${name} is accessible, responsive, and visually stable [password-recovery REQ-020, REQ-022; AC-005, AC-007]`, async ({
+    page,
+  }) => {
+    await page.goto(`/iframe.html?id=${storyId}&viewMode=story`);
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    expect((await analyzeAccessibility(page)).violations).toEqual([]);
+    await expect(page).toHaveScreenshot(`${name}.png`, {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    });
+    await page.keyboard.press('Tab');
+    await expect(page.locator(':focus')).toBeVisible();
+    await page.setViewportSize({ width: 320, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(320);
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = '2';
+    });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(640);
+  });
+}
+
 test('personal profile is accessible and visually stable [REQ-086]', async ({
   page,
 }) => {
