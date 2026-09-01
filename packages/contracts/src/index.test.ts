@@ -33,7 +33,96 @@ import {
   passwordRecoveryRequestResponseSchema,
   passwordResetRequestSchema,
   passwordResetResponseSchema,
+  createSiteRequestSchema,
+  createSiteResponseSchema,
+  sitesPageResponseSchema,
 } from './index.js';
+
+describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () => {
+  it('normalizes a strict two-step creation request and closed destination', () => {
+    expect(
+      createSiteRequestSchema.parse({
+        name: '  Café West  ',
+        organizationAccess: 'VIEW_COMMENT',
+        assignments: [
+          { email: ' ADMIN@EXAMPLE.COM ', role: 'ADMINISTRATOR' },
+          { email: 'viewer@example.com', role: 'VIEWER' },
+        ],
+        idempotencyKey: 'a'.repeat(32),
+      }),
+    ).toEqual({
+      name: 'Café West',
+      organizationAccess: 'VIEW_COMMENT',
+      assignments: [
+        { email: 'admin@example.com', role: 'ADMINISTRATOR' },
+        { email: 'viewer@example.com', role: 'VIEWER' },
+      ],
+      idempotencyKey: 'a'.repeat(32),
+    });
+
+    expect(
+      createSiteResponseSchema.parse({
+        siteId: '7fced42f-e2e4-4c31-89db-f282bdaeea44',
+        destination: '/sites/7fced42f-e2e4-4c31-89db-f282bdaeea44/activity',
+      }),
+    ).toEqual({
+      siteId: '7fced42f-e2e4-4c31-89db-f282bdaeea44',
+      destination: '/sites/7fced42f-e2e4-4c31-89db-f282bdaeea44/activity',
+    });
+  });
+
+  it('publishes only bounded tenant creation context and summaries', () => {
+    expect(
+      sitesPageResponseSchema.parse({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          initials: 'O',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [
+          {
+            email: 'owner@example.com',
+            displayName: 'Owner Example',
+            initials: 'OE',
+          },
+        ],
+        sites: [
+          {
+            id: '7fced42f-e2e4-4c31-89db-f282bdaeea44',
+            name: 'Café West',
+          },
+        ],
+      }),
+    ).toMatchObject({ organizationName: 'Hansel', canCreateSite: true });
+  });
+
+  it.each([
+    ['empty name', { name: '' }],
+    ['long name', { name: '😀'.repeat(101) }],
+    ['bad access', { organizationAccess: 'PUBLIC' }],
+    ['bad email', { assignments: [{ email: 'not-email', role: 'VIEWER' }] }],
+    [
+      'bad role',
+      { assignments: [{ email: 'user@example.com', role: 'OWNER' }] },
+    ],
+    ['short key', { idempotencyKey: 'short' }],
+  ])('rejects %s', (_name, override) => {
+    expect(() =>
+      createSiteRequestSchema.parse({
+        name: 'Main site',
+        organizationAccess: 'VIEW_COMMENT',
+        assignments: [],
+        idempotencyKey: 'a'.repeat(32),
+        ...override,
+      }),
+    ).toThrow();
+  });
+});
 
 describe('password recovery request contract [password-recovery REQ-003, REQ-004]', () => {
   it('normalizes only an email and exposes one generic accepted response', () => {

@@ -146,6 +146,27 @@ test('direct authenticated Sites access renders the Figma empty state and uses s
       }),
     }),
   );
+  await page.route('**/api/sites', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'private, no-store' },
+      body: JSON.stringify({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          initials: 'O',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [],
+        sites: [],
+      }),
+    }),
+  );
 
   await page.goto('/sites');
   await expect(page).toHaveURL(/\/sites$/);

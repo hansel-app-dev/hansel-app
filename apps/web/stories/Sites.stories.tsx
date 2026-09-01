@@ -2,6 +2,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { Sites } from '../src/sites/Sites.js';
+import type { SitesPageResponse } from '@hansel/contracts';
 
 const figmaViewer = {
   viewer: {
@@ -11,11 +12,32 @@ const figmaViewer = {
   },
 };
 
+const emptySitesPage: SitesPageResponse = {
+  organizationName: 'Hansel',
+  canCreateSite: true,
+  canInviteMembers: true,
+  creator: {
+    email: 'owner@example.com',
+    displayName: 'Owner',
+    initials: 'O',
+  },
+  siteLimitReached: false,
+  maximumSites: null,
+  members: [],
+  sites: [],
+};
+
 const meta = {
   title: 'Sites/Empty State',
   component: Sites,
   args: {
+    createSite: () =>
+      Promise.resolve({
+        siteId: 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9',
+        destination: '/sites/ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9/activity',
+      }),
     loadDashboard: () => Promise.resolve(figmaViewer),
+    loadSites: () => Promise.resolve(emptySitesPage),
     logout: () => Promise.resolve(),
   },
   parameters: {
@@ -73,10 +95,39 @@ export const RetryableFailure: Story = {
     await userEvent.tab();
     await expect(canvas.getByRole('link', { name: 'Sites' })).toHaveFocus();
     await userEvent.tab();
+    await expect(
+      canvas.getAllByRole('button', { name: 'New site' })[0],
+    ).toHaveFocus();
+    await userEvent.tab();
     await expect(canvas.getByRole('button', { name: 'Retry' })).toHaveFocus();
   },
 };
 
 export const Narrow: Story = {
   parameters: { viewport: { defaultViewport: 'mobile1' } },
+};
+
+export const Populated: Story = {
+  args: {
+    loadSites: () =>
+      Promise.resolve({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Owner',
+          initials: 'O',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [],
+        sites: [
+          {
+            id: 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9',
+            name: 'Sydney Central',
+          },
+        ],
+      }),
+  },
 };

@@ -16,11 +16,15 @@ Before enabling Welcome delivery, confirm the Aurora backup is current; the `/ha
 
 Before enabling password recovery, deploy both additive password-recovery migrations while `PASSWORD_RECOVERY_ENABLED` is false. Confirm the Resend sender/domain, existing `/api/auth` WAF coverage, trusted-source application limiter, recovery and post-change HTML/plain-text deliveries, generic unknown-account behavior, serializable concurrency test, session revocation, and all password-recovery alarms. Enable the flag only after these gates pass.
 
+Before enabling Sites, deploy the additive site, grant, invitation, idempotency, and delivery-intent migration while `SITES_ENABLED` is false. Confirm the PostgreSQL serializable concurrency test, Owner/Administrator creation boundary, Free one-site and invitation limits, tenant-isolated Activity read, Resend sender/domain, one controlled Viewer invitation, and the desktop and 320-pixel Add Site journeys. Enable `enable_sites` only after these gates pass.
+
 ## Roll back
 
 Disable Welcome delivery first, then re-deploy the last known-good Git commit/image. ECS circuit breaker automatically rolls back unhealthy tasks. Leave the additive delivery table and its pending, delivered, and terminal evidence in place; do not reverse a destructive database migration or delete pending intents. Deploy a forward repair before resuming claims. CloudFront invalidation occurs with web asset deployment.
 
 For password recovery rollback, disable `PASSWORD_RECOVERY_ENABLED` and notification claims before deploying the previous artifact. Preserve initiation, challenge, notification, credential, and session evidence. Do not restore an old password, reactivate a revoked session, unconsume a challenge, or delete pending notification intents.
+
+For Sites rollback, set `enable_sites` to false before deploying the previous artifact. This disables the Sites API and invitation worker together. Preserve created sites, grants, idempotency records, invitations, and delivery intents; leave the additive tables in place and use a reviewed forward migration for any later cleanup.
 
 ## Alarm response
 
@@ -35,3 +39,5 @@ For `PasswordRecoveryUnexpectedAlarm` or `PasswordResetUnexpectedAlarm`, inspect
 For `PasswordResetNotificationTerminalAlarm`, verify Resend health, sender/domain status, secret injection, and sanitized terminal categories. A completed reset must not be reversed. Preserve notification evidence and deploy a forward repair before retrying.
 
 For `PasswordResetNotificationPendingAlarm`, verify worker polling, ECS and Aurora health, and lease recovery. `PasswordResetNotificationOldestPendingAgeSeconds` must remain at or below 900 seconds; missing observations breach only while recovery is enabled. Disable claims, preserve the outbox, and repair before resuming.
+
+For Sites API or invitation-worker failures, inspect the shared API 5xx signal, ECS health, Aurora availability, and categorical site-creation or delivery events. Do not log or copy invitation email addresses, tokens, site names, or provider response bodies. Disable Sites if tenant isolation, atomic creation, or bounded retry cannot be established; preserve the outbox and deploy a forward repair before resuming.

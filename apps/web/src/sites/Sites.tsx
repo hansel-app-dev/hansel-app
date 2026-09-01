@@ -1,18 +1,33 @@
-/** @spec sites-empty-state REQ-001..REQ-013 @figma 2024:9828 */
-import type { DashboardResponse } from '@hansel/contracts';
+/** @spec sites-empty-state REQ-001..REQ-013 @spec sites-add-new REQ-001, REQ-012, REQ-017..REQ-021 @figma 2024:9828, 2029:1630 */
+import { useEffect, useState } from 'react';
+import type {
+  CreateSiteRequest,
+  CreateSiteResponse,
+  DashboardResponse,
+  SitesPageResponse,
+} from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
 import {
   ApplicationShell,
   AppSymbol,
   NotificationSymbol,
 } from '../application-shell/ApplicationShell.js';
+import { AddSiteModal } from './AddSiteModal.js';
 
-function NewSiteButton({ compact = false }: { compact?: boolean }) {
+function NewSiteButton({
+  compact = false,
+  disabled,
+  onClick,
+}: {
+  compact?: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
   return (
     <Button
-      aria-disabled="true"
-      disabled
-      className={`disabled:opacity-100 ${compact ? 'min-h-9 px-4 py-2' : 'mt-6'}`}
+      className={compact ? 'min-h-9 px-4 py-2' : 'mt-6'}
+      disabled={disabled}
+      onClick={onClick}
     >
       <AppSymbol className="mr-2 !size-4 text-[18px]">add</AppSymbol>
       New site
@@ -20,15 +35,38 @@ function NewSiteButton({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function Sites({
-  loadDashboard,
-  logout,
-  navigate,
-}: {
+export interface SitesProps {
+  createSite: (input: CreateSiteRequest) => Promise<CreateSiteResponse>;
   loadDashboard: () => Promise<DashboardResponse>;
+  loadSites: () => Promise<SitesPageResponse>;
   logout: () => Promise<void>;
   navigate?: (destination: string) => void;
-}) {
+}
+
+export function Sites({
+  createSite,
+  loadDashboard,
+  loadSites,
+  logout,
+  navigate,
+}: SitesProps) {
+  const [page, setPage] = useState<SitesPageResponse | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const load = () => {
+    setLoadError(false);
+    void loadSites()
+      .then(setPage)
+      .catch(() => {
+        setLoadError(true);
+      });
+  };
+  useEffect(load, [loadSites]);
+  const openModal = () => {
+    setModalOpen(true);
+  };
+  const createDisabled = !page?.canCreateSite || page.siteLimitReached;
+
   return (
     <ApplicationShell
       activePage="Sites"
@@ -39,56 +77,136 @@ export function Sites({
       headerActions={
         <>
           <NotificationSymbol />
-          <NewSiteButton compact />
+          <NewSiteButton
+            compact
+            disabled={createDisabled}
+            onClick={openModal}
+          />
         </>
       }
     >
-      <section
-        aria-labelledby="sites-empty-heading"
-        className="relative grid min-h-[calc(100vh-68px)] place-items-center px-8 py-24 max-md:min-h-[560px] max-md:px-5"
-      >
-        <div
-          className="absolute right-8 top-6 flex items-center gap-3 max-md:right-5 max-md:top-5"
-          aria-label="Site view"
+      {page?.siteLimitReached ? (
+        <p
+          className="mx-8 mt-6 rounded-control border border-control-border bg-surface-muted px-4 py-3 text-sm text-content-muted max-md:mx-5"
+          role="status"
         >
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            aria-label="Grid view"
-            className="text-[#3f4654] disabled:cursor-not-allowed"
+          Your current plan has reached its site limit.
+        </p>
+      ) : null}
+      {loadError ? (
+        <section className="grid min-h-[calc(100vh-68px)] place-items-center px-5 text-center">
+          <div>
+            <p className="text-sm text-danger" role="alert">
+              We couldn't load sites. Please try again.
+            </p>
+            <Button className="mt-4" onClick={load} variant="secondary">
+              Retry
+            </Button>
+          </div>
+        </section>
+      ) : page?.sites.length ? (
+        <section
+          aria-labelledby="sites-list-heading"
+          className="px-8 py-8 max-md:px-5"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold" id="sites-list-heading">
+              Your sites
+            </h2>
+            <span className="text-sm text-content-muted">
+              {page.sites.length} {page.sites.length === 1 ? 'site' : 'sites'}
+            </span>
+          </div>
+          <ul className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
+            {page.sites.map((site) => (
+              <li key={site.id}>
+                <a
+                  className="flex min-h-32 flex-col justify-between rounded-lg border border-control-border bg-surface p-5 shadow-control hover:border-action-primary focus-visible:outline-2 focus-visible:outline-focus"
+                  href={`/sites/${site.id}/activity`}
+                  onClick={(event) => {
+                    if (!navigate) return;
+                    event.preventDefault();
+                    navigate(`/sites/${site.id}/activity`);
+                  }}
+                >
+                  <AppSymbol
+                    className="!size-7 text-[28px] text-content-muted"
+                    weight={100}
+                  >
+                    map
+                  </AppSymbol>
+                  <span className="mt-6 text-sm font-semibold">
+                    {site.name}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : (
+        <section
+          aria-labelledby="sites-empty-heading"
+          className="relative grid min-h-[calc(100vh-68px)] place-items-center px-8 py-24 max-md:min-h-[560px] max-md:px-5"
+        >
+          <div
+            className="absolute right-8 top-6 flex items-center gap-3 max-md:right-5 max-md:top-5"
+            aria-label="Site view"
           >
-            <AppSymbol weight={100}>grid_view</AppSymbol>
-          </button>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            aria-label="List view"
-            className="text-[#a5a5a5] disabled:cursor-not-allowed"
-          >
-            <AppSymbol weight={100}>view_list</AppSymbol>
-          </button>
-        </div>
-        <div className="flex max-w-sm flex-col items-center text-center">
-          <AppSymbol
-            weight={100}
-            className="!size-14 text-[56px] text-[#a7a7a7]"
-          >
-            map
-          </AppSymbol>
-          <h2
-            id="sites-empty-heading"
-            className="mt-5 text-[18px] font-semibold leading-7"
-          >
-            No sites
-          </h2>
-          <p className="mt-1 text-[15px] leading-6 text-[#737373]">
-            Create a new site to get started.
-          </p>
-          <NewSiteButton />
-        </div>
-      </section>
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-label="Grid view"
+              className="text-[#3f4654] disabled:cursor-not-allowed"
+            >
+              <AppSymbol weight={100}>grid_view</AppSymbol>
+            </button>
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-label="List view"
+              className="text-[#a5a5a5] disabled:cursor-not-allowed"
+            >
+              <AppSymbol weight={100}>view_list</AppSymbol>
+            </button>
+          </div>
+          <div className="flex max-w-sm flex-col items-center text-center">
+            <AppSymbol
+              weight={100}
+              className="!size-14 text-[56px] text-[#a7a7a7]"
+            >
+              map
+            </AppSymbol>
+            <h2
+              id="sites-empty-heading"
+              className="mt-5 text-[18px] font-semibold leading-7"
+            >
+              No sites
+            </h2>
+            <p className="mt-1 text-[15px] leading-6 text-[#737373]">
+              Create a new site to get started.
+            </p>
+            <NewSiteButton disabled={createDisabled} onClick={openModal} />
+          </div>
+        </section>
+      )}
+      {modalOpen && page ? (
+        <AddSiteModal
+          canInviteMembers={page.canInviteMembers}
+          createSite={createSite}
+          creator={page.creator}
+          members={page.members}
+          onClose={() => {
+            setModalOpen(false);
+          }}
+          onCreated={(destination) => {
+            setModalOpen(false);
+            navigate?.(destination);
+          }}
+          organizationName={page.organizationName}
+        />
+      ) : null}
     </ApplicationShell>
   );
 }

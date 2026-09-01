@@ -189,18 +189,36 @@ describe('App [REQ-002]', () => {
   });
 
   it('routes /sites to the authenticated Figma empty state and navigates through the shared shell [sites-empty-state REQ-001..REQ-004]', async () => {
+    const sitesPage = {
+      organizationName: 'Hansel',
+      canCreateSite: true,
+      canInviteMembers: true,
+      creator: {
+        email: 'owner@example.com',
+        displayName: 'Owner',
+        initials: 'O',
+      },
+      siteLimitReached: false,
+      maximumSites: null,
+      members: [],
+      sites: [],
+    };
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(() =>
+      vi.fn().mockImplementation((url: string) =>
         Promise.resolve(
           new Response(
-            JSON.stringify({
-              viewer: {
-                displayName: 'Nabin Singh',
-                initials: 'NS',
-                roleLabel: 'Owner',
-              },
-            }),
+            JSON.stringify(
+              url.endsWith('/api/sites')
+                ? sitesPage
+                : {
+                    viewer: {
+                      displayName: 'Nabin Singh',
+                      initials: 'NS',
+                      roleLabel: 'Owner',
+                    },
+                  },
+            ),
             { status: 200 },
           ),
         ),
@@ -218,6 +236,130 @@ describe('App [REQ-002]', () => {
       screen.getAllByRole('heading', { name: 'Widget title' }),
     ).toHaveLength(4);
     expect(window.location.pathname).toBe('/dashboard');
+  });
+
+  it('creates a site through the modal and opens its authenticated Activity route [sites-add-new REQ-001..REQ-019]', async () => {
+    const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    const fetcher = vi.fn((url: string, init?: RequestInit) => {
+      if (url.endsWith('/api/dashboard'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              viewer: {
+                displayName: 'Nabin Singh',
+                initials: 'NS',
+                roleLabel: 'Owner',
+              },
+            }),
+          ),
+        );
+      if (url.endsWith('/api/sites') && init?.method === 'POST')
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              siteId,
+              destination: `/sites/${siteId}/activity`,
+            }),
+            { status: 201 },
+          ),
+        );
+      if (url.endsWith('/api/sites'))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              organizationName: 'Hansel',
+              canCreateSite: true,
+              canInviteMembers: true,
+              creator: {
+                email: 'owner@example.com',
+                displayName: 'Owner',
+                initials: 'O',
+              },
+              siteLimitReached: false,
+              maximumSites: null,
+              members: [],
+              sites: [],
+            }),
+          ),
+        );
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            site: { id: siteId, name: 'New site' },
+          }),
+        ),
+      );
+    });
+    vi.stubGlobal('fetch', fetcher);
+    render(<App path="/sites" />);
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('button', { name: 'New site' })[0],
+      ).toBeEnabled(),
+    );
+    const newSite = screen.getAllByRole('button', { name: 'New site' }).at(0);
+    if (!newSite) throw new Error('Expected the New site action');
+    fireEvent.click(newSite);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Create site' }));
+    expect(
+      await screen.findByRole('heading', { name: 'New site' }),
+    ).toBeVisible();
+    expect(window.location.pathname).toBe(`/sites/${siteId}/activity`);
+  });
+
+  it('renders direct Activity and returns an expired Activity session to login [sites-add-new REQ-016, REQ-019]', async () => {
+    const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    const activityPath = `/sites/${siteId}/activity`;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              url.endsWith('/api/dashboard')
+                ? {
+                    viewer: {
+                      displayName: 'Nabin Singh',
+                      initials: 'NS',
+                      roleLabel: 'Owner',
+                    },
+                  }
+                : { site: { id: siteId, name: 'Direct site' } },
+            ),
+          ),
+        ),
+      ),
+    );
+    const view = render(<App path={activityPath} />);
+    expect(
+      await screen.findByRole('heading', { name: 'Direct site' }),
+    ).toBeVisible();
+    view.unmount();
+    window.history.replaceState({}, '', activityPath);
+    let dashboardCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.endsWith('/api/dashboard') && dashboardCalls++ < 2)
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                viewer: {
+                  displayName: 'Nabin Singh',
+                  initials: 'NS',
+                  roleLabel: 'Owner',
+                },
+              }),
+            ),
+          );
+        return Promise.resolve(new Response(null, { status: 401 }));
+      }),
+    );
+    render(<App path={activityPath} />);
+    expect(
+      await screen.findByRole('heading', { name: 'Log in to your account' }),
+    ).toBeVisible();
   });
 
   it('returns an unauthenticated Sites page to login [sites-empty-state REQ-002]', async () => {

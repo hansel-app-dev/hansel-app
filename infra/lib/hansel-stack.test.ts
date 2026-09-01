@@ -21,7 +21,7 @@ function template(
   return Template.fromStack(new HanselStack(app, `Test-${stage}`, { stage }));
 }
 
-describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () => {
+describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites-add-new REQ-023]', () => {
   it('uses private compute and an encrypted, protected production database', () => {
     const output = template('production');
     output.hasResourceProperties('AWS::RDS::DBCluster', {
@@ -39,6 +39,7 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
             { Name: 'EMAIL_DELIVERY_MODE', Value: 'resend' },
             { Name: 'DISCOVERY_ENABLED', Value: 'false' },
             { Name: 'DASHBOARD_ENABLED', Value: 'false' },
+            { Name: 'SITES_ENABLED', Value: 'false' },
             { Name: 'LOGIN_ENABLED', Value: 'false' },
             { Name: 'PASSWORD_RECOVERY_ENABLED', Value: 'false' },
             { Name: 'EXTERNAL_AUTH_ENABLED', Value: 'false' },
@@ -246,16 +247,18 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016]', () 
     });
   });
 
-  it('supports a deliberate staged production enablement with the exact callback origin', () => {
+  it('supports a deliberate staged production enablement with the exact callback origin [sites-add-new REQ-023]', () => {
     const output = template('production', {
       domainName: 'app.hanselapp.io',
       loginEnabled: 'true',
       externalAuthEnabled: 'true',
+      sitesEnabled: 'true',
     });
     output.hasResourceProperties('AWS::ECS::TaskDefinition', {
       ContainerDefinitions: Match.arrayWith([
         Match.objectLike({
           Environment: Match.arrayWith([
+            { Name: 'SITES_ENABLED', Value: 'true' },
             { Name: 'LOGIN_ENABLED', Value: 'true' },
             { Name: 'EXTERNAL_AUTH_ENABLED', Value: 'true' },
             {

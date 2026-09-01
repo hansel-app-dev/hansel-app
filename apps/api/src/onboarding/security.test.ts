@@ -103,4 +103,23 @@ describe('onboarding security [REQ-006, REQ-007, REQ-024]', () => {
       security.digestApplicationCredential('same'),
     );
   });
+
+  it('creates deterministic opaque site-invitation tokens and domain-separated digests [sites-add-new REQ-015]', () => {
+    const expiresAt = new Date('2026-09-08T00:00:00.000Z');
+    const first = security.createSiteInvitationToken(
+      '7fced42f-e2e4-4c31-89db-f282bdaeea44',
+      expiresAt,
+    );
+    const second = security.createSiteInvitationToken(
+      '7fced42f-e2e4-4c31-89db-f282bdaeea44',
+      expiresAt,
+    );
+
+    expect(first).toEqual(second);
+    expect(first.token).not.toContain('7fced42f');
+    expect(first.tokenDigest).toHaveLength(64);
+    expect(first.tokenDigest).not.toBe(
+      security.digestApplicationCredential(first.token),
+    );
+  });
 });

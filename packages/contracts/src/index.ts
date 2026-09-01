@@ -520,3 +520,87 @@ export const dashboardResponseSchema = z
   })
   .strict();
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
+
+export const siteRoleSchema = z.enum(['ADMINISTRATOR', 'EDITOR', 'VIEWER']);
+export type SiteRole = z.infer<typeof siteRoleSchema>;
+
+export const siteOrganizationAccessSchema = z.enum([
+  'VIEW_COMMENT',
+  'EDIT_MANAGE',
+]);
+export type SiteOrganizationAccess = z.infer<
+  typeof siteOrganizationAccessSchema
+>;
+
+const siteNameSchema = z
+  .string()
+  .trim()
+  .transform((value) => value.normalize('NFC'))
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .refine((value) => Array.from(value).length <= 100),
+  );
+
+export const siteAssignmentSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().pipe(z.email()),
+    role: siteRoleSchema,
+  })
+  .strict();
+export type SiteAssignment = z.infer<typeof siteAssignmentSchema>;
+
+export const createSiteRequestSchema = z
+  .object({
+    name: siteNameSchema,
+    organizationAccess: siteOrganizationAccessSchema,
+    assignments: z.array(siteAssignmentSchema).max(100),
+    idempotencyKey: z.string().min(32).max(200),
+  })
+  .strict();
+export type CreateSiteRequest = z.infer<typeof createSiteRequestSchema>;
+
+export const createSiteResponseSchema = z
+  .object({
+    siteId: z.uuid(),
+    destination: z.string().regex(/^\/sites\/[0-9a-f-]{36}\/activity$/),
+  })
+  .strict();
+export type CreateSiteResponse = z.infer<typeof createSiteResponseSchema>;
+
+export const siteMemberChoiceSchema = z
+  .object({
+    email: z.email(),
+    displayName: z.string().min(1).max(201),
+    initials: z
+      .string()
+      .min(1)
+      .refine((value) => Array.from(value).length <= 2),
+  })
+  .strict();
+export type SiteMemberChoice = z.infer<typeof siteMemberChoiceSchema>;
+
+export const siteSummarySchema = z
+  .object({ id: z.uuid(), name: siteNameSchema })
+  .strict();
+export type SiteSummary = z.infer<typeof siteSummarySchema>;
+
+export const sitesPageResponseSchema = z
+  .object({
+    organizationName: z.string().min(1).max(200),
+    canCreateSite: z.boolean(),
+    canInviteMembers: z.boolean(),
+    creator: siteMemberChoiceSchema,
+    siteLimitReached: z.boolean(),
+    maximumSites: z.number().int().positive().nullable(),
+    members: z.array(siteMemberChoiceSchema).max(1_000),
+    sites: z.array(siteSummarySchema).max(10_000),
+  })
+  .strict();
+export type SitesPageResponse = z.infer<typeof sitesPageResponseSchema>;
+
+export const siteActivityResponseSchema = z
+  .object({ site: siteSummarySchema })
+  .strict();
+export type SiteActivityResponse = z.infer<typeof siteActivityResponseSchema>;

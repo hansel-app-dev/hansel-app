@@ -641,6 +641,82 @@ test('Sites and authentication use the same shared primary Button color [design-
   expect(sitesColor).toBe(loginColor);
 });
 
+test('Add site steps match the cookbook, remain accessible, and reflow narrowly [sites-add-new REQ-001..REQ-009, REQ-017, REQ-021]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=sites-add-site-modal--step-one&viewMode=story',
+  );
+  await expect(
+    page.getByRole('dialog', { name: 'Add new site' }),
+  ).toBeVisible();
+  await expect(page.getByText('Step 1 of 2')).toBeVisible();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-add-site-step-one.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.goto(
+    '/iframe.html?id=sites-add-site-modal--step-two&viewMode=story',
+  );
+  await expect(page.getByText('Step 2 of 2')).toBeVisible();
+  await expect(page.getByText('Nabin Singh', { exact: true })).toBeVisible();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-add-site-step-two.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  await expect(page).toHaveScreenshot('sites-add-site-step-two-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '200%';
+  });
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
+
+for (const [name, storyId] of [
+  [
+    'sites-add-site-members.png',
+    'sites-add-site-modal--internal-and-external-members',
+  ],
+  ['sites-add-site-paid-seat.png', 'sites-add-site-modal--paid-seat-warning'],
+  ['sites-add-site-pending.png', 'sites-add-site-modal--pending-creation'],
+  ['sites-add-site-failure.png', 'sites-add-site-modal--server-failure'],
+  ['sites-activity.png', 'sites-site-activity--loaded'],
+] as const) {
+  test(`captures ${storyId} in the Add Site regression matrix [sites-add-new REQ-020, REQ-021]`, async ({
+    page,
+  }) => {
+    await page.goto(`/iframe.html?id=${storyId}&viewMode=story`);
+    await expect(page.locator('#storybook-root')).not.toBeEmpty();
+    expect((await analyzeAccessibility(page)).violations).toEqual([]);
+    await expect(page).toHaveScreenshot(name, {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    });
+  });
+}
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

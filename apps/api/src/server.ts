@@ -1,7 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Resend } from 'resend';
-import { createApp, type AuthenticationModule } from './app.js';
+import {
+  createApp,
+  type AuthenticationModule,
+  type SitesModule,
+} from './app.js';
 import { dashboardUrl, loadConfig, passwordResetUrl } from './config.js';
 import { createConsoleVerificationSender } from './onboarding/console-verification-sender.js';
 import { createAccountRegistration } from './onboarding/create-account.js';
@@ -74,6 +78,16 @@ import {
 } from './auth/password-reset-notification-email.js';
 import { createPasswordResetNotificationDispatcher } from './auth/password-reset-notification-dispatcher.js';
 import { createPrismaPasswordResetNotificationStore } from './auth/prisma-password-reset-notification-store.js';
+import { createSitesFeature } from './sites/sites.js';
+import { createPrismaSitesStore } from './sites/prisma-sites-store.js';
+import {
+  createConsoleSiteInvitationSender,
+  createResendSiteInvitationSender,
+  type SiteInvitationEmailInput,
+} from './sites/site-invitation-email.js';
+import { createPrismaSiteInvitationStore } from './sites/prisma-site-invitation-store.js';
+import { createSiteInvitationDispatcher } from './sites/site-invitation-dispatcher.js';
+import { createSiteInvitationWorker } from './sites/site-invitation-worker.js';
 
 configureDatabaseUrl();
 const config = loadConfig();
@@ -97,6 +111,7 @@ let sendPasswordResetNotification: (input: {
   recipient: string;
   intentId: string;
 }) => Promise<string>;
+let sendSiteInvitation: (input: SiteInvitationEmailInput) => Promise<string>;
 if (config.emailDeliveryMode === 'resend') {
   const resend = new Resend(config.resendApiKey);
   sendVerificationCode = createResendVerificationSender(
@@ -123,6 +138,11 @@ if (config.emailDeliveryMode === 'resend') {
     resend,
     config.resendFromEmail,
   );
+  sendSiteInvitation = createResendSiteInvitationSender(
+    resend,
+    config.resendFromEmail,
+    config.allowedOrigin,
+  );
 } else {
   sendVerificationCode = createConsoleVerificationSender();
   sendWelcomeEmail = createConsoleWelcomeSender((name, details) => {
@@ -139,6 +159,9 @@ if (config.emailDeliveryMode === 'resend') {
       logger.info(name, { correlationId: randomUUID() });
     },
   );
+  sendSiteInvitation = createConsoleSiteInvitationSender((name, details) => {
+    logger.info(name, { correlationId: details.invitationId });
+  });
 }
 const verification = createEmailVerification({
   ...security,
@@ -380,6 +403,67 @@ const dashboard = createDashboardSession({
     logger.info(name, { correlationId: randomUUID() });
   },
 });
+const sitesStore = createPrismaSitesStore(
+  prisma,
+  (value) => security.digestApplicationCredential(value),
+  randomUUID,
+);
+const sitesFeature = createSitesFeature({
+  ...sitesStore,
+  createId: randomUUID,
+  createInvitationToken: (invitationId, expiresAt) =>
+    security.createSiteInvitationToken(invitationId, expiresAt),
+  digestRequest: (request) =>
+    security.digestApplicationCredential(
+      `site-request:${JSON.stringify(request)}`,
+    ),
+  now: () => new Date(),
+});
+const resolveSitePrincipal = (credential: string) =>
+  sitesStore.resolvePrincipal(
+    security.digestApplicationCredential(credential),
+    new Date(),
+  );
+const sites: SitesModule = {
+  async load(credential) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal ? sitesFeature.load(principal) : null;
+  },
+  async create(credential, input) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal ? sitesFeature.create(principal, input) : null;
+  },
+  async activity(credential, siteId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal ? sitesFeature.activity(principal, siteId) : null;
+  },
+  recordEvent: (name) => {
+    logger.info(name, { correlationId: randomUUID() });
+  },
+};
+const siteInvitationDispatcher = createSiteInvitationDispatcher({
+  ...createPrismaSiteInvitationStore(prisma),
+  createToken: (invitationId, expiresAt) =>
+    security.createSiteInvitationToken(invitationId, expiresAt).token,
+  send: sendSiteInvitation,
+  workerId: randomUUID(),
+  now: () => new Date(),
+  jitter: Math.random,
+  recordEvent: (name, details) => {
+    logger.info(name, { correlationId: details.deliveryId, ...details });
+  },
+});
+const siteInvitationWorker = createSiteInvitationWorker({
+  runOnce: () => siteInvitationDispatcher.runOnce(),
+  schedule: (callback, intervalMs) => setInterval(callback, intervalMs),
+  cancel: (timer) => {
+    clearInterval(timer as NodeJS.Timeout);
+  },
+  recordEvent: (name) => {
+    logger.error(name, { correlationId: randomUUID() });
+  },
+});
+if (config.sitesEnabled) siteInvitationWorker.start();
 const welcomeEmailDispatcher = createWelcomeEmailDispatcher({
   ...createPrismaWelcomeEmailStore(prisma),
   send: sendWelcomeEmail,
@@ -455,6 +539,7 @@ const server = createApp(
     },
   },
   authentication,
+  sites,
 ).listen(config.port, () => {
   console.log(
     JSON.stringify({
@@ -466,6 +551,7 @@ const server = createApp(
 });
 
 function shutdown(signal: string): void {
+  siteInvitationWorker.stop();
   welcomeEmailWorker.stop();
   passwordLockEmailWorker.stop();
   passwordResetNotificationWorker.stop();

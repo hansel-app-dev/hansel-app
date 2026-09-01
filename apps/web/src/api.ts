@@ -41,6 +41,13 @@ import {
   type PasswordRecoveryRequestResponse,
   type PasswordResetRequest,
   type PasswordResetResponse,
+  createSiteResponseSchema,
+  siteActivityResponseSchema,
+  sitesPageResponseSchema,
+  type CreateSiteRequest,
+  type CreateSiteResponse,
+  type SiteActivityResponse,
+  type SitesPageResponse,
 } from '@hansel/contracts';
 
 export class OnboardingSessionExpiredError extends Error {
@@ -57,6 +64,73 @@ export class LoginAuthenticationError extends Error {
 
 export class PasswordResetRejectedError extends Error {
   readonly code = 'password_reset_rejected';
+}
+
+export type SiteCreateErrorCode =
+  | 'sites_forbidden'
+  | 'sites_upgrade_required'
+  | 'sites_paid_seat_required'
+  | 'sites_conflict'
+  | 'sites_unavailable';
+
+export class SiteCreateError extends Error {
+  constructor(readonly code: SiteCreateErrorCode) {
+    super(code);
+  }
+}
+
+export async function loadSites(
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SitesPageResponse> {
+  const response = await fetcher(`${baseUrl}/api/sites`, {
+    credentials: 'include',
+  });
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('sites_load_failed');
+  return sitesPageResponseSchema.parse(await response.json());
+}
+
+export async function createSite(
+  input: CreateSiteRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<CreateSiteResponse> {
+  const response = await fetcher(`${baseUrl}/api/sites`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) {
+    const error = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    const code = [
+      'sites_forbidden',
+      'sites_upgrade_required',
+      'sites_paid_seat_required',
+      'sites_conflict',
+    ].includes(error.error ?? '')
+      ? (error.error as SiteCreateErrorCode)
+      : 'sites_unavailable';
+    throw new SiteCreateError(code);
+  }
+  return createSiteResponseSchema.parse(await response.json());
+}
+
+export async function loadSiteActivity(
+  siteId: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SiteActivityResponse> {
+  const response = await fetcher(`${baseUrl}/api/sites/${siteId}`, {
+    credentials: 'include',
+  });
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('site_activity_load_failed');
+  return siteActivityResponseSchema.parse(await response.json());
 }
 
 export async function requestPasswordRecovery(

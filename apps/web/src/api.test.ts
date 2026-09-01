@@ -21,6 +21,9 @@ import {
   requestPasswordRecovery,
   resetPassword,
   PasswordResetRejectedError,
+  createSite,
+  loadSiteActivity,
+  loadSites,
 } from './api.js';
 import {
   countryOptions,
@@ -29,6 +32,139 @@ import {
   organizationSizeOptions,
   placeServiceOptions,
 } from '@hansel/contracts';
+
+describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
+  const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+
+  it('loads sites, creates one, and loads its activity contract', async () => {
+    const page = {
+      organizationName: 'Hansel',
+      canCreateSite: true,
+      canInviteMembers: true,
+      creator: {
+        email: 'owner@example.com',
+        displayName: 'Owner',
+        initials: 'O',
+      },
+      siteLimitReached: false,
+      maximumSites: null,
+      members: [],
+      sites: [],
+    };
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(page)))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            siteId,
+            destination: `/sites/${siteId}/activity`,
+          }),
+          { status: 201 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ site: { id: siteId, name: 'New site' } }),
+        ),
+      );
+    const input = {
+      idempotencyKey: 'site-request-00000000000000000001',
+      name: 'New site',
+      organizationAccess: 'VIEW_COMMENT' as const,
+      assignments: [],
+    };
+
+    await expect(loadSites('', fetcher)).resolves.toEqual(page);
+    await expect(createSite(input, '', fetcher)).resolves.toEqual({
+      siteId,
+      destination: `/sites/${siteId}/activity`,
+    });
+    await expect(loadSiteActivity(siteId, '', fetcher)).resolves.toEqual({
+      site: { id: siteId, name: 'New site' },
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(2, '/api/sites', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  });
+
+  it('maps authentication and server-owned create rejections', async () => {
+    const unauthorized = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 401 }));
+    await expect(loadSites('', unauthorized)).rejects.toBeInstanceOf(
+      DashboardAuthenticationRequiredError,
+    );
+    await expect(
+      loadSiteActivity(siteId, '', unauthorized),
+    ).rejects.toBeInstanceOf(DashboardAuthenticationRequiredError);
+    await expect(
+      createSite(
+        {
+          idempotencyKey: 'site-request-00000000000000000001',
+          name: 'New site',
+          organizationAccess: 'VIEW_COMMENT',
+          assignments: [],
+        },
+        '',
+        unauthorized,
+      ),
+    ).rejects.toBeInstanceOf(DashboardAuthenticationRequiredError);
+
+    const limited = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'sites_upgrade_required' }), {
+        status: 409,
+      }),
+    );
+    await expect(
+      createSite(
+        {
+          idempotencyKey: 'site-request-00000000000000000001',
+          name: 'New site',
+          organizationAccess: 'VIEW_COMMENT',
+          assignments: [],
+        },
+        '',
+        limited,
+      ),
+    ).rejects.toMatchObject({
+      code: 'sites_upgrade_required',
+    });
+
+    const unknown = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: 'private_provider_error' }), {
+          status: 503,
+        }),
+      )
+      .mockResolvedValueOnce(new Response('not-json', { status: 503 }));
+    const request = {
+      idempotencyKey: 'site-request-00000000000000000001',
+      name: 'New site',
+      organizationAccess: 'VIEW_COMMENT' as const,
+      assignments: [],
+    };
+    await expect(createSite(request, '', unknown)).rejects.toMatchObject({
+      code: 'sites_unavailable',
+    });
+    await expect(createSite(request, '', unknown)).rejects.toMatchObject({
+      code: 'sites_unavailable',
+    });
+    const unavailableRead = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    await expect(loadSites('', unavailableRead)).rejects.toThrow(
+      'sites_load_failed',
+    );
+    await expect(loadSiteActivity(siteId, '', unavailableRead)).rejects.toThrow(
+      'site_activity_load_failed',
+    );
+  });
+});
 
 describe('login API [user-login REQ-003, REQ-004, REQ-008]', () => {
   it('submits credentials and strictly parses the server-owned destination', async () => {

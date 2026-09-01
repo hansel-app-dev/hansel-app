@@ -18,6 +18,9 @@ import {
   login as loginWithPassword,
   requestPasswordRecovery,
   resetPassword,
+  createSite,
+  loadSiteActivity,
+  loadSites,
 } from './api.js';
 import { ForgotPassword } from './auth/ForgotPassword.js';
 import { Login } from './auth/Login.js';
@@ -30,6 +33,7 @@ import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
 import { Dashboard } from './dashboard/Dashboard.js';
 import { Sites } from './sites/Sites.js';
+import { SiteActivity } from './sites/SiteActivity.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -126,6 +130,12 @@ export function App({
     window.sessionStorage.removeItem(verificationEmailKey);
     returnToLogin();
   };
+  const handleApplicationSession = <T,>(operation: Promise<T>) =>
+    operation.catch((error: unknown) => {
+      if (error instanceof DashboardAuthenticationRequiredError)
+        returnToLogin();
+      throw error;
+    });
   if (currentPath === '/dashboard') {
     return (
       <Dashboard
@@ -138,6 +148,30 @@ export function App({
   if (currentPath === '/sites') {
     return (
       <Sites
+        createSite={(input) =>
+          handleApplicationSession(createSite(input, apiUrl))
+        }
+        loadDashboard={loadAuthenticatedViewer}
+        loadSites={async () => {
+          await loadAuthenticatedViewer();
+          return handleApplicationSession(loadSites(apiUrl));
+        }}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+      />
+    );
+  }
+  const siteActivityMatch = /^\/sites\/([0-9a-f-]{36})\/activity$/.exec(
+    currentPath,
+  );
+  if (siteActivityMatch?.[1]) {
+    const siteId = siteActivityMatch[1];
+    return (
+      <SiteActivity
+        loadActivity={async () => {
+          await loadAuthenticatedViewer();
+          return handleApplicationSession(loadSiteActivity(siteId, apiUrl));
+        }}
         loadDashboard={loadAuthenticatedViewer}
         logout={logoutAuthenticatedViewer}
         navigate={navigate}

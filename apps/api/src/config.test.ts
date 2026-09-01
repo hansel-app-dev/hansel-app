@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { dashboardUrl, loadConfig, passwordResetUrl } from './config.js';
 
-describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-013, REQ-016; password-recovery REQ-021]', () => {
+describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-013, REQ-016; password-recovery REQ-021; sites-add-new REQ-023]', () => {
   const required = {
     PASSWORD_PEPPER: 'password-pepper',
     VERIFICATION_DIGEST_KEY: 'verification-digest-key',
@@ -15,6 +15,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
+      sitesEnabled: true,
       loginEnabled: true,
       passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
@@ -45,6 +46,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       allowedOrigin: 'https://hansel.example',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
+      sitesEnabled: true,
       loginEnabled: true,
       passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
@@ -73,6 +75,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
     expect(loadConfig(production)).toMatchObject({
       runtimeEnvironment: 'production',
       dashboardEnabled: false,
+      sitesEnabled: false,
       loginEnabled: false,
       passwordRecoveryEnabled: false,
       externalAuthEnabled: false,
@@ -121,6 +124,12 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
     expect(
       loadConfig({
         ...production,
+        SITES_ENABLED: 'true',
+      }).sitesEnabled,
+    ).toBe(true);
+    expect(
+      loadConfig({
+        ...production,
         LOGIN_ENABLED: 'true',
       }).loginEnabled,
     ).toBe(true);
@@ -143,6 +152,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       allowedOrigin: 'http://localhost:5173',
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
+      sitesEnabled: true,
       loginEnabled: true,
       passwordRecoveryEnabled: true,
       externalAuthEnabled: false,

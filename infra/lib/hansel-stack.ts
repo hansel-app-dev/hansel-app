@@ -30,6 +30,10 @@ export class HanselStack extends cdk.Stack {
     const welcomeEmailEnabled =
       welcomeEmailContext === 'true' ||
       (welcomeEmailContext === undefined && !production);
+    const sitesContext = this.node.tryGetContext('sitesEnabled') as
+      string | undefined;
+    const sitesEnabled =
+      sitesContext === 'true' || (sitesContext === undefined && !production);
     const loginEnabled = this.node.tryGetContext('loginEnabled') === 'true';
     const passwordRecoveryEnabled =
       this.node.tryGetContext('passwordRecoveryEnabled') === 'true' &&
@@ -196,6 +200,7 @@ export class HanselStack extends cdk.Stack {
             EMAIL_DELIVERY_MODE: 'resend',
             DISCOVERY_ENABLED: production ? 'false' : 'true',
             DASHBOARD_ENABLED: production ? 'false' : 'true',
+            SITES_ENABLED: sitesEnabled ? 'true' : 'false',
             LOGIN_ENABLED: loginEnabled ? 'true' : 'false',
             PASSWORD_RECOVERY_ENABLED: passwordRecoveryEnabled
               ? 'true'

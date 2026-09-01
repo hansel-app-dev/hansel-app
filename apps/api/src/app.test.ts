@@ -15,6 +15,13 @@ import {
 } from './onboarding/discovery.js';
 import { PasswordResetRejectedError } from './auth/password-recovery.js';
 import {
+  SitesConflictError,
+  SitesForbiddenError,
+  SitesNotFoundError,
+  SitesPaidSeatRequiredError,
+  SitesUpgradeRequiredError,
+} from './sites/sites.js';
+import {
   countryOptions,
   discoveryManagementOptions,
   industryOptions,
@@ -38,6 +45,225 @@ const planPage = {
 };
 
 const app = createApp({ allowedOrigin: 'https://app.example.com' });
+
+describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
+  const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+  const page = {
+    organizationName: 'Hansel',
+    canCreateSite: true,
+    canInviteMembers: true,
+    creator: {
+      email: 'owner@example.com',
+      displayName: 'Owner',
+      initials: 'O',
+    },
+    siteLimitReached: false,
+    maximumSites: null,
+    members: [
+      {
+        email: 'owner@example.com',
+        displayName: 'Owner',
+        initials: 'O',
+      },
+    ],
+    sites: [],
+  };
+  const input = {
+    idempotencyKey: 'site-request-00000000000000000001',
+    name: 'New site',
+    organizationAccess: 'VIEW_COMMENT' as const,
+    assignments: [],
+  };
+  const create = (overrides = {}) => {
+    const sites = {
+      load: vi.fn().mockResolvedValue(page),
+      create: vi.fn().mockResolvedValue({
+        siteId,
+        destination: `/sites/${siteId}/activity`,
+      }),
+      activity: vi.fn().mockResolvedValue({
+        site: {
+          id: siteId,
+          name: 'New site',
+        },
+      }),
+      recordEvent: vi.fn(),
+      ...overrides,
+    };
+    return {
+      sites,
+      app: createApp(
+        { allowedOrigin: 'https://app.example.com', sitesEnabled: true },
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        sites,
+      ),
+    };
+  };
+
+  it('loads the tenant-scoped sites page using the private access cookie', async () => {
+    const fixture = create();
+    const response = await request(fixture.app)
+      .get('/api/sites')
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(200, page);
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(fixture.sites.load).toHaveBeenCalledWith('access-token');
+  });
+
+  it('creates a site from a strict same-origin request', async () => {
+    const fixture = create();
+    const response = await request(fixture.app)
+      .post('/api/sites')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', 'hansel_access=access-token')
+      .send(input)
+      .expect(201);
+    expect(response.body.destination).toBe(`/sites/${siteId}/activity`);
+    expect(fixture.sites.create).toHaveBeenCalledWith('access-token', input);
+  });
+
+  it.each([
+    [new SitesForbiddenError(), 403, 'sites_forbidden'],
+    [new SitesUpgradeRequiredError(), 409, 'sites_upgrade_required'],
+    [new SitesPaidSeatRequiredError(), 409, 'sites_paid_seat_required'],
+    [new SitesConflictError(), 409, 'sites_conflict'],
+  ])(
+    'maps domain rejection %s without exposing internals',
+    async (error, status, code) => {
+      const fixture = create({ create: vi.fn().mockRejectedValue(error) });
+      await request(fixture.app)
+        .post('/api/sites')
+        .set('Origin', 'https://app.example.com')
+        .set('Cookie', 'hansel_access=access-token')
+        .send(input)
+        .expect(status, { error: code });
+    },
+  );
+
+  it('rejects unauthenticated, cross-origin, and malformed create requests', async () => {
+    const fixture = create();
+    await request(fixture.app)
+      .get('/api/sites')
+      .expect(401, { error: 'authentication_required' });
+    await request(fixture.app)
+      .post('/api/sites')
+      .set('Origin', 'https://evil.example.com')
+      .set('Cookie', 'hansel_access=access-token')
+      .send(input)
+      .expect(403, { error: 'forbidden' });
+    await request(fixture.app)
+      .post('/api/sites')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', 'hansel_access=access-token')
+      .send({ ...input, unexpected: true })
+      .expect(400, { error: 'invalid_request' });
+  });
+
+  it('loads activity tenant-safely and returns a generic not-found response', async () => {
+    const fixture = create();
+    await request(fixture.app)
+      .get(`/api/sites/${siteId}`)
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(200);
+    const absent = create({
+      activity: vi.fn().mockRejectedValue(new SitesNotFoundError()),
+    });
+    await request(absent.app)
+      .get(`/api/sites/${siteId}`)
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(404, { error: 'site_not_found' });
+    await request(fixture.app)
+      .get('/api/sites/not-a-uuid')
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(400, { error: 'invalid_request' });
+  });
+
+  it('fails closed for expired principals and unavailable dependencies', async () => {
+    const unavailableLoad = create({
+      load: vi.fn().mockRejectedValue(new Error('private')),
+    });
+    await request(unavailableLoad.app)
+      .get('/api/sites')
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(503, { error: 'sites_unavailable' });
+    expect(unavailableLoad.sites.recordEvent).toHaveBeenCalledWith(
+      'sites_load_unavailable',
+    );
+    await request(create({ load: vi.fn().mockResolvedValue(null) }).app)
+      .get('/api/sites')
+      .set('Cookie', 'hansel_access=expired')
+      .expect(401, { error: 'authentication_required' });
+
+    await request(create().app)
+      .post('/api/sites')
+      .set('Origin', 'https://app.example.com')
+      .send(input)
+      .expect(401, { error: 'authentication_required' });
+    await request(create({ create: vi.fn().mockResolvedValue(null) }).app)
+      .post('/api/sites')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', 'hansel_access=expired')
+      .send(input)
+      .expect(401, { error: 'authentication_required' });
+    const unavailableCreate = create({
+      create: vi.fn().mockRejectedValue(new Error('private')),
+    });
+    await request(unavailableCreate.app)
+      .post('/api/sites')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', 'hansel_access=access-token')
+      .send(input)
+      .expect(503, { error: 'sites_unavailable' });
+    expect(unavailableCreate.sites.recordEvent).toHaveBeenCalledWith(
+      'site_create_unavailable',
+    );
+
+    await request(create().app)
+      .get(`/api/sites/${siteId}`)
+      .expect(401, { error: 'authentication_required' });
+    await request(create({ activity: vi.fn().mockResolvedValue(null) }).app)
+      .get(`/api/sites/${siteId}`)
+      .set('Cookie', 'hansel_access=expired')
+      .expect(401, { error: 'authentication_required' });
+    const unavailableActivity = create({
+      activity: vi.fn().mockRejectedValue(new Error('private')),
+    });
+    await request(unavailableActivity.app)
+      .get(`/api/sites/${siteId}`)
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(503, { error: 'sites_unavailable' });
+    expect(unavailableActivity.sites.recordEvent).toHaveBeenCalledWith(
+      'site_activity_unavailable',
+    );
+  });
+
+  it('keeps every sites route behind its rollout boundary', async () => {
+    const sites = create().sites;
+    const disabled = createApp(
+      { allowedOrigin: 'https://app.example.com', sitesEnabled: false },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      sites,
+    );
+    const list = await request(disabled)
+      .get('/api/sites')
+      .expect(404, { error: 'not_found' });
+    const createResponse = await request(disabled)
+      .post('/api/sites')
+      .expect(404, { error: 'not_found' });
+    const activity = await request(disabled)
+      .get(`/api/sites/${siteId}`)
+      .expect(404, { error: 'not_found' });
+    for (const response of [list, createResponse, activity])
+      expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(sites.load).not.toHaveBeenCalled();
+  });
+});
 
 describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
   it.each(['google', 'microsoft', 'apple'])(

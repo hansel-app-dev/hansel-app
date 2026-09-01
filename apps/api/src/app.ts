@@ -28,6 +28,10 @@ import {
   organizationProfilePageResponseSchema,
   organizationProfileRequestSchema,
   organizationProfileResponseSchema,
+  createSiteRequestSchema,
+  createSiteResponseSchema,
+  siteActivityResponseSchema,
+  sitesPageResponseSchema,
   resendOnboardingVerificationRequestSchema,
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
@@ -56,6 +60,10 @@ import {
   type OrganizationProfilePageResponse,
   type OrganizationProfileRequest,
   type OrganizationProfileResponse,
+  type CreateSiteRequest,
+  type CreateSiteResponse,
+  type SiteActivityResponse,
+  type SitesPageResponse,
 } from '@hansel/contracts';
 import type { PasswordLoginResult } from './auth/password-login.js';
 import { PasswordResetRejectedError } from './auth/password-recovery.js';
@@ -75,6 +83,13 @@ import {
   DiscoveryConflictError,
   DiscoveryTransitionError,
 } from './onboarding/discovery.js';
+import {
+  SitesConflictError,
+  SitesForbiddenError,
+  SitesNotFoundError,
+  SitesPaidSeatRequiredError,
+  SitesUpgradeRequiredError,
+} from './sites/sites.js';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
@@ -177,6 +192,19 @@ export interface AuthenticationModule {
     provider: ExternalProvider,
     parameters: Record<string, string>,
   ): Promise<ExternalLoginResult>;
+  recordEvent?(name: string): void;
+}
+
+export interface SitesModule {
+  load(accessCredential: string): Promise<SitesPageResponse | null>;
+  create(
+    accessCredential: string,
+    input: CreateSiteRequest,
+  ): Promise<CreateSiteResponse | null>;
+  activity(
+    accessCredential: string,
+    siteId: string,
+  ): Promise<SiteActivityResponse | null>;
   recordEvent?(name: string): void;
 }
 
@@ -384,11 +412,13 @@ export function createApp(
     loginEnabled?: boolean;
     passwordRecoveryEnabled?: boolean;
     externalAuthEnabled?: boolean;
+    sitesEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
   dashboard?: DashboardModule,
   authentication?: AuthenticationModule,
+  sites?: SitesModule,
 ) {
   const app = express();
   app.disable('x-powered-by');
@@ -932,6 +962,119 @@ export function createApp(
       } catch (error) {
         dashboard.recordEvent?.('dashboard_unexpected_failure');
         throw error;
+      }
+    });
+  }
+  if (sites) {
+    const preparePrivateSiteResponse = (response: express.Response) => {
+      response.set('Cache-Control', 'private, no-store');
+      response.vary('Cookie');
+      response.vary('Origin');
+    };
+    const readApplicationCredential = (request: express.Request) =>
+      readCookie(request.headers.cookie, applicationAccessCookieName);
+
+    app.get('/api/sites', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (config.sitesEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const credential = readApplicationCredential(request);
+      if (!credential) {
+        response.status(401).json({ error: 'authentication_required' });
+        return;
+      }
+      try {
+        const result = await sites.load(credential);
+        if (!result) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        response.json(sitesPageResponseSchema.parse(result));
+      } catch {
+        sites.recordEvent?.('sites_load_unavailable');
+        response.status(503).json({ error: 'sites_unavailable' });
+      }
+    });
+
+    app.post('/api/sites', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (config.sitesEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      if (!hasAllowedFormOrigin(request, config.allowedOrigin)) {
+        response.status(403).json({ error: 'forbidden' });
+        return;
+      }
+      const credential = readApplicationCredential(request);
+      if (!credential) {
+        response.status(401).json({ error: 'authentication_required' });
+        return;
+      }
+      const input = createSiteRequestSchema.safeParse(request.body);
+      if (!input.success) {
+        response.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+      try {
+        const result = await sites.create(credential, input.data);
+        if (!result) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        response.status(201).json(createSiteResponseSchema.parse(result));
+      } catch (error) {
+        if (error instanceof SitesForbiddenError) {
+          response.status(403).json({ error: error.code });
+          return;
+        }
+        if (
+          error instanceof SitesUpgradeRequiredError ||
+          error instanceof SitesPaidSeatRequiredError ||
+          error instanceof SitesConflictError
+        ) {
+          response.status(409).json({ error: error.code });
+          return;
+        }
+        sites.recordEvent?.('site_create_unavailable');
+        response.status(503).json({ error: 'sites_unavailable' });
+      }
+    });
+
+    app.get('/api/sites/:siteId', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (config.sitesEnabled === false) {
+        response.status(404).json({ error: 'not_found' });
+        return;
+      }
+      const parsedSiteId = createSiteResponseSchema.shape.siteId.safeParse(
+        request.params.siteId,
+      );
+      if (!parsedSiteId.success) {
+        response.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+      const credential = readApplicationCredential(request);
+      if (!credential) {
+        response.status(401).json({ error: 'authentication_required' });
+        return;
+      }
+      try {
+        const result = await sites.activity(credential, parsedSiteId.data);
+        if (!result) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        response.json(siteActivityResponseSchema.parse(result));
+      } catch (error) {
+        if (error instanceof SitesNotFoundError) {
+          response.status(404).json({ error: 'site_not_found' });
+          return;
+        }
+        sites.recordEvent?.('site_activity_unavailable');
+        response.status(503).json({ error: 'sites_unavailable' });
       }
     });
   }

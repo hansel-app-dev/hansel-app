@@ -3,6 +3,7 @@ interface BaseAppConfig {
   applicationSessionDigestKey: string;
   contactSalesDestination: string;
   dashboardEnabled: boolean;
+  sitesEnabled: boolean;
   discoveryEnabled: boolean;
   runtimeEnvironment: 'test' | 'production';
   planSelectionEnabled: boolean;
@@ -196,6 +197,10 @@ export function loadConfig(
     dashboardEnabled:
       environment.DASHBOARD_ENABLED === 'true' ||
       (environment.DASHBOARD_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
+    sitesEnabled:
+      environment.SITES_ENABLED === 'true' ||
+      (environment.SITES_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
     discoveryEnabled:
       environment.DISCOVERY_ENABLED === 'true' ||

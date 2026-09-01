@@ -8,6 +8,7 @@ export { ProviderAction, type ProviderActionProps } from './ProviderAction.js';
 export { TextField, type TextFieldProps } from './TextField.js';
 export { SelectField, type SelectFieldProps } from './SelectField.js';
 export { PlanCard } from './PlanCard.js';
+export { Modal, type ModalProps } from './Modal.js';
 export {
   VerificationCodeField,
   type VerificationCodeFieldProps,

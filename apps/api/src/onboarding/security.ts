@@ -57,6 +57,22 @@ export function createOnboardingSecurity({
         .update(`application-session:${credential}`)
         .digest('hex');
     },
+    createSiteInvitationToken(
+      invitationId: string,
+      expiresAt: Date,
+    ): { token: string; tokenDigest: string } {
+      const token = createHmac('sha256', applicationSessionDigestKey)
+        .update(
+          `site-invitation-token:${invitationId}:${expiresAt.toISOString()}`,
+        )
+        .digest('base64url');
+      return {
+        token,
+        tokenDigest: createHmac('sha256', applicationSessionDigestKey)
+          .update(`site-invitation-digest:${token}`)
+          .digest('hex'),
+      };
+    },
     deriveOnboardingCredential(
       credential: string,
       submissionKey: string,

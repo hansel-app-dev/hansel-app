@@ -407,6 +407,124 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/sites:
+    get:
+      operationId: listSites
+      summary: Load the authenticated tenant's site list and creation context
+      security: [{ applicationAccess: [] }]
+      responses:
+        '200':
+          description: Tenant-scoped site summaries and bounded creation choices
+          headers:
+            Cache-Control:
+              required: true
+              schema: { type: string, const: 'private, no-store' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesPageResponse' }
+        '401':
+          description: Application authentication is required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '404':
+          description: Sites is disabled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '503':
+          description: Sites is temporarily unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+    post:
+      operationId: createSite
+      summary: Create one tenant-owned site and its initial access atomically
+      description: The tenant, organization role, plan, site count, existing members, and internal/external classification are derived by the server. Identical retries under one idempotency key return the original site; changed content conflicts. No Stripe operation occurs.
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          description: Exact trusted application origin used for CSRF protection.
+          schema: { type: string, format: uri }
+      security: [{ applicationAccess: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSiteRequest' }
+      responses:
+        '201':
+          description: Site created or an identical request replayed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateSiteResponse' }
+        '400':
+          description: Strict request validation failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '401':
+          description: Application authentication is required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '403':
+          description: Origin or organization authorization failed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '409':
+          description: Plan limit, paid-seat boundary, or idempotency conflict
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '404':
+          description: Sites is disabled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '503':
+          description: Site creation is temporarily unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+  /api/sites/{siteId}:
+    get:
+      operationId: getSiteActivityContext
+      summary: Load the minimal authenticated Activity context for one tenant-owned site
+      parameters:
+        - name: siteId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      security: [{ applicationAccess: [] }]
+      responses:
+        '200':
+          description: Minimal tenant-scoped site context
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SiteActivityResponse' }
+        '400':
+          description: Site identifier is invalid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '401':
+          description: Application authentication is required
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '404':
+          description: Sites is disabled or the site is unavailable to the authenticated tenant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
+        '503':
+          description: Site activity is temporarily unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SitesErrorResponse' }
   /api/onboarding/email-verification/verify:
     post:
       operationId: verifyOnboardingEmail
@@ -829,6 +947,26 @@ components:
         correlationId:
           type: string
           format: uuid
+    SitesErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          enum:
+            [
+              authentication_required,
+              forbidden,
+              invalid_request,
+              not_found,
+              site_not_found,
+              sites_conflict,
+              sites_forbidden,
+              sites_paid_seat_required,
+              sites_unavailable,
+              sites_upgrade_required,
+            ]
     VerifyOnboardingEmailRequest:
       type: object
       additionalProperties: false
@@ -1215,6 +1353,89 @@ components:
             displayName: { type: string, minLength: 1, maxLength: 201 }
             initials: { type: string, minLength: 1, maxLength: 2 }
             roleLabel: { type: string, minLength: 1, maxLength: 100 }
+    SiteRole:
+      type: string
+      enum: [ADMINISTRATOR, EDITOR, VIEWER]
+    SiteAssignment:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/SiteRole' }
+    CreateSiteRequest:
+      type: object
+      additionalProperties: false
+      required: [name, organizationAccess, assignments, idempotencyKey]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        organizationAccess:
+          type: string
+          enum: [VIEW_COMMENT, EDIT_MANAGE]
+        assignments:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/SiteAssignment' }
+        idempotencyKey: { type: string, minLength: 32, maxLength: 200 }
+    CreateSiteResponse:
+      type: object
+      additionalProperties: false
+      required: [siteId, destination]
+      properties:
+        siteId: { type: string, format: uuid }
+        destination:
+          type: string
+          pattern: '^/sites/[0-9a-f-]{36}/activity$'
+    SiteMemberChoice:
+      type: object
+      additionalProperties: false
+      required: [email, displayName, initials]
+      properties:
+        email: { type: string, format: email }
+        displayName: { type: string, minLength: 1, maxLength: 201 }
+        initials: { type: string, minLength: 1, maxLength: 2 }
+    SiteSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 100 }
+    SitesPageResponse:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          organizationName,
+          canCreateSite,
+          canInviteMembers,
+          creator,
+          siteLimitReached,
+          maximumSites,
+          members,
+          sites,
+        ]
+      properties:
+        organizationName: { type: string, minLength: 1, maxLength: 200 }
+        canCreateSite: { type: boolean }
+        canInviteMembers: { type: boolean }
+        creator: { $ref: '#/components/schemas/SiteMemberChoice' }
+        siteLimitReached: { type: boolean }
+        maximumSites: { type: [integer, 'null'], minimum: 1 }
+        members:
+          type: array
+          maxItems: 1000
+          items: { $ref: '#/components/schemas/SiteMemberChoice' }
+        sites:
+          type: array
+          maxItems: 10000
+          items: { $ref: '#/components/schemas/SiteSummary' }
+    SiteActivityResponse:
+      type: object
+      additionalProperties: false
+      required: [site]
+      properties:
+        site: { $ref: '#/components/schemas/SiteSummary' }
     HealthResponse:
       type: object
       additionalProperties: false

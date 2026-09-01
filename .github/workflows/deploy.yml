@@ -13,6 +13,11 @@ on:
         required: true
         default: false
         type: boolean
+      enable_sites:
+        description: Enable Sites only after its additive migration and checks
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -50,6 +55,7 @@ jobs:
           STACK_NAME: Hansel-${{ inputs.environment }}
           CHANGE_SET_NAME: hansel-${{ inputs.environment }}-${{ github.run_id }}
           WELCOME_EMAIL_ENABLED: ${{ inputs.enable_welcome_email }}
+          SITES_ENABLED: ${{ inputs.enable_sites }}
           DOMAIN_NAME: ${{ vars.DOMAIN_NAME }}
           CERTIFICATE_ARN: ${{ vars.CLOUDFRONT_CERTIFICATE_ARN }}
         run: |
@@ -61,6 +67,7 @@ jobs:
               --context stage=${{ inputs.environment }} \
               --context deployWeb=true \
               --context welcomeEmailEnabled="$WELCOME_EMAIL_ENABLED" \
+              --context sitesEnabled="$SITES_ENABLED" \
               --context domainName="$DOMAIN_NAME" \
               --context certificateArn="$CERTIFICATE_ARN"
             echo "bootstrap=false" >> "$GITHUB_OUTPUT"
@@ -71,6 +78,7 @@ jobs:
               --context deployWeb=true \
               --context migrationBootstrap=true \
               --context welcomeEmailEnabled=false \
+              --context sitesEnabled=false \
               --context domainName="$DOMAIN_NAME" \
               --context certificateArn="$CERTIFICATE_ARN"
             echo "bootstrap=true" >> "$GITHUB_OUTPUT"
@@ -127,4 +135,4 @@ jobs:
         run: pnpm --filter @hansel/infra cdk deploy --method execute-change-set --change-set-name hansel-${{ inputs.environment }}-${{ github.run_id }} --require-approval never --context stage=${{ inputs.environment }}
       - name: Roll out service after first-environment migration
         if: ${{ steps.prepare.outputs.bootstrap == 'true' }}
-        run: pnpm --filter @hansel/infra cdk deploy --require-approval never --context stage=${{ inputs.environment }} --context deployWeb=true --context welcomeEmailEnabled=${{ inputs.enable_welcome_email }} --context domainName=${{ vars.DOMAIN_NAME }} --context certificateArn=${{ vars.CLOUDFRONT_CERTIFICATE_ARN }}
+        run: pnpm --filter @hansel/infra cdk deploy --require-approval never --context stage=${{ inputs.environment }} --context deployWeb=true --context welcomeEmailEnabled=${{ inputs.enable_welcome_email }} --context sitesEnabled=${{ inputs.enable_sites }} --context domainName=${{ vars.DOMAIN_NAME }} --context certificateArn=${{ vars.CLOUDFRONT_CERTIFICATE_ARN }}

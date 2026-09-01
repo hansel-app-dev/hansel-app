@@ -59,6 +59,24 @@ enum ExternalAuthIntent {
   ONBOARDING
 }
 
+enum SiteOrganizationAccess {
+  VIEW_COMMENT
+  EDIT_MANAGE
+}
+
+enum SiteRole {
+  ADMINISTRATOR
+  EDITOR
+  VIEWER
+}
+
+enum SiteInvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
 model User {
   id                            String                               @id @default(uuid()) @db.Uuid
   email                         String                               @unique
@@ -278,17 +296,19 @@ model OnboardingJourney {
 }
 
 model Tenant {
-  id                String                     @id @default(uuid()) @db.Uuid
-  name              String
-  country           String
-  industry          String
-  placeService      String
-  organizationSize  String
-  memberships       Membership[]
-  onboardingJourney OnboardingJourney?
-  sessionFamilies   ApplicationSessionFamily[]
-  createdAt         DateTime                   @default(now())
-  updatedAt         DateTime                   @updatedAt
+  id                   String                     @id @default(uuid()) @db.Uuid
+  name                 String
+  country              String
+  industry             String
+  placeService         String
+  organizationSize     String
+  memberships          Membership[]
+  onboardingJourney    OnboardingJourney?
+  sessionFamilies      ApplicationSessionFamily[]
+  sites                Site[]
+  siteCreationRequests SiteCreationRequest[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
 }
 
 model OrganizationProfileSubmission {
@@ -353,17 +373,108 @@ model EmailDeliveryIntent {
 }
 
 model Membership {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  tenantId  String   @db.Uuid
-  roleId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @db.Uuid
+  tenantId     String      @db.Uuid
+  roleId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdSites Site[]      @relation("SiteCreator")
+  siteGrants   SiteGrant[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
   @@unique([userId, tenantId])
+  @@unique([id, tenantId])
   @@index([tenantId])
+}
+
+model Site {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  tenantId              String                 @db.Uuid
+  createdByMembershipId String                 @db.Uuid
+  name                  String
+  organizationAccess    SiteOrganizationAccess
+  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy             Membership             @relation("SiteCreator", fields: [createdByMembershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  grants                SiteGrant[]
+  invitations           SiteInvitation[]
+  creationRequests      SiteCreationRequest[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([tenantId, createdAt])
+}
+
+model SiteGrant {
+  id           String     @id @default(uuid()) @db.Uuid
+  siteId       String     @db.Uuid
+  membershipId String     @db.Uuid
+  tenantId     String     @db.Uuid
+  role         SiteRole
+  site         Site       @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  membership   Membership @relation(fields: [membershipId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([siteId, membershipId])
+  @@index([membershipId])
+}
+
+model SiteInvitation {
+  id          String                        @id @default(uuid()) @db.Uuid
+  siteId      String                        @db.Uuid
+  tenantId    String                        @db.Uuid
+  email       String
+  role        SiteRole
+  tokenDigest String                        @unique @db.VarChar(64)
+  status      SiteInvitationStatus          @default(PENDING)
+  expiresAt   DateTime
+  site        Site                          @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  delivery    SiteInvitationDeliveryIntent?
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+
+  @@unique([siteId, email])
+  @@unique([id, tenantId])
+  @@index([email, status])
+  @@index([expiresAt])
+}
+
+model SiteInvitationDeliveryIntent {
+  id             String              @id @default(uuid()) @db.Uuid
+  invitationId   String              @unique @db.Uuid
+  tenantId       String              @db.Uuid
+  status         EmailDeliveryStatus @default(PENDING)
+  attempts       Int                 @default(0)
+  nextAttemptAt  DateTime
+  leaseOwner     String?             @db.VarChar(128)
+  leaseExpiresAt DateTime?
+  deliveredAt    DateTime?
+  terminalAt     DateTime?
+  providerId     String?             @db.VarChar(256)
+  lastErrorCode  String?             @db.VarChar(64)
+  invitation     SiteInvitation      @relation(fields: [invitationId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([invitationId, tenantId])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
+}
+
+model SiteCreationRequest {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  keyDigest     String   @db.VarChar(64)
+  requestDigest String   @db.VarChar(64)
+  siteId        String   @db.Uuid
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site          Site     @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdAt     DateTime @default(now())
+
+  @@unique([tenantId, keyDigest])
+  @@index([siteId])
 }
 
 model ApplicationSessionFamily {
