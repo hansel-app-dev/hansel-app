@@ -619,6 +619,28 @@ test('Sites retry state is keyboard reachable and accessible [sites-empty-state 
   expect((await analyzeAccessibility(page)).violations).toEqual([]);
 });
 
+test('Sites and authentication use the same shared primary Button color [design-system-foundation REQ-004, REQ-014; sites-empty-state REQ-004, REQ-005]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=authentication-login--default&viewMode=story',
+  );
+  const loginColor = await page
+    .getByRole('button', { name: 'Log in' })
+    .evaluate((button) => getComputedStyle(button).backgroundColor);
+
+  await page.goto(
+    '/iframe.html?id=sites-empty-state--figma-empty&viewMode=story',
+  );
+  const sitesColor = await page
+    .getByRole('button', { name: 'New site' })
+    .first()
+    .evaluate((button) => getComputedStyle(button).backgroundColor);
+
+  expect(loginColor).toBe('rgb(72, 84, 99)');
+  expect(sitesColor).toBe(loginColor);
+});
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

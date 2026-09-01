@@ -45,7 +45,7 @@ export function AuthFormLayout({
           {heading}
         </h1>
 
-        <div className="grid gap-4 [&_form]:grid [&_form]:gap-4 [&_form>button[type=submit]]:justify-self-start [&_form>button[type=submit]]:!border-[#485463] [&_form>button[type=submit]]:!bg-[#485463] [&_form>button[type=submit]]:!text-white [&_form>button[type=submit]]:hover:!bg-[#3d4855]">
+        <div className="grid gap-4 [&_form]:grid [&_form]:gap-4 [&_form>button[type=submit]]:justify-self-start">
           {children}
         </div>
 

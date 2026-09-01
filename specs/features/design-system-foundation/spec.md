@@ -5,6 +5,7 @@
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-01`
+- Product clarification: `User confirmed on 2026-09-01 that Sites and authentication primary actions must use the same shared Button component and Figma color`
 
 ## Problem
 
@@ -27,7 +28,7 @@ Hansel has a version-controlled frontend design-system foundation whose semantic
 - REQ-001: The web workspace MUST define named semantic Tailwind CSS tokens for verified Hansel colors, typography, spacing, radii, borders, shadows, and focus treatment; reusable components MUST consume semantic tokens instead of unexplained raw values.
 - REQ-002: The initial verified sources MUST include Figma `Foundation / Brown / brown-500` (`#634739`), `Foundation / Off-white / off-white-500` (`#F7F5EB`), `Colours / Greys / White` (`#FFFFFF`), and the Figtree typeface used by onboarding frame `1:3`. The web application and Storybook MUST bundle and load Figtree rather than relying on its presence on the user's device; unverified brand, state, or typography values MUST NOT be presented as Figma-derived tokens.
 - REQ-003: The design-system module MUST expose `Button`, `TextField`, `AuthFormLayout`, and `ProviderAction` through one public barrel interface and MUST keep Tailwind class composition inside their implementations.
-- REQ-004: `Button` MUST support native button attributes, visible keyboard focus, disabled behavior, and only the observed `primary` and `secondary` visual variants; its default `type` MUST be `button` to prevent accidental form submission.
+- REQ-004: `Button` MUST support native button attributes, visible keyboard focus, disabled behavior, and only the observed `primary` and `secondary` visual variants; its default `type` MUST be `button` to prevent accidental form submission. Every primary Button MUST obtain the Figma slate action color `#485463` and its `#3D4855` hover state from the shared semantic action tokens; product pages and layout components MUST NOT replace the component's base color with page-specific classes.
 - REQ-005: `TextField` MUST support native input attributes, a programmatically associated visible label, optional description, optional error, invalid and disabled states, visible keyboard focus, and deterministic accessible-description relationships without requiring callers to construct IDs.
 - REQ-006: The design-system interfaces MUST use typed React composition and MUST NOT expose raw Tailwind class strings as a required caller concern; an optional `className` escape hatch MAY be accepted for layout integration.
 - REQ-007: An isolated Storybook workbench MUST document every initial primitive and its meaningful states without coupling stories to application APIs, authentication, or PostgreSQL.

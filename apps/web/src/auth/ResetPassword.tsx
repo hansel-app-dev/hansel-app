@@ -212,7 +212,7 @@ export function ResetPassword({
             {...register('confirmPassword')}
           />
           <Button
-            className="justify-self-start !border-[#485463] !bg-[#485463] !text-white hover:!bg-[#3d4855]"
+            className="justify-self-start"
             disabled={isSubmitting || isRequesting}
             type="submit"
           >

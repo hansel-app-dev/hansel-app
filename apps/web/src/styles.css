@@ -31,11 +31,11 @@
   --color-content: #292524;
   --color-content-muted: #57534e;
   --color-content-subtle: #78716c;
-  --color-action-primary: var(--color-foundation-brown-500);
-  --color-action-primary-hover: #4f382d;
+  --color-action-primary: #485463;
+  --color-action-primary-hover: #3d4855;
   --color-on-action: var(--color-foundation-white);
   --color-control-border: #d6d3d1;
-  --color-focus: var(--color-foundation-brown-500);
+  --color-focus: var(--color-action-primary);
   --color-danger: #b42318;
 
   --font-sans:
