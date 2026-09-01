@@ -35,7 +35,7 @@ section {
 }
 .login-panel {
   width: min(100%, 350px);
-  margin-top: 88px;
+  margin-top: 88.5px;
   gap: 40px;
 }
 .login-panel h1 {
@@ -46,6 +46,25 @@ section {
 .login-form-group {
   display: grid;
   gap: 16px;
+}
+.login-panel form {
+  gap: 16px;
+}
+.auth-field {
+  display: grid;
+  gap: 8px;
+}
+.login-panel input,
+.login-panel button,
+.login-panel nav a {
+  border-radius: 4px;
+  font-size: 14px;
+}
+.login-panel input {
+  margin: 0;
+}
+.login-panel button {
+  font-weight: 500;
 }
 h1 {
   margin: 0;

@@ -138,6 +138,7 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     );
     expect(response.text).toContain('action="/api/auth/login" method="post"');
     expect(response.text).toContain('autocomplete="current-password"');
+    expect(response.text.match(/class="auth-field"/g)).toHaveLength(2);
     for (const provider of ['google', 'microsoft', 'apple'])
       expect(response.text).toContain(`/auth/start/${provider}?intent=login`);
     for (const provider of ['google', 'microsoft', 'apple'])

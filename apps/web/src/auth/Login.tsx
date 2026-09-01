@@ -5,7 +5,12 @@ import type { LoginRequest, LoginResponse } from '@hansel/contracts';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
-import { Button, TextField } from '../design-system/index.js';
+import {
+  AuthFormLayout,
+  Button,
+  ProviderAction,
+  TextField,
+} from '../design-system/index.js';
 import { LoginAuthenticationError } from '../api.js';
 
 const loginSchema = yup
@@ -25,11 +30,7 @@ const loginSchema = yup
 
 type LoginForm = yup.InferType<typeof loginSchema>;
 
-const providers = [
-  { iconClassName: 'size-6', id: 'google', name: 'Google' },
-  { iconClassName: 'size-6', id: 'microsoft', name: 'Microsoft' },
-  { iconClassName: 'h-6 w-5', id: 'apple', name: 'Apple' },
-] as const;
+const providers = ['google', 'microsoft', 'apple'] as const;
 
 export interface LoginProps {
   login: (input: LoginRequest) => Promise<LoginResponse>;
@@ -76,119 +77,64 @@ export function Login({ login, onLoggedIn }: LoginProps) {
   });
 
   return (
-    <main className="relative min-h-screen bg-white px-5 py-8 text-content sm:p-[30px]">
-      <a
-        aria-label="Hansel home"
-        className="inline-flex h-5 w-[114px] no-underline sm:absolute sm:left-[30px] sm:top-[30px]"
-        href="/"
-      >
-        <img
-          alt=""
-          aria-hidden="true"
-          className="h-5 w-[114px]"
-          src="/assets/hansel-logo-beta.svg"
-        />
-      </a>
-
-      <section
-        aria-labelledby="login-heading"
-        className="mx-auto grid w-full max-w-[350px] gap-10 pt-14 sm:pt-28"
-      >
-        <h1
-          className="text-[27px] font-normal tracking-[0.3px]"
-          id="login-heading"
-        >
-          Log in to your account
-        </h1>
-
-        <div className="grid gap-4">
-          {passwordResetSucceeded ? (
-            <p className="text-sm text-content-muted" role="status">
-              Your password has been reset. Log in with your new password.
-            </p>
-          ) : null}
-
-          {serverError ? (
-            <p className="text-sm text-danger" role="alert">
-              {serverError}
-            </p>
-          ) : null}
-
-          <form className="grid gap-4" noValidate onSubmit={submit}>
-            <TextField
-              autoComplete="email"
-              error={errors.email?.message}
-              label="Email"
-              placeholder="your@email.com"
-              type="email"
-              {...register('email')}
-            />
-            <TextField
-              autoComplete="current-password"
-              error={errors.password?.message}
-              label="Password"
-              placeholder="Password"
-              type="password"
-              {...register('password')}
-            />
-            <a
-              className="justify-self-start text-sm underline"
-              href="/forgot-password"
-            >
-              Forgot password?
-            </a>
-            <Button
-              className="justify-self-start !border-[#485463] !bg-[#485463] !text-white hover:!bg-[#3d4855]"
-              disabled={isSubmitting}
-              type="submit"
-            >
-              Log in
-            </Button>
-          </form>
-        </div>
-
-        <div className="grid gap-6">
-          <div
-            aria-hidden="true"
-            className="flex items-center gap-2 text-sm text-content-muted"
-          >
-            <span>or log in with</span>
-            <img
-              alt=""
-              className="h-px min-w-0 flex-1"
-              data-testid="login-provider-divider"
-              src="/assets/login-provider-divider.svg"
-            />
-          </div>
-
-          <div className="grid gap-[14px]">
-            {providers.map(({ iconClassName, id, name }) => (
-              <a
-                className="inline-flex min-h-10 w-full items-center justify-center gap-4 rounded-control border-control border-[#afaea7] bg-surface px-control-inline py-control-block text-sm font-normal text-content shadow-control no-underline hover:bg-surface-muted focus-visible:outline-solid focus-visible:outline-[length:var(--focus-ring-width)] focus-visible:outline-offset-[var(--focus-ring-offset)] focus-visible:outline-focus"
-                href={`/auth/start/${id}?intent=login`}
-                key={id}
-              >
-                <span className="flex w-6 shrink-0 justify-center">
-                  <img
-                    alt=""
-                    aria-hidden="true"
-                    className={iconClassName}
-                    src={`/assets/${id}-logo.svg`}
-                  />
-                </span>
-                Continue with {name}
-              </a>
-            ))}
-          </div>
-        </div>
-
+    <AuthFormLayout
+      footer={
         <p className="text-sm text-content-muted">
           Don&apos;t have an account?{' '}
           <a className="underline" href="/onboarding">
             Create an account
           </a>
         </p>
-      </section>
-    </main>
+      }
+      heading="Log in to your account"
+      providerActions={providers.map((provider) => (
+        <ProviderAction
+          href={`/auth/start/${provider}?intent=login`}
+          key={provider}
+          provider={provider}
+        />
+      ))}
+      providerLabel="or log in with"
+    >
+      {passwordResetSucceeded ? (
+        <p className="text-sm text-content-muted" role="status">
+          Your password has been reset. Log in with your new password.
+        </p>
+      ) : null}
+
+      {serverError ? (
+        <p className="text-sm text-danger" role="alert">
+          {serverError}
+        </p>
+      ) : null}
+
+      <form noValidate onSubmit={submit}>
+        <TextField
+          autoComplete="email"
+          error={errors.email?.message}
+          label="Email"
+          placeholder="your@email.com"
+          type="email"
+          {...register('email')}
+        />
+        <TextField
+          autoComplete="current-password"
+          error={errors.password?.message}
+          label="Password"
+          placeholder="Password"
+          type="password"
+          {...register('password')}
+        />
+        <a
+          className="justify-self-start text-sm underline"
+          href="/forgot-password"
+        >
+          Forgot password?
+        </a>
+        <Button disabled={isSubmitting} type="submit">
+          Log in
+        </Button>
+      </form>
+    </AuthFormLayout>
   );
 }

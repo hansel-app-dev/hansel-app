@@ -72,10 +72,9 @@ describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
         `/assets/${provider.toLowerCase()}-logo.svg`,
       );
     }
-    expect(screen.getByTestId('login-provider-divider')).toHaveAttribute(
-      'src',
-      '/assets/login-provider-divider.svg',
-    );
+    expect(
+      screen.getByTestId('auth-provider-divider').querySelector('img'),
+    ).toHaveAttribute('src', '/assets/login-provider-divider.svg');
     expect(
       screen.queryByText(/By creating an account/),
     ).not.toBeInTheDocument();

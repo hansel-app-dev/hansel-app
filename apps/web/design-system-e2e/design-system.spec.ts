@@ -18,9 +18,92 @@ async function analyzeAccessibility(page: Page) {
   throw new Error('Accessibility analysis did not complete.');
 }
 
+async function authFormStyle(page: Page) {
+  return page.evaluate(() => {
+    const section = document.querySelector('section');
+    const heading = section?.querySelector('h1');
+    const form = section?.querySelector('form');
+    const input = form?.querySelector('input');
+    const primaryAction = form?.querySelector('button');
+    const providerAction = [...document.querySelectorAll('button, a')].find(
+      (element) => element.textContent.includes('Continue with Google'),
+    );
+    if (
+      !section ||
+      !heading ||
+      !form ||
+      !input ||
+      !primaryAction ||
+      !providerAction?.parentElement
+    )
+      throw new Error('Authentication form is incomplete.');
+
+    const sectionStyle = getComputedStyle(section);
+    const headingStyle = getComputedStyle(heading);
+    const formStyle = getComputedStyle(form);
+    const inputStyle = getComputedStyle(input);
+    const primaryStyle = getComputedStyle(primaryAction);
+    const providerStyle = getComputedStyle(providerAction);
+    const providerGroupStyle = getComputedStyle(providerAction.parentElement);
+    return {
+      field: {
+        borderColor: inputStyle.borderColor,
+        borderRadius: inputStyle.borderRadius,
+        fontSize: inputStyle.fontSize,
+        height: input.getBoundingClientRect().height,
+        paddingInline: `${inputStyle.paddingLeft} ${inputStyle.paddingRight}`,
+      },
+      form: { rowGap: formStyle.rowGap },
+      heading: {
+        fontSize: headingStyle.fontSize,
+        fontWeight: headingStyle.fontWeight,
+        letterSpacing: headingStyle.letterSpacing,
+      },
+      primaryAction: {
+        backgroundColor: primaryStyle.backgroundColor,
+        borderRadius: primaryStyle.borderRadius,
+        fontSize: primaryStyle.fontSize,
+        fontWeight: primaryStyle.fontWeight,
+        height: primaryAction.getBoundingClientRect().height,
+        widthMode:
+          primaryAction.getBoundingClientRect().width ===
+          form.getBoundingClientRect().width
+            ? 'full'
+            : 'content',
+      },
+      providerAction: {
+        borderColor: providerStyle.borderColor,
+        borderRadius: providerStyle.borderRadius,
+        columnGap: providerStyle.columnGap,
+        fontSize: providerStyle.fontSize,
+        fontWeight: providerStyle.fontWeight,
+        height: providerAction.getBoundingClientRect().height,
+      },
+      providerGroup: { rowGap: providerGroupStyle.rowGap },
+      section: {
+        paddingTop: sectionStyle.paddingTop,
+        rowGap: sectionStyle.rowGap,
+        width: section.getBoundingClientRect().width,
+      },
+    };
+  });
+}
+
 const stories = [
   ['button-states', 'design-system-button--states', 'button', 'Primary action'],
   ['text-field-states', 'design-system-textfield--states', 'textbox', 'Email'],
+  [
+    'provider-action-states',
+    'design-system-provideraction--providers',
+    'button',
+    'Continue with Google',
+  ],
+  [
+    'auth-form-layout',
+    'design-system-authformlayout--default',
+    'textbox',
+    'Email',
+  ],
   [
     'select-field-states',
     'design-system-selectfield--states',
@@ -70,9 +153,11 @@ test('onboarding account creation is accessible and visually stable [AC-053, REQ
   await expect(
     page.getByRole('button', { name: 'Create with email' }),
   ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Continue with Google' }),
-  ).toHaveCSS('column-gap', '8px');
+  const googleProvider = page.getByRole('button', {
+    name: 'Continue with Google',
+  });
+  await expect(googleProvider.locator('img')).toHaveCount(1);
+  await expect(googleProvider).toHaveCSS('column-gap', '16px');
 
   const accessibility = await analyzeAccessibility(page);
   expect(accessibility.violations).toEqual([]);
@@ -81,6 +166,28 @@ test('onboarding account creation is accessible and visually stable [AC-053, REQ
     fullPage: true,
     maxDiffPixelRatio: 0.001,
   });
+});
+
+test('onboarding and login share one authentication form composition [design-system-foundation AC-007, REQ-014]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=onboarding-account-creation--default&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: "Let's get started" }),
+  ).toBeVisible();
+  const onboardingStyle = await authFormStyle(page);
+
+  await page.goto(
+    '/iframe.html?id=authentication-login--default&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Log in to your account' }),
+  ).toBeVisible();
+  const loginStyle = await authFormStyle(page);
+
+  expect(onboardingStyle).toEqual(loginStyle);
 });
 
 test('login is accessible and visually stable at desktop, narrow, and 200% zoom [user-login AC-005, REQ-019, REQ-022]', async ({
@@ -100,7 +207,7 @@ test('login is accessible and visually stable at desktop, narrow, and 200% zoom 
     await expect(providerLink.locator('img')).toHaveCount(1);
     await expect(providerLink).toHaveCSS('column-gap', '16px');
   }
-  await expect(page.getByTestId('login-provider-divider')).toBeVisible();
+  await expect(page.getByTestId('auth-provider-divider')).toBeVisible();
   expect((await analyzeAccessibility(page)).violations).toEqual([]);
   await expect(page).toHaveScreenshot('login-default.png', {
     animations: 'disabled',
