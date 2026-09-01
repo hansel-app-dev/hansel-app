@@ -564,6 +564,61 @@ test('dashboard account menu is accessible and reflows at 320px [dashboard-logou
   });
 });
 
+test('Sites empty state matches Figma, remains accessible, and reflows at 320px [sites-empty-state REQ-001, REQ-005..REQ-012]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto(
+    '/iframe.html?id=sites-empty-state--figma-empty&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Sites', level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'No sites', level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByText('John Smith')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New site' })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: 'Grid view' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'List view' })).toBeDisabled();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-empty-state.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-empty-state-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(640);
+});
+
+test('Sites retry state is keyboard reachable and accessible [sites-empty-state REQ-002, REQ-008, REQ-011, REQ-012]', async ({
+  page,
+}) => {
+  await page.goto(
+    '/iframe.html?id=sites-empty-state--retryable-failure&viewMode=story',
+  );
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Retry' })).toBeFocused();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+});
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

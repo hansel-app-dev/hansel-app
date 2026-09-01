@@ -129,7 +129,53 @@ test('authenticated dashboard renders the Figma shell and reflows at 320px [dash
   ).toBeLessThanOrEqual(320);
 });
 
-test('dashboard redirects generic authentication failures and retries server failures [dashboard-home REQ-012, REQ-016, REQ-018]', async ({
+test('direct authenticated Sites access renders the Figma empty state and uses shared navigation [sites-empty-state REQ-001..REQ-004, REQ-008, REQ-012, REQ-013]', async ({
+  page,
+}) => {
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'cache-control': 'private, no-store' },
+      body: JSON.stringify({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+    }),
+  );
+
+  await page.goto('/sites');
+  await expect(page).toHaveURL(/\/sites$/);
+  await expect(
+    page.getByRole('heading', { name: 'No sites', level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'New site' })).toHaveCount(2);
+  await expect(page.getByRole('link', { name: 'Sites' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeFocused();
+
+  await page.setViewportSize({ width: 320, height: 900 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+
+  await page.getByRole('link', { name: 'Dashboard' }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(
+    page.getByRole('heading', { name: 'Widget title', level: 2 }),
+  ).toHaveCount(4);
+  await page.getByRole('link', { name: 'Sites' }).click();
+  await expect(page).toHaveURL(/\/sites$/);
+});
+
+test('private application pages redirect generic authentication failures and Dashboard retries server failures [dashboard-home REQ-012, REQ-016, REQ-018; sites-empty-state REQ-002, REQ-012]', async ({
   page,
 }) => {
   await page.route('**/api/dashboard', (route) =>
@@ -140,6 +186,12 @@ test('dashboard redirects generic authentication failures and retries server fai
     }),
   );
   await page.goto('/dashboard');
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(
+    page.getByRole('heading', { name: 'Log in to your account' }),
+  ).toBeVisible();
+
+  await page.goto('/sites');
   await expect(page).toHaveURL(/\/login$/);
   await expect(
     page.getByRole('heading', { name: 'Log in to your account' }),
@@ -167,6 +219,10 @@ test('dashboard redirects generic authentication failures and retries server fai
   });
   await page.goto('/dashboard');
   await expect(page.getByRole('alert')).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Dashboard' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Sites' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Retry' })).toBeFocused();
   await page.getByRole('button', { name: 'Retry' }).click();

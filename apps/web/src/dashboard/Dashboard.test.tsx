@@ -74,7 +74,11 @@ describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
       'aria-current',
       'page',
     );
-    for (const label of ['Sites', 'Styleguide', 'Documents']) {
+    expect(navigation.getByRole('link', { name: 'Sites' })).toHaveAttribute(
+      'href',
+      '/sites',
+    );
+    for (const label of ['Styleguide', 'Documents']) {
       expect(navigation.getByText(label)).toHaveAttribute(
         'aria-disabled',
         'true',

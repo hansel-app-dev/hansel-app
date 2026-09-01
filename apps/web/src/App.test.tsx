@@ -188,6 +188,53 @@ describe('App [REQ-002]', () => {
     });
   });
 
+  it('routes /sites to the authenticated Figma empty state and navigates through the shared shell [sites-empty-state REQ-001..REQ-004]', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              viewer: {
+                displayName: 'Nabin Singh',
+                initials: 'NS',
+                roleLabel: 'Owner',
+              },
+            }),
+            { status: 200 },
+          ),
+        ),
+      ),
+    );
+
+    render(<App path="/sites" />);
+
+    expect(
+      screen.getByRole('heading', { name: 'No sites', level: 2 }),
+    ).toBeVisible();
+    expect(await screen.findByText('Nabin Singh')).toBeVisible();
+    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+    expect(
+      screen.getAllByRole('heading', { name: 'Widget title' }),
+    ).toHaveLength(4);
+    expect(window.location.pathname).toBe('/dashboard');
+  });
+
+  it('returns an unauthenticated Sites page to login [sites-empty-state REQ-002]', async () => {
+    window.history.replaceState({}, '', '/sites');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+    );
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Log in to your account' }),
+    ).toBeVisible();
+    expect(window.location.pathname).toBe('/login');
+  });
+
   it('returns an unauthenticated dashboard to login [user-login REQ-012]', async () => {
     window.history.replaceState({}, '', '/dashboard');
     vi.stubGlobal(

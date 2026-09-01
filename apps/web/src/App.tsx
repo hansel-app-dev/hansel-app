@@ -29,6 +29,7 @@ import { PlanSelection } from './onboarding/PlanSelection.js';
 import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
 import { Dashboard } from './dashboard/Dashboard.js';
+import { Sites } from './sites/Sites.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -111,23 +112,35 @@ export function App({
     if (error instanceof OnboardingSessionExpiredError) returnToOnboarding();
     throw error;
   };
+  const loadAuthenticatedViewer = async () => {
+    try {
+      return await loadDashboard(apiUrl);
+    } catch (error) {
+      if (error instanceof DashboardAuthenticationRequiredError)
+        returnToLogin();
+      throw error;
+    }
+  };
+  const logoutAuthenticatedViewer = async () => {
+    await logoutDashboard(apiUrl);
+    window.sessionStorage.removeItem(verificationEmailKey);
+    returnToLogin();
+  };
   if (currentPath === '/dashboard') {
     return (
       <Dashboard
-        loadDashboard={async () => {
-          try {
-            return await loadDashboard(apiUrl);
-          } catch (error) {
-            if (error instanceof DashboardAuthenticationRequiredError)
-              returnToLogin();
-            throw error;
-          }
-        }}
-        logout={async () => {
-          await logoutDashboard(apiUrl);
-          window.sessionStorage.removeItem(verificationEmailKey);
-          returnToLogin();
-        }}
+        loadDashboard={loadAuthenticatedViewer}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+      />
+    );
+  }
+  if (currentPath === '/sites') {
+    return (
+      <Sites
+        loadDashboard={loadAuthenticatedViewer}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
       />
     );
   }

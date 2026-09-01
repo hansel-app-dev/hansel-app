@@ -80,6 +80,10 @@ export const RetryableFailure: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByRole('alert')).toBeVisible();
     await userEvent.tab();
+    await expect(canvas.getByRole('link', { name: 'Dashboard' })).toHaveFocus();
+    await userEvent.tab();
+    await expect(canvas.getByRole('link', { name: 'Sites' })).toHaveFocus();
+    await userEvent.tab();
     await expect(canvas.getByRole('button', { name: 'Retry' })).toHaveFocus();
   },
 };
