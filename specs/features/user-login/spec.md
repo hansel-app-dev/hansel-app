@@ -4,7 +4,7 @@
 - Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-08-29`
+- Last updated: `2026-09-01`
 
 ## Problem
 
@@ -24,7 +24,7 @@ An eligible registered user can authenticate with email/password or a previously
 
 ## Requirements
 
-- REQ-001: `/login` MUST follow Figma frame `38:528`, browser-inspected on 2026-08-29 after the structured Figma connector reported its Professional View-seat limit. The page MUST use the exported 114-by-20 Hansel Beta logo at the desktop upper-left, Figtree typography, a white full-page canvas, and an approximately 350-pixel single-column form centered horizontally in the upper-middle. Content order MUST be `Log in to your account`; labelled `Email` and `Password` fields with placeholders `your@email.com` and `Password`; the primary `Log in` action; the `or log in with` divider; Google, Microsoft, and Apple actions with their approved recognizable marks; and the corrected underlined footer `Don't have an account? Create an account` linking to `/onboarding`.
+- REQ-001: `/login` MUST follow Figma frame `38:528`, retrieved through structured design context on 2026-09-01. The page MUST use the exported 114-by-20 Hansel Beta logo at the desktop upper-left, Figtree typography, a white full-page canvas, and an approximately 350-pixel single-column form centered horizontally in the upper-middle. Content order MUST be `Log in to your account`; labelled `Email` and `Password` fields with placeholders `your@email.com` and `Password`; the primary `Log in` action; the `or log in with` label followed by its exported divider; Google, Microsoft, and Apple actions using the exact exported provider marks in a fixed 24-pixel icon area with a 16-pixel icon-to-label gap; and the corrected underlined footer `Don't have an account? Create an account` linking to `/onboarding`.
 - REQ-002: The frame's reused account-creation statements `By creating an account...` and `Already have an account? Log in` MUST NOT appear on the login page because login neither creates an account nor records consent. This approved correction supersedes those contradictory strings while retaining the frame's layout, spacing, control dimensions, border treatment, provider-button wording, and underlined-link treatment.
 - REQ-003: The React form MUST use React Hook Form and Yup, accept an email and password, normalize the email by trimming and lowercasing, require both fields, preserve the password exactly as entered, use `email` and `current-password` autocomplete, support paste and password managers, and disable duplicate submission while pending. Login validation MUST NOT enforce account-creation composition rules or expose password-policy detail.
 - REQ-004: Express MUST validate the strict login request with Zod and accept no caller-selected user, journey, tenant, role, membership, destination, session lifetime, or provider identity. JSON and native-form login MUST use the same authoritative authentication module. A successful native form submission MUST use a `303` redirect; JavaScript enhancement MUST use the strict response destination.

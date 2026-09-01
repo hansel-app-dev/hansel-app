@@ -93,6 +93,14 @@ test('login is accessible and visually stable at desktop, narrow, and 200% zoom 
     page.getByRole('heading', { name: 'Log in to your account' }),
   ).toBeVisible();
   await expect(page.getByLabel('Email')).toHaveCSS('font-family', /Figtree/);
+  for (const provider of ['Google', 'Microsoft', 'Apple']) {
+    const providerLink = page.getByRole('link', {
+      name: `Continue with ${provider}`,
+    });
+    await expect(providerLink.locator('img')).toHaveCount(1);
+    await expect(providerLink).toHaveCSS('column-gap', '16px');
+  }
+  await expect(page.getByTestId('login-provider-divider')).toBeVisible();
   expect((await analyzeAccessibility(page)).violations).toEqual([]);
   await expect(page).toHaveScreenshot('login-default.png', {
     animations: 'disabled',

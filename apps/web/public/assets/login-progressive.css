@@ -33,6 +33,20 @@ section {
   display: grid;
   gap: 24px;
 }
+.login-panel {
+  width: min(100%, 350px);
+  margin-top: 88px;
+  gap: 40px;
+}
+.login-panel h1 {
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+}
+.login-form-group {
+  display: grid;
+  gap: 16px;
+}
 h1 {
   margin: 0;
   font-size: 24px;
@@ -80,6 +94,18 @@ button {
   flex: 1;
   background: #c7cdd4;
 }
+.provider-group {
+  display: grid;
+  gap: 24px;
+}
+.login-panel .divider {
+  gap: 8px;
+}
+.login-panel .divider img {
+  min-width: 0;
+  height: 1px;
+  flex: 1;
+}
 nav {
   display: grid;
   gap: 12px;
@@ -91,6 +117,27 @@ nav a {
   padding: 8px 12px;
   color: inherit;
   text-decoration: none;
+}
+.login-panel nav {
+  gap: 14px;
+}
+.login-panel nav a {
+  gap: 16px;
+  border-color: #afaea7;
+  font-weight: 400;
+}
+.provider-icon {
+  display: flex;
+  width: 24px;
+  flex: none;
+  justify-content: center;
+}
+.provider-icon img {
+  width: 24px;
+  height: 24px;
+}
+.provider-icon img.apple {
+  width: 20px;
 }
 p {
   margin: 0;
@@ -113,6 +160,9 @@ p a {
     padding: 24px 20px;
   }
   section {
+    margin-top: 56px;
+  }
+  section.login-panel {
     margin-top: 56px;
   }
 }

@@ -59,13 +59,23 @@ describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
       'autocomplete',
       'current-password',
     );
-    for (const provider of ['Google', 'Microsoft', 'Apple'])
-      expect(
-        screen.getByRole('link', { name: `Continue with ${provider}` }),
-      ).toHaveAttribute(
+    for (const provider of ['Google', 'Microsoft', 'Apple']) {
+      const providerLink = screen.getByRole('link', {
+        name: `Continue with ${provider}`,
+      });
+      expect(providerLink).toHaveAttribute(
         'href',
         `/auth/start/${provider.toLowerCase()}?intent=login`,
       );
+      expect(providerLink.querySelector('img')).toHaveAttribute(
+        'src',
+        `/assets/${provider.toLowerCase()}-logo.svg`,
+      );
+    }
+    expect(screen.getByTestId('login-provider-divider')).toHaveAttribute(
+      'src',
+      '/assets/login-provider-divider.svg',
+    );
     expect(
       screen.queryByText(/By creating an account/),
     ).not.toBeInTheDocument();

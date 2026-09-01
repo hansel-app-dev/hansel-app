@@ -140,6 +140,9 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     expect(response.text).toContain('autocomplete="current-password"');
     for (const provider of ['google', 'microsoft', 'apple'])
       expect(response.text).toContain(`/auth/start/${provider}?intent=login`);
+    for (const provider of ['google', 'microsoft', 'apple'])
+      expect(response.text).toContain(`src="/assets/${provider}-logo.svg"`);
+    expect(response.text).toContain('data-testid="login-provider-divider"');
     expect(response.text).not.toContain('By creating an account');
     const reset = await request(loginApp)
       .get('/login?password_reset=success')
