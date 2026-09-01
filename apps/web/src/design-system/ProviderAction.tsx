@@ -60,11 +60,7 @@ export function ProviderAction(props: ProviderActionProps) {
     );
   }
 
-  const {
-    className = '',
-    type = 'button',
-    ...buttonProps
-  } = actionProps;
+  const { className = '', type = 'button', ...buttonProps } = actionProps;
   return (
     <button
       className={`${actionClassName} ${className}`}
