@@ -40,6 +40,10 @@ _Avoid_: Read-only User, Guest
 The relationship that determines which Site a Membership may use and what it may do there.
 _Avoid_: Site can access, Site Membership
 
+**Site Access Scope**:
+The audience rule selected for a Site: Organization, People You Invite, or Private.
+_Avoid_: Workspace Access, Visibility when access rights are meant
+
 ## Managed content
 
 **Site**:
