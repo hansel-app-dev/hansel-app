@@ -619,6 +619,75 @@ test('Sites retry state is keyboard reachable and accessible [sites-empty-state 
   expect((await analyzeAccessibility(page)).violations).toEqual([]);
 });
 
+test('Sites populated grid and list match Figma and remain accessible [sites-populated-state REQ-001, REQ-009..REQ-015, REQ-020..REQ-025]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto(
+    '/iframe.html?id=sites-populated-page--figma-grid&viewMode=story',
+  );
+  await expect(page.getByRole('list', { name: 'Sites grid' })).toBeVisible();
+  await expect(
+    page.getByRole('list', { name: 'Sites grid' }).getByRole('listitem'),
+  ).toHaveCount(3);
+  await expect(page.getByText('Workspace Name')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Grid view' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-populated-grid.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.goto(
+    '/iframe.html?id=sites-populated-page--figma-list&viewMode=story',
+  );
+  const table = page.getByRole('table', { name: 'Sites list' });
+  await expect(table).toBeVisible();
+  await expect(table.locator('tbody tr')).toHaveCount(3);
+  await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-populated-list.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test('Sites populated state reflows at 320px and 200% zoom [sites-populated-state REQ-020..REQ-023]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto(
+    '/iframe.html?id=sites-populated-page--figma-grid&viewMode=story',
+  );
+  await expect(page.getByRole('list', { name: 'Sites grid' })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('sites-populated-grid-narrow.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  await expect(page.getByRole('button', { name: 'List view' })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(640);
+});
+
 test('Sites and authentication use the same shared primary Button color [design-system-foundation REQ-004, REQ-014; sites-empty-state REQ-004, REQ-005]', async ({
   page,
 }) => {

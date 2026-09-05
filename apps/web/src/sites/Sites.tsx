@@ -1,4 +1,4 @@
-/** @spec sites-empty-state REQ-001..REQ-013 @spec sites-add-new REQ-001, REQ-012, REQ-017..REQ-021 @figma 2024:9828, 2029:1630 */
+/** @spec sites-empty-state REQ-001..REQ-013 @spec sites-add-new REQ-001, REQ-012, REQ-017..REQ-021 @spec sites-populated-state REQ-001, REQ-004..REQ-025 @figma 2024:9828, 2029:1630, 2025:11221, 2043:3580 */
 import { useEffect, useState } from 'react';
 import type {
   CreateSiteRequest,
@@ -13,6 +13,7 @@ import {
   NotificationSymbol,
 } from '../application-shell/ApplicationShell.js';
 import { AddSiteModal } from './AddSiteModal.js';
+import { SiteCollection } from './SiteCollection.js';
 
 function NewSiteButton({
   compact = false,
@@ -41,6 +42,7 @@ export interface SitesProps {
   loadSites: () => Promise<SitesPageResponse>;
   logout: () => Promise<void>;
   navigate?: (destination: string) => void;
+  now?: Date;
 }
 
 export function Sites({
@@ -49,15 +51,23 @@ export function Sites({
   loadSites,
   logout,
   navigate,
+  now,
 }: SitesProps) {
   const [page, setPage] = useState<SitesPageResponse | null>(null);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const load = () => {
+    setLoading(true);
+    setPage(null);
     setLoadError(false);
     void loadSites()
-      .then(setPage)
+      .then((nextPage) => {
+        setPage(nextPage);
+        setLoading(false);
+      })
       .catch(() => {
+        setLoading(false);
         setLoadError(true);
       });
   };
@@ -74,6 +84,8 @@ export function Sites({
       loadErrorMessage="We couldn't load your account. Please try again."
       logout={logout}
       navigate={navigate}
+      siteNavigation={page?.sites}
+      workspaceName={page?.sites.length ? page.organizationName : undefined}
       headerActions={
         <>
           <NotificationSymbol />
@@ -104,45 +116,18 @@ export function Sites({
             </Button>
           </div>
         </section>
-      ) : page?.sites.length ? (
-        <section
-          aria-labelledby="sites-list-heading"
-          className="px-8 py-8 max-md:px-5"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold" id="sites-list-heading">
-              Your sites
-            </h2>
-            <span className="text-sm text-content-muted">
-              {page.sites.length} {page.sites.length === 1 ? 'site' : 'sites'}
-            </span>
-          </div>
-          <ul className="mt-5 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-            {page.sites.map((site) => (
-              <li key={site.id}>
-                <a
-                  className="flex min-h-32 flex-col justify-between rounded-lg border border-control-border bg-surface p-5 shadow-control hover:border-action-primary focus-visible:outline-2 focus-visible:outline-focus"
-                  href={`/sites/${site.id}/activity`}
-                  onClick={(event) => {
-                    if (!navigate) return;
-                    event.preventDefault();
-                    navigate(`/sites/${site.id}/activity`);
-                  }}
-                >
-                  <AppSymbol
-                    className="!size-7 text-[28px] text-content-muted"
-                    weight={100}
-                  >
-                    map
-                  </AppSymbol>
-                  <span className="mt-6 text-sm font-semibold">
-                    {site.name}
-                  </span>
-                </a>
-              </li>
-            ))}
-          </ul>
+      ) : loading ? (
+        <section className="grid min-h-[calc(100vh-68px)] place-items-center px-5 text-center">
+          <p className="text-sm text-content-muted" role="status">
+            Loading sites…
+          </p>
         </section>
+      ) : page?.sites.length ? (
+        <SiteCollection
+          navigate={navigate}
+          sites={page.sites}
+          {...(now ? { now } : {})}
+        />
       ) : (
         <section
           aria-labelledby="sites-empty-heading"

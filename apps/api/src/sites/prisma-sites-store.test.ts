@@ -11,6 +11,31 @@ const principal = {
   email: 'owner@example.com',
 };
 const siteId = '7fced42f-e2e4-4c31-89db-f282bdaeea44';
+const createdAt = new Date('2026-08-01T10:00:00.000Z');
+const updatedAt = new Date('2026-09-01T11:00:00.000Z');
+const siteRecord = {
+  id: siteId,
+  name: 'Existing',
+  createdAt,
+  updatedAt,
+  _count: { grants: 4 },
+  grants: [
+    {
+      membership: {
+        user: {
+          personalProfile: { firstName: 'Nabin', lastName: 'Singh' },
+        },
+      },
+    },
+    {
+      membership: {
+        user: {
+          personalProfile: { firstName: 'Alex', lastName: 'Editor' },
+        },
+      },
+    },
+  ],
+};
 
 function harness() {
   const credential = {
@@ -84,7 +109,7 @@ function harness() {
             },
           },
         ],
-        sites: [{ id: siteId, name: 'Existing' }],
+        sites: [siteRecord],
       }),
     },
     site: {
@@ -182,7 +207,7 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
     await expect(h.store.resolvePrincipal('digest', now)).resolves.toBeNull();
   });
 
-  it('loads the tenant plan, all member choices, and only tenant sites', async () => {
+  it('loads the tenant plan, member choices, and bounded enriched site summaries in one query [sites-populated-state REQ-003, REQ-004, REQ-012, REQ-019, REQ-024]', async () => {
     const h = harness();
     await expect(h.store.loadContext(principal)).resolves.toEqual({
       organizationName: 'Hansel',
@@ -200,8 +225,47 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
           initials: 'MI',
         },
       ],
-      sites: [{ id: siteId, name: 'Existing' }],
+      sites: [
+        {
+          id: siteId,
+          name: 'Existing',
+          createdAt: '2026-08-01T10:00:00.000Z',
+          updatedAt: '2026-09-01T11:00:00.000Z',
+          memberCount: 4,
+          memberPreview: [
+            { displayName: 'Nabin Singh', initials: 'NS' },
+            { displayName: 'Alex Editor', initials: 'AE' },
+          ],
+        },
+      ],
     });
+  });
+
+  it('fails closed if a database adapter returns an unprofiled preview member [sites-populated-state REQ-012, REQ-024]', async () => {
+    const h = harness();
+    h.prisma.tenant.findUniqueOrThrow.mockResolvedValue({
+      name: 'Hansel',
+      memberships: [
+        {
+          roleId: 'owner',
+          user: {
+            email: 'owner@example.com',
+            personalProfile: { firstName: 'Nabin', lastName: 'Singh' },
+            planSelection: { planId: 'plus', maximumSites: null },
+          },
+        },
+      ],
+      sites: [
+        {
+          ...siteRecord,
+          grants: [{ membership: { user: { personalProfile: null } } }],
+        },
+      ],
+    });
+
+    await expect(h.store.loadContext(principal)).rejects.toThrow(
+      'Site member preview requires a personal profile.',
+    );
   });
 
   it('filters non-Owner site lists through Organization, creator, and direct invite access [sites-access-scope REQ-006, REQ-007, REQ-010, REQ-019]', async () => {
@@ -211,7 +275,7 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
       where: { id: 'tenant-1' },
       select: expect.objectContaining({
         sites: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           where: {
             OR: [
               { accessScope: 'ORGANIZATION' },
@@ -222,7 +286,34 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
               },
             ],
           },
-          select: { id: true, name: true },
+          select: expect.objectContaining({
+            id: true,
+            name: true,
+            createdAt: true,
+            updatedAt: true,
+            grants: {
+              where: {
+                membership: {
+                  user: { personalProfile: { isNot: null } },
+                },
+              },
+              orderBy: [{ createdAt: 'asc' }, { membershipId: 'asc' }],
+              take: 3,
+              select: {
+                membership: {
+                  select: {
+                    user: {
+                      select: {
+                        personalProfile: {
+                          select: { firstName: true, lastName: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }),
         },
       }),
     });

@@ -228,7 +228,7 @@ describe('App [REQ-002]', () => {
     render(<App path="/sites" />);
 
     expect(
-      screen.getByRole('heading', { name: 'No sites', level: 2 }),
+      await screen.findByRole('heading', { name: 'No sites', level: 2 }),
     ).toBeVisible();
     expect(await screen.findByText('Nabin Singh')).toBeVisible();
     fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));

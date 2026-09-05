@@ -1,10 +1,82 @@
-/** @spec sites-add-new REQ-010..REQ-016, REQ-019 */
+/** @spec sites-add-new REQ-010..REQ-016, REQ-019 @spec sites-populated-state REQ-002..REQ-004, REQ-012, REQ-019, REQ-024 */
 import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
+import type { SiteSummary } from '@hansel/contracts';
 import type { ApplicationPrincipal, SitesPersistInput } from './sites.js';
 
 function initials(firstName: string, lastName: string): string {
   return `${Array.from(firstName)[0] ?? ''}${Array.from(lastName)[0] ?? ''}`.toLocaleUpperCase();
+}
+
+const siteSummarySelect = {
+  id: true,
+  name: true,
+  createdAt: true,
+  updatedAt: true,
+  _count: { select: { grants: true } },
+  grants: {
+    where: {
+      membership: { user: { personalProfile: { isNot: null } } },
+    },
+    orderBy: [{ createdAt: 'asc' }, { membershipId: 'asc' }],
+    take: 3,
+    select: {
+      membership: {
+        select: {
+          user: {
+            select: {
+              personalProfile: {
+                select: { firstName: true, lastName: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.SiteSelect;
+
+type SiteSummaryRecord = Prisma.SiteGetPayload<{
+  select: typeof siteSummarySelect;
+}>;
+
+function displayIdentity(user: {
+  email: string;
+  personalProfile: { firstName: string; lastName: string } | null;
+}) {
+  const displayName = user.personalProfile
+    ? `${user.personalProfile.firstName} ${user.personalProfile.lastName}`
+    : user.email.slice(0, user.email.indexOf('@'));
+  return {
+    displayName,
+    initials: user.personalProfile
+      ? initials(user.personalProfile.firstName, user.personalProfile.lastName)
+      : Array.from(displayName).slice(0, 2).join('').toLocaleUpperCase(),
+  };
+}
+
+function profileIdentity(
+  profile: { firstName: string; lastName: string } | null,
+) {
+  if (!profile)
+    throw new Error('Site member preview requires a personal profile.');
+  return {
+    displayName: `${profile.firstName} ${profile.lastName}`,
+    initials: initials(profile.firstName, profile.lastName),
+  };
+}
+
+function toSiteSummary(site: SiteSummaryRecord): SiteSummary {
+  return {
+    id: site.id,
+    name: site.name,
+    createdAt: site.createdAt.toISOString(),
+    updatedAt: site.updatedAt.toISOString(),
+    memberCount: site._count.grants,
+    memberPreview: site.grants.map(({ membership }) =>
+      profileIdentity(membership.user.personalProfile),
+    ),
+  };
 }
 
 function siteAccessWhere(
@@ -121,9 +193,9 @@ export function createPrismaSitesStore(
             },
           },
           sites: {
-            orderBy: { createdAt: 'asc' },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
             ...(accessWhere ? { where: accessWhere } : {}),
-            select: { id: true, name: true },
+            select: siteSummarySelect,
           },
         },
       });
@@ -134,25 +206,11 @@ export function createPrismaSitesStore(
         organizationName: tenant.name,
         planId: owner.user.planSelection.planId,
         maximumSites: owner.user.planSelection.maximumSites,
-        members: tenant.memberships.map(({ user }) => {
-          const displayName = user.personalProfile
-            ? `${user.personalProfile.firstName} ${user.personalProfile.lastName}`
-            : user.email.slice(0, user.email.indexOf('@'));
-          return {
-            email: user.email,
-            displayName,
-            initials: user.personalProfile
-              ? initials(
-                  user.personalProfile.firstName,
-                  user.personalProfile.lastName,
-                )
-              : Array.from(displayName)
-                  .slice(0, 2)
-                  .join('')
-                  .toLocaleUpperCase(),
-          };
-        }),
-        sites: tenant.sites,
+        members: tenant.memberships.map(({ user }) => ({
+          email: user.email,
+          ...displayIdentity(user),
+        })),
+        sites: tenant.sites.map(toSiteSummary),
       };
     },
 

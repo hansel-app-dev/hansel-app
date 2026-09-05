@@ -82,10 +82,7 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
         destination: `/sites/${siteId}/activity`,
       }),
       activity: vi.fn().mockResolvedValue({
-        site: {
-          id: siteId,
-          name: 'New site',
-        },
+        site: { id: siteId, name: 'New site' },
       }),
       recordEvent: vi.fn(),
       ...overrides,

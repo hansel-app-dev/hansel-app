@@ -127,7 +127,7 @@ describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () 
     ).toThrow();
   });
 
-  it('publishes only bounded tenant creation context and summaries', () => {
+  it('publishes only bounded tenant creation context and enriched site summaries [sites-populated-state REQ-003, REQ-011, REQ-012, REQ-024]', () => {
     expect(
       sitesPageResponseSchema.parse({
         organizationName: 'Hansel',
@@ -151,11 +151,72 @@ describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () 
           {
             id: '7fced42f-e2e4-4c31-89db-f282bdaeea44',
             name: 'Café West',
+            createdAt: '2026-09-01T10:00:00.000Z',
+            updatedAt: '2026-09-02T12:00:00.000Z',
+            memberCount: 1,
+            memberPreview: [{ displayName: 'Owner Example', initials: 'OE' }],
           },
         ],
       }),
     ).toMatchObject({ organizationName: 'Hansel', canCreateSite: true });
   });
+
+  it.each([
+    {
+      createdAt: 'not-an-instant',
+      updatedAt: '2026-09-02T12:00:00.000Z',
+      memberCount: 0,
+      memberPreview: [],
+    },
+    {
+      createdAt: '2026-09-01T10:00:00.000Z',
+      updatedAt: '2026-09-02T12:00:00.000Z',
+      memberCount: 0,
+      memberPreview: [
+        {
+          displayName: 'Private Member',
+          initials: 'PM',
+          email: 'private@example.com',
+        },
+      ],
+    },
+    {
+      createdAt: '2026-09-01T10:00:00.000Z',
+      updatedAt: '2026-09-02T12:00:00.000Z',
+      memberCount: 2,
+      memberPreview: [
+        { displayName: 'One', initials: 'O' },
+        { displayName: 'Two', initials: 'T' },
+        { displayName: 'Three', initials: 'TH' },
+      ],
+    },
+  ])(
+    'rejects unsafe or inconsistent populated-site metadata %# [sites-populated-state REQ-003, REQ-012, REQ-018]',
+    (summary) => {
+      expect(() =>
+        sitesPageResponseSchema.parse({
+          organizationName: 'Hansel',
+          canCreateSite: true,
+          canInviteMembers: true,
+          creator: {
+            email: 'owner@example.com',
+            displayName: 'Owner',
+            initials: 'O',
+          },
+          siteLimitReached: false,
+          maximumSites: null,
+          members: [],
+          sites: [
+            {
+              id: '7fced42f-e2e4-4c31-89db-f282bdaeea44',
+              name: 'Café West',
+              ...summary,
+            },
+          ],
+        }),
+      ).toThrow();
+    },
+  );
 
   it.each([
     [

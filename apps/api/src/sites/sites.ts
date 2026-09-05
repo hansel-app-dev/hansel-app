@@ -1,9 +1,10 @@
-/** @spec sites-add-new REQ-007..REQ-016 */
+/** @spec sites-add-new REQ-007..REQ-016 @spec sites-populated-state REQ-002..REQ-004, REQ-019, REQ-024 */
 import type {
   CreateSiteRequest,
   CreateSiteResponse,
   SiteAssignment,
   SiteActivityResponse,
+  SiteIdentity,
   SiteMemberChoice,
   SiteSummary,
   SitesPageResponse,
@@ -58,7 +59,7 @@ interface SitesDependencies {
   loadActivity(
     principal: ApplicationPrincipal,
     siteId: string,
-  ): Promise<SiteSummary | null>;
+  ): Promise<SiteIdentity | null>;
   createId(): string;
   createInvitationToken(
     invitationId: string,

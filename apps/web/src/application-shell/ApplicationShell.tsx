@@ -1,4 +1,4 @@
-/** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010; sites-empty-state REQ-002..REQ-004, REQ-008..REQ-012 */
+/** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010; sites-empty-state REQ-002..REQ-004, REQ-008..REQ-012; sites-populated-state REQ-005..REQ-008, REQ-018, REQ-020..REQ-022 */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DashboardResponse } from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
@@ -49,6 +49,8 @@ export interface ApplicationShellProps {
   loadErrorMessage: string;
   logout: () => Promise<void>;
   navigate?: ((destination: string) => void) | undefined;
+  siteNavigation?: readonly { id: string; name: string }[] | undefined;
+  workspaceName?: string | undefined;
 }
 
 export function ApplicationShell({
@@ -59,6 +61,8 @@ export function ApplicationShell({
   loadErrorMessage,
   logout,
   navigate,
+  siteNavigation,
+  workspaceName,
 }: ApplicationShellProps) {
   const [viewer, setViewer] = useState<DashboardResponse['viewer'] | null>(
     null,
@@ -68,6 +72,7 @@ export function ApplicationShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
+  const [sitesExpanded, setSitesExpanded] = useState(true);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
@@ -111,34 +116,107 @@ export function ApplicationShell({
   return (
     <main className="flex min-h-screen bg-surface text-content max-md:flex-col">
       <h1 className="sr-only">{activePage}</h1>
-      <aside className="flex w-[284px] shrink-0 flex-col border-r border-[#e5e5e5] bg-surface px-8 py-7 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5">
-        <img
-          className="h-[27px] w-auto self-start"
-          src="/assets/hansel-logo-beta.svg"
-          alt="Hansel Beta"
-        />
+      <aside
+        className={`flex shrink-0 flex-col border-r border-[#e5e5e5] bg-surface py-7 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5 ${workspaceName ? 'w-[300px] px-6' : 'w-[284px] px-8'}`}
+      >
+        {workspaceName ? (
+          <div className="flex h-8 min-w-0 items-center gap-2">
+            <span className="grid size-8 shrink-0 place-items-center rounded bg-[#f5f6f8] text-[12px] font-semibold text-[#607080]">
+              {workspaceName.charAt(0).toLocaleUpperCase()}
+            </span>
+            <span
+              className="truncate text-[16px] font-medium"
+              title={workspaceName}
+            >
+              {workspaceName}
+            </span>
+          </div>
+        ) : (
+          <img
+            className="h-[27px] w-auto self-start"
+            src="/assets/hansel-logo-beta.svg"
+            alt="Hansel Beta"
+          />
+        )}
         <nav
-          className="mt-[66px] flex flex-1 flex-col max-md:mt-7 max-md:grid max-md:grid-cols-2 max-md:gap-2"
+          className={`flex flex-1 flex-col max-md:mt-7 ${workspaceName ? 'mt-[31px]' : 'mt-[66px] max-md:grid max-md:grid-cols-2 max-md:gap-2'}`}
           aria-label="Application"
         >
           <div className="grid gap-3">
             {destinations.map((item) => {
               const current = item.label === activePage;
+              const hasSiteNavigation =
+                item.label === 'Sites' && Boolean(siteNavigation?.length);
               return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  aria-current={current ? 'page' : undefined}
-                  className={`flex min-h-12 items-center gap-3 rounded px-4 text-[16px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${current ? 'bg-[#f3f3f3] font-semibold' : 'text-[#4d4d4d] hover:bg-[#f7f7f7]'}`}
-                  onClick={(event) => {
-                    if (!navigate) return;
-                    event.preventDefault();
-                    navigate(item.href);
-                  }}
-                >
-                  <AppSymbol>{item.icon}</AppSymbol>
-                  {item.label}
-                </a>
+                <div className="grid" key={item.label}>
+                  <div
+                    className={`flex min-h-12 items-center rounded ${current ? 'bg-[#f3f3f3] font-semibold' : 'text-[#4d4d4d] hover:bg-[#f7f7f7]'}`}
+                  >
+                    <a
+                      href={item.href}
+                      aria-current={current ? 'page' : undefined}
+                      className={`flex min-w-0 flex-1 items-center gap-3 rounded py-3 text-[16px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${workspaceName ? 'px-3' : 'px-4'}`}
+                      onClick={(event) => {
+                        if (!navigate) return;
+                        event.preventDefault();
+                        navigate(item.href);
+                      }}
+                    >
+                      <AppSymbol>{item.icon}</AppSymbol>
+                      {item.label}
+                    </a>
+                    {hasSiteNavigation ? (
+                      <button
+                        type="button"
+                        aria-expanded={sitesExpanded}
+                        aria-label={
+                          sitesExpanded ? 'Collapse sites' : 'Expand sites'
+                        }
+                        className="mr-2 grid size-8 place-items-center rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        onClick={() => {
+                          setSitesExpanded((expanded) => !expanded);
+                        }}
+                      >
+                        <AppSymbol className="!size-4 text-[18px]">
+                          {sitesExpanded
+                            ? 'keyboard_arrow_up'
+                            : 'keyboard_arrow_down'}
+                        </AppSymbol>
+                      </button>
+                    ) : null}
+                  </div>
+                  {hasSiteNavigation && sitesExpanded ? (
+                    <ul className="mt-1 grid gap-1" aria-label="Sites">
+                      {siteNavigation?.map((site) => (
+                        <li key={site.id}>
+                          <a
+                            href={`/sites/${encodeURIComponent(site.id)}/activity`}
+                            className="flex min-h-10 items-center gap-2 rounded px-3 text-[13px] font-normal text-[#4d4d4d] hover:bg-[#f7f7f7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            onClick={(event) => {
+                              if (!navigate) return;
+                              event.preventDefault();
+                              navigate(
+                                `/sites/${encodeURIComponent(site.id)}/activity`,
+                              );
+                            }}
+                          >
+                            <span className="grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-on-action">
+                              <AppSymbol
+                                className="!size-4 text-[15px]"
+                                weight={100}
+                              >
+                                domain
+                              </AppSymbol>
+                            </span>
+                            <span className="truncate" title={site.name}>
+                              {site.name}
+                            </span>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
               );
             })}
           </div>

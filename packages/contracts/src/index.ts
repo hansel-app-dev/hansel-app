@@ -607,9 +607,33 @@ export const siteMemberChoiceSchema = z
   .strict();
 export type SiteMemberChoice = z.infer<typeof siteMemberChoiceSchema>;
 
-export const siteSummarySchema = z
+export const siteMemberPreviewSchema = z
+  .object({
+    displayName: z.string().min(1).max(201),
+    initials: z
+      .string()
+      .min(1)
+      .refine((value) => Array.from(value).length <= 2),
+  })
+  .strict();
+export type SiteMemberPreview = z.infer<typeof siteMemberPreviewSchema>;
+
+export const siteIdentitySchema = z
   .object({ id: z.uuid(), name: siteNameSchema })
   .strict();
+export type SiteIdentity = z.infer<typeof siteIdentitySchema>;
+
+export const siteSummarySchema = siteIdentitySchema
+  .extend({
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    memberCount: z.number().int().nonnegative(),
+    memberPreview: z.array(siteMemberPreviewSchema).max(3),
+  })
+  .strict()
+  .refine(
+    ({ memberCount, memberPreview }) => memberCount >= memberPreview.length,
+  );
 export type SiteSummary = z.infer<typeof siteSummarySchema>;
 
 export const sitesPageResponseSchema = z
@@ -627,6 +651,6 @@ export const sitesPageResponseSchema = z
 export type SitesPageResponse = z.infer<typeof sitesPageResponseSchema>;
 
 export const siteActivityResponseSchema = z
-  .object({ site: siteSummarySchema })
+  .object({ site: siteIdentitySchema })
   .strict();
 export type SiteActivityResponse = z.infer<typeof siteActivityResponseSchema>;

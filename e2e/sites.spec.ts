@@ -2,10 +2,19 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+const populatedSite = {
+  id: siteId,
+  name: 'Sydney Central',
+  createdAt: '2026-08-01T10:00:00.000Z',
+  updatedAt: '2026-09-01T11:00:00.000Z',
+  memberCount: 1,
+  memberPreview: [{ displayName: 'Nabin Singh', initials: 'NS' }],
+};
 
-test('both New site actions complete the accessible People You Invite flow [sites-access-scope AC-001, AC-003, AC-007]', async ({
+test('both New site actions complete the accessible People You Invite flow and populate the grid [sites-access-scope AC-001, AC-003, AC-007; sites-populated-state AC-001]', async ({
   page,
 }) => {
+  let created = false;
   await page.route('**/api/dashboard', (route) =>
     route.fulfill({
       status: 200,
@@ -21,6 +30,7 @@ test('both New site actions complete the accessible People You Invite flow [site
   );
   await page.route('**/api/sites', async (route) => {
     if (route.request().method() === 'POST') {
+      created = true;
       const request = route.request().postDataJSON() as {
         accessScope: string;
         name: string;
@@ -61,7 +71,7 @@ test('both New site actions complete the accessible People You Invite flow [site
             initials: 'EI',
           },
         ],
-        sites: [],
+        sites: created ? [populatedSite] : [],
       }),
     });
   });
@@ -111,6 +121,90 @@ test('both New site actions complete the accessible People You Invite flow [site
   await expect(
     page.getByRole('navigation', { name: 'Site sections' }),
   ).toContainText('Activity');
+  await page.goto('/sites');
+  await expect(
+    page
+      .getByRole('list', { name: 'Sites grid' })
+      .getByRole('link', { name: 'Sydney Central' }),
+  ).toBeVisible();
+});
+
+test('populated Sites supports keyboard switching, disclosure, and every Activity link [sites-populated-state AC-001, AC-002, AC-006]', async ({
+  page,
+}) => {
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+    }),
+  );
+  await page.route('**/api/sites', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [],
+        sites: [populatedSite],
+      }),
+    }),
+  );
+  await page.route(`**/api/sites/${siteId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ site: { id: siteId, name: 'Sydney Central' } }),
+    }),
+  );
+
+  await page.goto('/sites');
+  const collapse = page.getByRole('button', { name: 'Collapse sites' });
+  await collapse.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('button', { name: 'Expand sites' }),
+  ).toBeVisible();
+  await page.keyboard.press('Enter');
+
+  const listView = page.getByRole('button', { name: 'List view' });
+  await listView.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('table', { name: 'Sites list' })).toBeVisible();
+  await page
+    .getByRole('table', { name: 'Sites list' })
+    .getByRole('link', { name: 'Sydney Central' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
+
+  await page.goto('/sites');
+  await page
+    .getByRole('list', { name: 'Sites grid' })
+    .getByRole('link', { name: 'Sydney Central' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
+
+  await page.goto('/sites');
+  await page
+    .getByRole('navigation', { name: 'Application' })
+    .getByRole('link', { name: 'Sydney Central' })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
 });
 
 test('Organization and Private create exact branch-specific requests [sites-access-scope AC-001, AC-002]', async ({
@@ -286,7 +380,7 @@ test('plan and role boundaries disable site creation with a clear reason [sites-
         siteLimitReached: true,
         maximumSites: 1,
         members: [],
-        sites: [{ id: siteId, name: 'Only site' }],
+        sites: [{ ...populatedSite, name: 'Only site' }],
       }),
     }),
   );

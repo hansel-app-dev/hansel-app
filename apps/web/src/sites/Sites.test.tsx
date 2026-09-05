@@ -34,8 +34,33 @@ const props = {
   loadSites: () => Promise.resolve(emptyPage),
   logout: () => Promise.resolve(),
 };
+const sydneySite = {
+  id: 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9',
+  name: 'Sydney Central',
+  createdAt: '2026-08-01T10:00:00.000Z',
+  updatedAt: '2026-09-01T11:00:00.000Z',
+  memberCount: 1,
+  memberPreview: [{ displayName: 'Nabin Singh', initials: 'NS' }],
+};
 
 describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-012]', () => {
+  it('shows a truthful loading state until site data is available [sites-populated-state REQ-017, REQ-022]', async () => {
+    let resolveSites: ((page: typeof emptyPage) => void) | undefined;
+    const loadSites = () =>
+      new Promise<typeof emptyPage>((resolve) => {
+        resolveSites = resolve;
+      });
+    render(<Sites {...props} loadSites={loadSites} />);
+
+    expect(screen.getByText('Loading sites…')).toHaveAttribute(
+      'role',
+      'status',
+    );
+    expect(screen.queryByText('No sites')).not.toBeInTheDocument();
+    resolveSites?.(emptyPage);
+    expect(await screen.findByText('No sites')).toBeVisible();
+  });
+
   it('opens the same add-site modal from both Figma actions', async () => {
     render(<Sites {...props} />);
     expect(await screen.findByText('Nabin Singh')).toBeVisible();
@@ -66,28 +91,128 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     );
   });
 
-  it('shows tenant-owned sites instead of an incorrect empty state and navigates client-side', async () => {
+  it('shows tenant-owned sites instead of an incorrect empty state and navigates client-side [sites-populated-state REQ-002, REQ-006, REQ-010]', async () => {
     const navigate = vi.fn();
-    const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
     render(
       <Sites
         {...props}
         loadSites={() =>
           Promise.resolve({
             ...emptyPage,
-            sites: [{ id: siteId, name: 'Sydney Central' }],
+            sites: [sydneySite],
           })
         }
         navigate={navigate}
       />,
     );
-    const link = await screen.findByRole('link', { name: 'Sydney Central' });
+    const links = await screen.findAllByRole('link', {
+      name: 'Sydney Central',
+    });
     expect(screen.queryByText('No sites')).not.toBeInTheDocument();
-    fireEvent.click(link);
-    expect(navigate).toHaveBeenCalledWith(`/sites/${siteId}/activity`);
+    expect(links).toHaveLength(2);
+    const sidebarLink = links.at(0);
+    const cardLink = links.at(1);
+    if (!sidebarLink || !cardLink)
+      throw new Error('Expected sidebar and grid card links');
+    fireEvent.click(sidebarLink);
+    fireEvent.click(cardLink);
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(navigate).toHaveBeenLastCalledWith(
+      `/sites/${sydneySite.id}/activity`,
+    );
   });
 
-  it('renders plural populated sites and preserves normal link behavior without a client navigator', async () => {
+  it('uses one ordered collection for the expanded Sites navigation and Figma grid [sites-populated-state REQ-001, REQ-004..REQ-010]', async () => {
+    const melbourneSite = {
+      ...sydneySite,
+      id: 'c1745b68-2885-45dd-9f05-7a35f9466c1c',
+      name: 'Melbourne',
+    };
+    const loadSites = vi
+      .fn()
+      .mockResolvedValue({ ...emptyPage, sites: [sydneySite, melbourneSite] });
+    render(
+      <Sites
+        {...props}
+        loadSites={loadSites}
+        now={new Date('2026-09-05T12:00:00.000Z')}
+      />,
+    );
+
+    const navigation = within(
+      screen.getByRole('navigation', { name: 'Application' }),
+    );
+    expect(
+      await navigation.findByRole('link', { name: 'Sydney Central' }),
+    ).toHaveAttribute('href', `/sites/${sydneySite.id}/activity`);
+    expect(navigation.getByRole('link', { name: 'Melbourne' })).toHaveAttribute(
+      'href',
+      `/sites/${melbourneSite.id}/activity`,
+    );
+    const grid = screen.getByRole('list', { name: 'Sites grid' });
+    expect(within(grid).getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.queryByText('Your sites')).not.toBeInTheDocument();
+    expect(screen.queryByText('2 sites')).not.toBeInTheDocument();
+    expect(screen.getByText('Hansel')).toBeVisible();
+    expect(loadSites).toHaveBeenCalledOnce();
+  });
+
+  it('switches accessibly between the Figma grid and list without refetching or changing navigation [sites-populated-state REQ-015, REQ-020, REQ-025]', async () => {
+    const loadSites = vi
+      .fn()
+      .mockResolvedValue({ ...emptyPage, sites: [sydneySite] });
+    render(<Sites {...props} loadSites={loadSites} />);
+
+    await screen.findByRole('list', { name: 'Sites grid' });
+    const gridButton = screen.getByRole('button', { name: 'Grid view' });
+    const listButton = screen.getByRole('button', { name: 'List view' });
+    expect(gridButton).toHaveAttribute('aria-pressed', 'true');
+    expect(listButton).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(listButton);
+
+    expect(
+      screen.queryByRole('list', { name: 'Sites grid' }),
+    ).not.toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Sites list' });
+    expect(
+      within(table).getByRole('columnheader', { name: 'Name' }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole('columnheader', { name: 'Last modified' }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole('columnheader', { name: 'Created' }),
+    ).toBeVisible();
+    expect(
+      within(table).getByRole('link', { name: 'Sydney Central' }),
+    ).toHaveAttribute('href', `/sites/${sydneySite.id}/activity`);
+    expect(listButton).toHaveAttribute('aria-pressed', 'true');
+    expect(loadSites).toHaveBeenCalledOnce();
+  });
+
+  it('collapses and restores only the populated nested Sites navigation [sites-populated-state REQ-005..REQ-007]', async () => {
+    render(
+      <Sites
+        {...props}
+        loadSites={() => Promise.resolve({ ...emptyPage, sites: [sydneySite] })}
+      />,
+    );
+    await screen.findByRole('list', { name: 'Sites grid' });
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sites' }));
+    const navigation = within(
+      screen.getByRole('navigation', { name: 'Application' }),
+    );
+    expect(
+      navigation.queryByRole('link', { name: 'Sydney Central' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Sites grid' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sites' }));
+    expect(
+      navigation.getByRole('link', { name: 'Sydney Central' }),
+    ).toBeVisible();
+  });
+
+  it('renders plural populated sites and preserves normal link behavior without a client navigator [sites-populated-state REQ-006, REQ-010, REQ-018]', async () => {
     const first = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
     const second = 'c1745b68-2885-45dd-9f05-7a35f9466c1c';
     render(
@@ -97,21 +222,27 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
           Promise.resolve({
             ...emptyPage,
             sites: [
-              { id: first, name: 'Sydney' },
-              { id: second, name: 'Melbourne' },
+              { ...sydneySite, id: first, name: 'Sydney' },
+              { ...sydneySite, id: second, name: 'Melbourne' },
             ],
           })
         }
       />,
     );
-    expect(await screen.findByText('2 sites')).toBeVisible();
+    const grid = await screen.findByRole('list', { name: 'Sites grid' });
     const prevent = vi.fn((event: MouseEvent) => {
       event.preventDefault();
     });
     document.addEventListener('click', prevent);
-    fireEvent.click(screen.getByRole('link', { name: 'Sydney' }));
+    fireEvent.click(within(grid).getByRole('link', { name: 'Sydney' }));
+    fireEvent.click(
+      within(screen.getByRole('navigation', { name: 'Application' })).getByRole(
+        'link',
+        { name: 'Sydney' },
+      ),
+    );
     document.removeEventListener('click', prevent);
-    expect(prevent).toHaveBeenCalledOnce();
+    expect(prevent).toHaveBeenCalledTimes(2);
   });
 
   it('offers a focused retry when the sites context is unavailable', async () => {
@@ -134,6 +265,30 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     expect(await screen.findByText('No sites')).toBeVisible();
   });
 
+  it('clears stale populated sites before a replacement load fails [sites-populated-state REQ-017, REQ-023]', async () => {
+    const firstLoad = () =>
+      Promise.resolve({ ...emptyPage, sites: [sydneySite] });
+    const { rerender } = render(<Sites {...props} loadSites={firstLoad} />);
+    await screen.findByRole('list', { name: 'Sites grid' });
+
+    rerender(
+      <Sites
+        {...props}
+        loadSites={() => Promise.reject(new Error('unavailable'))}
+      />,
+    );
+
+    expect(screen.queryByRole('list', { name: 'Sites grid' })).toBeNull();
+    expect(
+      within(
+        screen.getByRole('navigation', { name: 'Application' }),
+      ).queryByRole('link', { name: 'Sydney Central' }),
+    ).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "We couldn't load sites",
+    );
+  });
+
   it('disables both creation actions and explains a reached plan limit', async () => {
     render(
       <Sites
@@ -143,9 +298,7 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
             ...emptyPage,
             siteLimitReached: true,
             maximumSites: 1,
-            sites: [
-              { id: 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9', name: 'Only site' },
-            ],
+            sites: [{ ...sydneySite, name: 'Only site' }],
           })
         }
       />,

@@ -1448,10 +1448,23 @@ components:
     SiteSummary:
       type: object
       additionalProperties: false
-      required: [id, name]
+      required: [id, name, createdAt, updatedAt, memberCount, memberPreview]
       properties:
         id: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 100 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        memberCount: { type: integer, minimum: 0 }
+        memberPreview:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            additionalProperties: false
+            required: [displayName, initials]
+            properties:
+              displayName: { type: string, minLength: 1, maxLength: 201 }
+              initials: { type: string, minLength: 1, maxLength: 2 }
     SitesPageResponse:
       type: object
       additionalProperties: false
@@ -1486,7 +1499,13 @@ components:
       additionalProperties: false
       required: [site]
       properties:
-        site: { $ref: '#/components/schemas/SiteSummary' }
+        site:
+          type: object
+          additionalProperties: false
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string, minLength: 1, maxLength: 100 }
     HealthResponse:
       type: object
       additionalProperties: false

@@ -37,6 +37,21 @@
   --color-control-border: #d6d3d1;
   --color-focus: var(--color-action-primary);
   --color-danger: #b42318;
+  --color-site-cover: #f1f5f9;
+  --color-site-symbol: #55a6f4;
+  --color-site-card-border: #dedede;
+  --color-site-card-border-hover: #b9c5d1;
+  --color-site-view-selected: #303741;
+  --color-site-view-idle: #a3a3a3;
+  --color-site-view-hover: #60646c;
+  --color-site-meta: #737373;
+  --color-site-row: #454545;
+  --color-avatar-blue: #4f9de8;
+  --color-avatar-purple: #8b7cf6;
+  --color-avatar-pink: #df5f9b;
+  --color-avatar-foreground: #111827;
+  --color-avatar-more: #e8e8e8;
+  --color-avatar-more-foreground: #555555;
 
   --font-sans:
     'Figtree Variable', Figtree, ui-sans-serif, system-ui, sans-serif;
@@ -50,6 +65,7 @@
   --radius-control: 0.25rem;
   --border-width-control: 1px;
   --shadow-control: 0 1px 2px rgb(41 37 36 / 8%);
+  --shadow-site-card: 0 1px 2px rgb(0 0 0 / 4%);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --animate-health-pulse: health-pulse 1.4s ease-in-out infinite;

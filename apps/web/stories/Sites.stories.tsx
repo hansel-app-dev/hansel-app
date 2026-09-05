@@ -39,6 +39,7 @@ const meta = {
     loadDashboard: () => Promise.resolve(figmaViewer),
     loadSites: () => Promise.resolve(emptySitesPage),
     logout: () => Promise.resolve(),
+    now: new Date('2026-09-05T12:00:00.000Z'),
   },
   parameters: {
     layout: 'fullscreen',
@@ -126,6 +127,10 @@ export const Populated: Story = {
           {
             id: 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9',
             name: 'Sydney Central',
+            createdAt: '2026-06-05T12:00:00.000Z',
+            updatedAt: '2026-09-04T12:00:00.000Z',
+            memberCount: 1,
+            memberPreview: [{ displayName: 'Owner', initials: 'O' }],
           },
         ],
       }),

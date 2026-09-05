@@ -9,6 +9,14 @@ import {
 } from './sites.js';
 
 const siteId = '7fced42f-e2e4-4c31-89db-f282bdaeea44';
+const siteSummary = {
+  id: siteId,
+  name: 'Main site',
+  createdAt: '2026-08-01T10:00:00.000Z',
+  updatedAt: '2026-09-01T11:00:00.000Z',
+  memberCount: 1,
+  memberPreview: [{ displayName: 'Owner Example', initials: 'OE' }],
+};
 const principal = {
   userId: 'user-1',
   tenantId: 'tenant-1',
@@ -41,7 +49,7 @@ function harness(overrides: Record<string, unknown> = {}) {
       sites: [],
     }),
     persist: vi.fn().mockResolvedValue({ status: 'created', siteId }),
-    loadActivity: vi.fn().mockResolvedValue({ id: siteId, name: 'Main site' }),
+    loadActivity: vi.fn().mockResolvedValue(siteSummary),
     createId: vi.fn().mockReturnValue('invitation-id'),
     createInvitationToken: vi
       .fn()
@@ -115,7 +123,7 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
             initials: 'OE',
           },
         ],
-        sites: [{ id: siteId, name: 'Existing' }],
+        sites: [{ ...siteSummary, name: 'Existing' }],
       }),
     });
     await expect(
@@ -132,7 +140,7 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
       siteLimitReached: true,
       maximumSites: 1,
       members: [],
-      sites: [{ id: siteId, name: 'Existing' }],
+      sites: [{ ...siteSummary, name: 'Existing' }],
     });
   });
 
@@ -272,7 +280,7 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
   it('loads Activity tenant-safely and hides an unavailable site', async () => {
     const found = harness();
     await expect(found.feature.activity(principal, siteId)).resolves.toEqual({
-      site: { id: siteId, name: 'Main site' },
+      site: siteSummary,
     });
     const absent = harness({ loadActivity: vi.fn().mockResolvedValue(null) });
     await expect(
