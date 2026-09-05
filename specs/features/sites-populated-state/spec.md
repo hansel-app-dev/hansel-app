@@ -1,11 +1,11 @@
 # Feature: Sites populated state
 
 - ID: `sites-populated-state`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-05`
-- Product approval: `Pending explicit approval of this specification`
+- Product approval: `Approved by product owner in the Codex task on 2026-09-05`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access; docs/domain/figjam-object-catalog.md — Site, User, and Organization objects plus Known ambiguities 1–5`
 - Design authority: `Figma Hansel App UI frames 2025:11221 (Workspace / Sites: Grid View) and 2043:3580 (Workspace / Sites: List View)`
 - Design evidence: `Both frames browser-inspected through the signed-in Figma file on 2026-09-05; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
