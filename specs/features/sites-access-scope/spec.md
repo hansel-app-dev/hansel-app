@@ -1,11 +1,11 @@
 # Feature: Site access scope selection
 
 - ID: `sites-access-scope`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-05`
-- Product approval: `Pending explicit approval of this specification amendment`
+- Product approval: `Approved by product owner in the Codex task on 2026-09-05`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Owner, Site, Site Access, Site Access Scope; docs/domain/figjam-object-catalog.md — Site and User objects, Organization roles and permissions, Known ambiguity 4`
 - Supersedes: `sites-add-new REQ-002, REQ-004..REQ-008, REQ-011..REQ-014, REQ-017..REQ-023 where access selection, invitations, persistence, or site visibility is affected`
 - Design authority: `Figma Hansel App UI frames 2029:1630, 2097:6260, 2130:1285, and 2151:1744`
