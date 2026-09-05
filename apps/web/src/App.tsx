@@ -168,11 +168,11 @@ export function App({
     const siteId = siteActivityMatch[1];
     return (
       <SiteActivity
-        loadActivity={async () => {
-          await loadAuthenticatedViewer();
-          return handleApplicationSession(loadSiteActivity(siteId, apiUrl));
-        }}
+        loadActivity={() =>
+          handleApplicationSession(loadSiteActivity(siteId, apiUrl))
+        }
         loadDashboard={loadAuthenticatedViewer}
+        loadSites={() => handleApplicationSession(loadSites(apiUrl))}
         logout={logoutAuthenticatedViewer}
         navigate={navigate}
       />

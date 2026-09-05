@@ -800,7 +800,6 @@ for (const [name, storyId] of [
   ['sites-add-site-paid-seat.png', 'sites-add-site-modal--paid-seat-warning'],
   ['sites-add-site-pending.png', 'sites-add-site-modal--pending-creation'],
   ['sites-add-site-failure.png', 'sites-add-site-modal--server-failure'],
-  ['sites-activity.png', 'sites-site-activity--loaded'],
 ] as const) {
   test(`captures ${storyId} in the Add Site regression matrix [sites-add-new REQ-020, REQ-021]`, async ({
     page,
@@ -815,6 +814,73 @@ for (const [name, storyId] of [
     });
   });
 }
+
+test('Site details Activity shell is accessible and visually stable at desktop [site-details-activity-shell AC-001, AC-002, AC-005, REQ-017..REQ-020]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto('/iframe.html?id=sites-site-activity--loaded&viewMode=story');
+  await expect(
+    page.getByRole('heading', {
+      name: 'Building A – General Teaching Space',
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'Application' }).getByRole('link', {
+      name: 'Building A – General Teaching Space',
+    }),
+  ).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: 'Share site' })).toBeDisabled();
+  await expect(
+    page.getByRole('navigation', { name: 'Site sections' }),
+  ).toContainText('Signage Schedule');
+  await expect(page.getByRole('heading', { name: 'Widget title' })).toHaveCount(
+    4,
+  );
+  await expect(page.getByRole('region', { name: 'Activity' })).toContainText(
+    'Site activity will appear here.',
+  );
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('site-details-activity-shell.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test('Site details Activity shell reflows at narrow width and 200% zoom [site-details-activity-shell AC-005, REQ-016, REQ-019, REQ-020]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/iframe.html?id=sites-site-activity--narrow&viewMode=story');
+  await expect(page.getByRole('region', { name: 'Activity' })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot(
+    'site-details-activity-shell-narrow.png',
+    {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    },
+  );
+
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.goto('/iframe.html?id=sites-site-activity--loaded&viewMode=story');
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
 
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,

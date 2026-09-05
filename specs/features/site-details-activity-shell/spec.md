@@ -1,15 +1,23 @@
 # Feature: Site details Activity shell
 
 - ID: `site-details-activity-shell`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-09-05`
+- Last updated: `2026-09-06`
 - Product approval: `Approved by product owner in the Codex task on 2026-09-05`
 - Domain references: `CONTEXT.md — Organization, Membership, Site, Site Access, Allocation Plan, Sign, Activity; docs/domain/figjam-object-catalog.md — Site, Allocation Plan, Sign, and Organization objects, Canonical interpretation notes, Current implementation alignment, and Known ambiguities 1, 4, 5, and 10`
 - Design authority: `Figma Hansel App UI frame 2030:3333 (Workspace / Sites / Site)`
 - Design evidence: `Browser-inspected through the signed-in Figma file on 2026-09-05; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
 - Supersedes on implementation: `sites-add-new REQ-019 presentation only; its tenant-scoped route, authorization, and truthful placeholder boundary remain authoritative`
+
+## Implementation evidence
+
+- `pnpm verify` passed specification validation, formatting, linting, type checking, production builds, Storybook build, and all 54 deterministic visual/accessibility checks.
+- Frontend and backend suites retained 100% statement, branch, function, and line coverage: 199 frontend tests and 454 backend tests passed.
+- All 39 isolated Chromium application E2E journeys passed, including authorized Site details, inaccessible Site, expired-session, latest-first navigation, and existing authentication/onboarding regression coverage.
+- Storybook covers loaded, zero-member, member-preview, long-name, loading, retryable-failure, narrow-width, and 200%-zoom states, plus the reusable Site member preview.
+- Independent specification and repository-standards reviews passed. The implementation uses only the established dashboard, Site details, and Sites read seams; OpenAPI, Prisma, infrastructure, integrations, and client persistence remain unchanged.
 
 ## Problem
 

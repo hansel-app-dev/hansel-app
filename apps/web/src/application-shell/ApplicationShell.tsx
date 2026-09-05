@@ -1,4 +1,4 @@
-/** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010; sites-empty-state REQ-002..REQ-004, REQ-008..REQ-012; sites-populated-state REQ-005..REQ-008, REQ-018, REQ-020..REQ-022 */
+/** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010; sites-empty-state REQ-002..REQ-004, REQ-008..REQ-012; sites-populated-state REQ-005..REQ-008, REQ-018, REQ-020..REQ-022; site-details-activity-shell REQ-005, REQ-007, REQ-014..REQ-017 */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { DashboardResponse } from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
@@ -45,10 +45,14 @@ export interface ApplicationShellProps {
   activePage: 'Dashboard' | 'Sites';
   children: ReactNode;
   headerActions: ReactNode;
+  headerLeading?: ReactNode;
   loadDashboard: () => Promise<DashboardResponse>;
   loadErrorMessage: string;
   logout: () => Promise<void>;
   navigate?: ((destination: string) => void) | undefined;
+  pageHeading?: string | undefined;
+  preloadedViewer?: DashboardResponse['viewer'] | undefined;
+  currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   workspaceName?: string | undefined;
 }
@@ -57,10 +61,14 @@ export function ApplicationShell({
   activePage,
   children,
   headerActions,
+  headerLeading,
   loadDashboard,
   loadErrorMessage,
   logout,
   navigate,
+  pageHeading,
+  preloadedViewer,
+  currentSiteId,
   siteNavigation,
   workspaceName,
 }: ApplicationShellProps) {
@@ -78,6 +86,7 @@ export function ApplicationShell({
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
+    if (preloadedViewer) return;
     let active = true;
     setLoadError(false);
     setViewer(null);
@@ -91,7 +100,9 @@ export function ApplicationShell({
     return () => {
       active = false;
     };
-  }, [attempt, loadDashboard]);
+  }, [attempt, loadDashboard, preloadedViewer]);
+
+  const displayedViewer = preloadedViewer ?? viewer;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -114,8 +125,8 @@ export function ApplicationShell({
   }, [menuOpen]);
 
   return (
-    <main className="flex min-h-screen bg-surface text-content max-md:flex-col">
-      <h1 className="sr-only">{activePage}</h1>
+    <main className="flex min-h-screen bg-surface text-content max-md:flex-col max-md:overflow-x-clip">
+      <h1 className="sr-only">{pageHeading ?? activePage}</h1>
       <aside
         className={`flex shrink-0 flex-col border-r border-[#e5e5e5] bg-surface py-7 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5 ${workspaceName ? 'w-[300px] px-6' : 'w-[284px] px-8'}`}
       >
@@ -154,7 +165,9 @@ export function ApplicationShell({
                   >
                     <a
                       href={item.href}
-                      aria-current={current ? 'page' : undefined}
+                      aria-current={
+                        current && !currentSiteId ? 'page' : undefined
+                      }
                       className={`flex min-w-0 flex-1 items-center gap-3 rounded py-3 text-[16px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${workspaceName ? 'px-3' : 'px-4'}`}
                       onClick={(event) => {
                         if (!navigate) return;
@@ -190,8 +203,11 @@ export function ApplicationShell({
                       {siteNavigation?.map((site) => (
                         <li key={site.id}>
                           <a
+                            aria-current={
+                              site.id === currentSiteId ? 'page' : undefined
+                            }
                             href={`/sites/${encodeURIComponent(site.id)}/activity`}
-                            className="flex min-h-10 items-center gap-2 rounded px-3 text-[13px] font-normal text-[#4d4d4d] hover:bg-[#f7f7f7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            className={`flex min-h-10 items-center gap-2 rounded px-3 text-[13px] hover:bg-[#f7f7f7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'bg-[#f7f7f7] font-semibold text-content' : 'font-normal text-[#4d4d4d]'}`}
                             onClick={(event) => {
                               if (!navigate) return;
                               event.preventDefault();
@@ -274,11 +290,11 @@ export function ApplicationShell({
               ) : null}
             </div>
           ) : null}
-          {viewer ? (
+          {displayedViewer ? (
             <button
               ref={accountButtonRef}
               type="button"
-              aria-label={`${viewer.displayName}, ${viewer.roleLabel}`}
+              aria-label={`${displayedViewer.displayName}, ${displayedViewer.roleLabel}`}
               aria-haspopup="menu"
               aria-controls="application-account-menu"
               aria-expanded={menuOpen}
@@ -289,14 +305,14 @@ export function ApplicationShell({
               }}
             >
               <span className="grid size-12 shrink-0 place-items-center rounded-full bg-[#e9e9e9] text-sm text-[#444]">
-                {viewer.initials}
+                {displayedViewer.initials}
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-[16px]">
-                  {viewer.displayName}
+                  {displayedViewer.displayName}
                 </span>
                 <span className="mt-1 block truncate text-[14px] text-[#737373]">
-                  {viewer.roleLabel}
+                  {displayedViewer.roleLabel}
                 </span>
               </span>
             </button>
@@ -308,8 +324,15 @@ export function ApplicationShell({
         </div>
       </aside>
       <section className="min-w-0 flex-1">
-        <header className="flex h-[68px] items-center justify-end gap-5 border-b border-[#e5e5e5] px-8 max-md:h-14 max-md:px-5">
-          {headerActions}
+        <header
+          className={`flex items-center gap-5 border-b border-[#e5e5e5] px-8 ${headerLeading ? 'min-h-[68px] max-w-full justify-between max-md:min-h-14 max-md:flex-wrap max-md:px-5 max-md:py-3' : 'h-[68px] justify-end max-md:h-14 max-md:px-5'}`}
+        >
+          {headerLeading ? (
+            <div className="min-w-0 flex-1">{headerLeading}</div>
+          ) : null}
+          <div className="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-5 max-md:gap-2">
+            {headerActions}
+          </div>
         </header>
         {loadError ? (
           <div className="mx-10 mt-8 flex items-center gap-4 max-md:mx-5 max-md:flex-col max-md:items-start">

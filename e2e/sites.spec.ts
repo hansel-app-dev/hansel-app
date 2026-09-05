@@ -214,6 +214,149 @@ test('populated Sites supports keyboard switching, disclosure, and every Activit
   await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
 });
 
+test('authorized Site details preserves truthful Figma hierarchy and latest-first navigation [site-details-activity-shell AC-001, AC-002, AC-005]', async ({
+  page,
+}) => {
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+    }),
+  );
+  await page.route('**/api/sites', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [],
+        sites: [populatedSite, olderSite],
+      }),
+    }),
+  );
+  await page.route(`**/api/sites/${siteId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ site: { id: siteId, name: 'Sydney Central' } }),
+    }),
+  );
+
+  await page.goto(`/sites/${siteId}/activity`);
+  await expect(
+    page.getByRole('heading', { name: 'Sydney Central', level: 1 }),
+  ).toBeVisible();
+  const application = page.getByRole('navigation', { name: 'Application' });
+  const nestedSites = application.getByRole('list', { name: 'Sites' });
+  await expect(nestedSites.getByRole('link')).toHaveCount(2);
+  await expect(nestedSites.getByRole('link').first()).toHaveAccessibleName(
+    'Sydney Central',
+  );
+  await expect(
+    nestedSites.getByRole('link', { name: 'Sydney Central' }),
+  ).toHaveAttribute('aria-current', 'page');
+  await expect(
+    application.getByRole('link', { name: 'Sites', exact: true }),
+  ).not.toHaveAttribute('aria-current');
+  await expect(
+    page.getByRole('group', { name: 'Members: Nabin Singh' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Share site' })).toBeDisabled();
+  await expect(page.getByRole('heading', { name: 'Widget title' })).toHaveCount(
+    4,
+  );
+  await expect(page.getByRole('region', { name: 'Activity' })).toContainText(
+    'Site activity will appear here.',
+  );
+  await expect(page.getByText(/invoice/i)).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page
+    .getByRole('navigation', { name: 'Site breadcrumb' })
+    .getByRole('link', { name: 'Sites' })
+    .click();
+  await expect(page).toHaveURL(/\/sites$/);
+});
+
+test('inaccessible and expired Site detail reads disclose no Site context [site-details-activity-shell AC-003, AC-004]', async ({
+  page,
+}) => {
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+    }),
+  );
+  await page.route('**/api/sites', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [],
+        sites: [populatedSite],
+      }),
+    }),
+  );
+  await page.route(`**/api/sites/${siteId}`, (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'site_unavailable' }),
+    }),
+  );
+
+  await page.goto(`/sites/${siteId}/activity`);
+  await expect(page.getByRole('alert')).toContainText(
+    "We couldn't load this site.",
+  );
+  await expect(page.getByText('Sydney Central')).toHaveCount(0);
+
+  await page.unroute('**/api/sites');
+  await page.unroute(`**/api/sites/${siteId}`);
+  await page.route('**/api/sites**', (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: 'authentication_required' }),
+    }),
+  );
+  await page.reload();
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test('a newly created Site appears before an older Site on the next load [sites-latest-first AC-003, REQ-004, REQ-007]', async ({
   page,
 }) => {
@@ -422,7 +565,10 @@ test('add-site access selector reflows and explains the Free-plan boundary at 32
   );
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto('/sites');
-  await page.getByRole('button', { name: 'New site' }).first().click();
+  await page
+    .getByRole('region', { name: 'No sites' })
+    .getByRole('button', { name: 'New site' })
+    .click();
   await expect(
     page.getByRole('dialog', { name: 'Add new site' }),
   ).toBeVisible();

@@ -1,4 +1,4 @@
-/** @spec sites-populated-state REQ-001, REQ-004..REQ-015, REQ-020..REQ-025 @figma 2025:11221, 2043:3580 */
+/** @spec sites-populated-state REQ-001, REQ-004..REQ-015, REQ-020..REQ-025 @spec site-details-activity-shell REQ-008, REQ-019 @figma 2025:11221, 2043:3580, 2030:3333 */
 import { useState } from 'react';
 import type { SiteSummary } from '@hansel/contracts';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
@@ -73,7 +73,7 @@ function SiteLink({
   );
 }
 
-function MemberPreview({ site }: { site: SiteSummary }) {
+export function SiteMemberPreview({ site }: { site: SiteSummary }) {
   const remaining = Math.max(0, site.memberCount - site.memberPreview.length);
   const names = site.memberPreview.map(({ displayName }) => displayName);
   const accessibleLabel = [
@@ -180,7 +180,7 @@ export function SiteGrid({
                   {relativeTime(site.updatedAt, now)}
                 </span>
                 <span className="mt-1 block">
-                  <MemberPreview site={site} />
+                  <SiteMemberPreview site={site} />
                 </span>
               </span>
             </SiteLink>

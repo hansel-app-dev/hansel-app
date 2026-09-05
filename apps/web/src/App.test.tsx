@@ -240,6 +240,7 @@ describe('App [REQ-002]', () => {
 
   it('creates a site through the modal and opens its authenticated Activity route [sites-add-new REQ-001..REQ-019]', async () => {
     const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    let siteCreated = false;
     const fetcher = vi.fn((url: string, init?: RequestInit) => {
       if (url.endsWith('/api/dashboard'))
         return Promise.resolve(
@@ -253,7 +254,8 @@ describe('App [REQ-002]', () => {
             }),
           ),
         );
-      if (url.endsWith('/api/sites') && init?.method === 'POST')
+      if (url.endsWith('/api/sites') && init?.method === 'POST') {
+        siteCreated = true;
         return Promise.resolve(
           new Response(
             JSON.stringify({
@@ -263,6 +265,7 @@ describe('App [REQ-002]', () => {
             { status: 201 },
           ),
         );
+      }
       if (url.endsWith('/api/sites'))
         return Promise.resolve(
           new Response(
@@ -278,7 +281,18 @@ describe('App [REQ-002]', () => {
               siteLimitReached: false,
               maximumSites: null,
               members: [],
-              sites: [],
+              sites: siteCreated
+                ? [
+                    {
+                      id: siteId,
+                      name: 'New site',
+                      createdAt: '2026-09-05T10:00:00.000Z',
+                      updatedAt: '2026-09-05T10:00:00.000Z',
+                      memberCount: 0,
+                      memberPreview: [],
+                    },
+                  ]
+                : [],
             }),
           ),
         );
@@ -324,7 +338,31 @@ describe('App [REQ-002]', () => {
                       roleLabel: 'Owner',
                     },
                   }
-                : { site: { id: siteId, name: 'Direct site' } },
+                : url.endsWith('/api/sites')
+                  ? {
+                      organizationName: 'Hansel',
+                      canCreateSite: true,
+                      canInviteMembers: true,
+                      creator: {
+                        email: 'owner@example.com',
+                        displayName: 'Owner',
+                        initials: 'O',
+                      },
+                      siteLimitReached: false,
+                      maximumSites: null,
+                      members: [],
+                      sites: [
+                        {
+                          id: siteId,
+                          name: 'Direct site',
+                          createdAt: '2026-09-05T10:00:00.000Z',
+                          updatedAt: '2026-09-05T10:00:00.000Z',
+                          memberCount: 0,
+                          memberPreview: [],
+                        },
+                      ],
+                    }
+                  : { site: { id: siteId, name: 'Direct site' } },
             ),
           ),
         ),
