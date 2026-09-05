@@ -71,8 +71,8 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
   const input = {
     idempotencyKey: 'site-request-00000000000000000001',
     name: 'New site',
+    accessScope: 'ORGANIZATION' as const,
     organizationAccess: 'VIEW_COMMENT' as const,
-    assignments: [],
   };
   const create = (overrides = {}) => {
     const sites = {
@@ -123,6 +123,33 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       .expect(201);
     expect(response.body.destination).toBe(`/sites/${siteId}/activity`);
     expect(fixture.sites.create).toHaveBeenCalledWith('access-token', input);
+    expect(fixture.sites.recordEvent).toHaveBeenCalledWith(
+      'site_create_succeeded_organization',
+    );
+  });
+
+  it('maps one-window legacy input to Organization scope [sites-access-scope REQ-021]', async () => {
+    const fixture = create();
+    await request(fixture.app)
+      .post('/api/sites')
+      .set('Origin', 'https://app.example.com')
+      .set('Cookie', 'hansel_access=access-token')
+      .send({
+        idempotencyKey: 'legacy-request-0000000000000000001',
+        name: 'Legacy site',
+        organizationAccess: 'EDIT_MANAGE',
+        assignments: [{ email: 'viewer@example.com', role: 'VIEWER' }],
+      })
+      .expect(201);
+    expect(fixture.sites.create).toHaveBeenCalledWith('access-token', {
+      idempotencyKey: 'legacy-request-0000000000000000001',
+      name: 'Legacy site',
+      accessScope: 'ORGANIZATION',
+      organizationAccess: 'EDIT_MANAGE',
+    });
+    expect(fixture.sites.recordEvent).toHaveBeenCalledWith(
+      'site_create_legacy_request',
+    );
   });
 
   it.each([
@@ -140,6 +167,9 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
         .set('Cookie', 'hansel_access=access-token')
         .send(input)
         .expect(status, { error: code });
+      expect(fixture.sites.recordEvent).toHaveBeenCalledWith(
+        `site_create_rejected_${code.replace('sites_', '')}`,
+      );
     },
   );
 
@@ -160,6 +190,9 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       .set('Cookie', 'hansel_access=access-token')
       .send({ ...input, unexpected: true })
       .expect(400, { error: 'invalid_request' });
+    expect(fixture.sites.recordEvent).toHaveBeenCalledWith(
+      'site_create_rejected_invalid_request',
+    );
   });
 
   it('loads activity tenant-safely and returns a generic not-found response', async () => {
@@ -202,12 +235,18 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       .set('Origin', 'https://app.example.com')
       .send(input)
       .expect(401, { error: 'authentication_required' });
-    await request(create({ create: vi.fn().mockResolvedValue(null) }).app)
+    const unauthenticatedCreate = create({
+      create: vi.fn().mockResolvedValue(null),
+    });
+    await request(unauthenticatedCreate.app)
       .post('/api/sites')
       .set('Origin', 'https://app.example.com')
       .set('Cookie', 'hansel_access=expired')
       .send(input)
       .expect(401, { error: 'authentication_required' });
+    expect(unauthenticatedCreate.sites.recordEvent).toHaveBeenCalledWith(
+      'site_create_rejected_authentication',
+    );
     const unavailableCreate = create({
       create: vi.fn().mockRejectedValue(new Error('private')),
     });

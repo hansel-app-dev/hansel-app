@@ -1,7 +1,7 @@
 # Feature: Site access scope selection
 
 - ID: `sites-access-scope`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-05`
@@ -10,6 +10,13 @@
 - Supersedes: `sites-add-new REQ-002, REQ-004..REQ-008, REQ-011..REQ-014, REQ-017..REQ-023 where access selection, invitations, persistence, or site visibility is affected`
 - Design authority: `Figma Hansel App UI frames 2029:1630, 2097:6260, 2130:1285, and 2151:1744`
 - Design evidence: `Browser-inspected through the signed-in Figma file on 2026-09-05; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
+
+## Implementation evidence
+
+- `pnpm verify` passed specification validation, formatting, linting, type checking, production builds, 100% frontend/backend/contracts unit coverage, Storybook build, and all 51 visual/accessibility checks.
+- The forward Prisma migration applied successfully to local PostgreSQL; four focused integration tests passed atomic persistence, idempotency, plan limits, scope-aware listing and Activity access, Owner and creator overrides, tenant isolation, and the database scope/capability constraint.
+- All 35 Chromium E2E journeys passed, including Organization, People You Invite, Private, Free-plan restrictions, responsive reflow, session expiry, and the existing authentication and onboarding journeys.
+- AWS CDK synthesis passed for the test stage without adding infrastructure outside the approved platform boundary.
 
 ## Problem
 

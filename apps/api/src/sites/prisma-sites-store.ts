@@ -1,10 +1,26 @@
 /** @spec sites-add-new REQ-010..REQ-016, REQ-019 */
 import { randomUUID } from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import type { ApplicationPrincipal, SitesPersistInput } from './sites.js';
 
 function initials(firstName: string, lastName: string): string {
   return `${Array.from(firstName)[0] ?? ''}${Array.from(lastName)[0] ?? ''}`.toLocaleUpperCase();
+}
+
+function siteAccessWhere(
+  principal: ApplicationPrincipal,
+): Prisma.SiteWhereInput | undefined {
+  if (principal.roleId === 'owner') return undefined;
+  return {
+    OR: [
+      { accessScope: 'ORGANIZATION' },
+      { createdByMembershipId: principal.membershipId },
+      {
+        accessScope: 'PEOPLE_INVITED',
+        grants: { some: { membershipId: principal.membershipId } },
+      },
+    ],
+  };
 }
 
 export function createPrismaSitesStore(
@@ -82,6 +98,7 @@ export function createPrismaSitesStore(
     },
 
     async loadContext(principal: ApplicationPrincipal) {
+      const accessWhere = siteAccessWhere(principal);
       const tenant = await prisma.tenant.findUniqueOrThrow({
         where: { id: principal.tenantId },
         select: {
@@ -105,6 +122,7 @@ export function createPrismaSitesStore(
           },
           sites: {
             orderBy: { createdAt: 'asc' },
+            ...(accessWhere ? { where: accessWhere } : {}),
             select: { id: true, name: true },
           },
         },
@@ -193,7 +211,7 @@ export function createPrismaSitesStore(
             return { status: 'site_limit' } as const;
           if (
             owner.user.planSelection.planId === 'free' &&
-            input.externalInvitations.length > 0
+            input.request.accessScope === 'PEOPLE_INVITED'
           )
             return { status: 'site_limit' } as const;
 
@@ -220,7 +238,11 @@ export function createPrismaSitesStore(
               tenantId: input.principal.tenantId,
               createdByMembershipId: input.principal.membershipId,
               name: input.request.name,
-              organizationAccess: input.request.organizationAccess,
+              accessScope: input.request.accessScope,
+              organizationAccess:
+                input.request.accessScope === 'ORGANIZATION'
+                  ? input.request.organizationAccess
+                  : null,
             },
           });
           const rolesByEmail = new Map(
@@ -285,8 +307,13 @@ export function createPrismaSitesStore(
     },
 
     async loadActivity(principal: ApplicationPrincipal, siteId: string) {
+      const accessWhere = siteAccessWhere(principal);
       return prisma.site.findFirst({
-        where: { id: siteId, tenantId: principal.tenantId },
+        where: {
+          id: siteId,
+          tenantId: principal.tenantId,
+          ...(accessWhere ?? {}),
+        },
         select: { id: true, name: true },
       });
     },

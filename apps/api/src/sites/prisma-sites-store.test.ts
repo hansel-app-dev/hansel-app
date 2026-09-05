@@ -112,7 +112,7 @@ function persistInput(
     principal,
     request: {
       name: 'Main site',
-      organizationAccess: 'VIEW_COMMENT',
+      accessScope: 'PEOPLE_INVITED',
       assignments: [
         { email: 'owner@example.com', role: 'ADMINISTRATOR' },
         { email: 'editor@example.com', role: 'EDITOR' },
@@ -201,6 +201,30 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
         },
       ],
       sites: [{ id: siteId, name: 'Existing' }],
+    });
+  });
+
+  it('filters non-Owner site lists through Organization, creator, and direct invite access [sites-access-scope REQ-006, REQ-007, REQ-010, REQ-019]', async () => {
+    const h = harness();
+    await h.store.loadContext({ ...principal, roleId: 'administrator' });
+    expect(h.prisma.tenant.findUniqueOrThrow).toHaveBeenCalledWith({
+      where: { id: 'tenant-1' },
+      select: expect.objectContaining({
+        sites: {
+          orderBy: { createdAt: 'asc' },
+          where: {
+            OR: [
+              { accessScope: 'ORGANIZATION' },
+              { createdByMembershipId: 'membership-1' },
+              {
+                accessScope: 'PEOPLE_INVITED',
+                grants: { some: { membershipId: 'membership-1' } },
+              },
+            ],
+          },
+          select: { id: true, name: true },
+        },
+      }),
     });
   });
 
@@ -299,6 +323,72 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
     });
   });
 
+  it('persists a Private site with only its creator grant [sites-access-scope REQ-010, REQ-017]', async () => {
+    const h = harness();
+    await expect(
+      h.store.persist(
+        persistInput({
+          request: {
+            name: 'Private site',
+            accessScope: 'PRIVATE',
+            idempotencyKey: 'p'.repeat(32),
+          },
+          internalAssignments: [],
+          externalInvitations: [],
+        }),
+      ),
+    ).resolves.toEqual({ status: 'created', siteId });
+    expect(h.transaction.site.create).toHaveBeenCalledWith({
+      data: {
+        id: siteId,
+        tenantId: 'tenant-1',
+        createdByMembershipId: 'membership-1',
+        name: 'Private site',
+        accessScope: 'PRIVATE',
+        organizationAccess: null,
+      },
+    });
+    expect(h.transaction.siteGrant.createMany).toHaveBeenCalledWith({
+      data: [
+        {
+          siteId,
+          membershipId: 'membership-1',
+          tenantId: 'tenant-1',
+          role: 'ADMINISTRATOR',
+        },
+      ],
+    });
+    expect(h.transaction.siteInvitation.create).not.toHaveBeenCalled();
+  });
+
+  it('persists the selected Organization capability [sites-access-scope REQ-005, REQ-017]', async () => {
+    const h = harness();
+    await expect(
+      h.store.persist(
+        persistInput({
+          request: {
+            name: 'Organization site',
+            accessScope: 'ORGANIZATION',
+            organizationAccess: 'EDIT_MANAGE',
+            idempotencyKey: 'o'.repeat(32),
+          },
+          internalAssignments: [],
+          externalInvitations: [],
+        }),
+      ),
+    ).resolves.toEqual({ status: 'created', siteId });
+    expect(h.transaction.site.create).toHaveBeenCalledWith({
+      data: {
+        id: siteId,
+        tenantId: 'tenant-1',
+        createdByMembershipId: 'membership-1',
+        name: 'Organization site',
+        accessScope: 'ORGANIZATION',
+        organizationAccess: 'EDIT_MANAGE',
+      },
+    });
+  });
+
   it.each([
     ['request-digest', { status: 'replayed', siteId }],
     ['changed-digest', { status: 'conflict' }],
@@ -354,6 +444,16 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
     await expect(freeInvite.store.persist(persistInput())).resolves.toEqual({
       status: 'site_limit',
     });
+
+    const freeInternalInvite = harness();
+    freeInternalInvite.transaction.membership.findFirst.mockResolvedValue({
+      user: { planSelection: { planId: 'free', maximumSites: 2 } },
+    });
+    await expect(
+      freeInternalInvite.store.persist(
+        persistInput({ externalInvitations: [] }),
+      ),
+    ).resolves.toEqual({ status: 'site_limit' });
   });
 
   it('supports no internal lookup and rejects a manipulated cross-tenant member', async () => {
@@ -387,6 +487,29 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
     });
     expect(h.prisma.site.findFirst).toHaveBeenCalledWith({
       where: { id: siteId, tenantId: 'tenant-1' },
+      select: { id: true, name: true },
+    });
+  });
+
+  it('hides inaccessible Activity from a non-Owner [sites-access-scope REQ-019]', async () => {
+    const h = harness();
+    await h.store.loadActivity(
+      { ...principal, roleId: 'administrator' },
+      siteId,
+    );
+    expect(h.prisma.site.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: siteId,
+        tenantId: 'tenant-1',
+        OR: [
+          { accessScope: 'ORGANIZATION' },
+          { createdByMembershipId: 'membership-1' },
+          {
+            accessScope: 'PEOPLE_INVITED',
+            grants: { some: { membershipId: 'membership-1' } },
+          },
+        ],
+      },
       select: { id: true, name: true },
     });
   });

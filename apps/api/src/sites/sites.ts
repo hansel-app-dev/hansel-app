@@ -2,6 +2,7 @@
 import type {
   CreateSiteRequest,
   CreateSiteResponse,
+  SiteAssignment,
   SiteActivityResponse,
   SiteMemberChoice,
   SiteSummary,
@@ -29,8 +30,8 @@ export interface SitesPersistInput {
   principal: ApplicationPrincipal;
   request: CreateSiteRequest;
   requestDigest: string;
-  internalAssignments: CreateSiteRequest['assignments'];
-  externalInvitations: (CreateSiteRequest['assignments'][number] & {
+  internalAssignments: SiteAssignment[];
+  externalInvitations: (SiteAssignment & {
     invitationId: string;
     token: string;
     tokenDigest: string;
@@ -124,15 +125,21 @@ export function createSitesFeature(dependencies: SitesDependencies) {
       request: CreateSiteRequest,
     ): Promise<CreateSiteResponse> {
       if (!canCreate(principal.roleId)) throw new SitesForbiddenError();
-      const assignments = [
-        ...new Map(
-          request.assignments.map((assignment) => [
-            assignment.email,
-            assignment,
-          ]),
-        ).values(),
-      ];
-      const normalizedRequest = { ...request, assignments };
+      const assignments =
+        request.accessScope === 'PEOPLE_INVITED'
+          ? [
+              ...new Map(
+                request.assignments.map((assignment) => [
+                  assignment.email,
+                  assignment,
+                ]),
+              ).values(),
+            ]
+          : [];
+      const normalizedRequest: CreateSiteRequest =
+        request.accessScope === 'PEOPLE_INVITED'
+          ? { ...request, assignments }
+          : request;
       const requestDigest = dependencies.digestRequest(normalizedRequest);
       const previous = await dependencies.findCreationRequest(
         principal,
@@ -145,9 +152,12 @@ export function createSitesFeature(dependencies: SitesDependencies) {
           siteId: previous.siteId,
           destination: `/sites/${previous.siteId}/activity`,
         };
-      const context = await dependencies.loadContext(principal);
+      const context =
+        request.accessScope === 'PEOPLE_INVITED'
+          ? await dependencies.loadContext(principal)
+          : null;
       const memberEmails = new Set(
-        context.members.map(({ email }) => email.toLowerCase()),
+        context?.members.map(({ email }) => email.toLowerCase()) ?? [],
       );
       const internalAssignments = assignments.filter(({ email }) =>
         memberEmails.has(email),
@@ -155,7 +165,10 @@ export function createSitesFeature(dependencies: SitesDependencies) {
       const externalAssignments = assignments.filter(
         ({ email }) => !memberEmails.has(email),
       );
-      if (externalAssignments.length > 0 && context.planId === 'free')
+      if (
+        request.accessScope === 'PEOPLE_INVITED' &&
+        context?.planId === 'free'
+      )
         throw new SitesUpgradeRequiredError();
       if (externalAssignments.some(({ role }) => role !== 'VIEWER'))
         throw new SitesPaidSeatRequiredError();

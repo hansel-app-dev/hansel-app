@@ -29,6 +29,7 @@ import {
   organizationProfileRequestSchema,
   organizationProfileResponseSchema,
   createSiteRequestSchema,
+  legacyCreateSiteRequestSchema,
   createSiteResponseSchema,
   siteActivityResponseSchema,
   sitesPageResponseSchema,
@@ -1013,20 +1014,41 @@ export function createApp(
         response.status(401).json({ error: 'authentication_required' });
         return;
       }
-      const input = createSiteRequestSchema.safeParse(request.body);
-      if (!input.success) {
-        response.status(400).json({ error: 'invalid_request' });
-        return;
+      const currentInput = createSiteRequestSchema.safeParse(request.body);
+      let input: CreateSiteRequest;
+      if (currentInput.success) input = currentInput.data;
+      else {
+        const legacyInput = legacyCreateSiteRequestSchema.safeParse(
+          request.body,
+        );
+        if (!legacyInput.success) {
+          sites.recordEvent?.('site_create_rejected_invalid_request');
+          response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        sites.recordEvent?.('site_create_legacy_request');
+        input = {
+          name: legacyInput.data.name,
+          accessScope: 'ORGANIZATION',
+          organizationAccess: legacyInput.data.organizationAccess,
+          idempotencyKey: legacyInput.data.idempotencyKey,
+        };
       }
       try {
-        const result = await sites.create(credential, input.data);
+        const result = await sites.create(credential, input);
         if (!result) {
+          sites.recordEvent?.('site_create_rejected_authentication');
           response.status(401).json({ error: 'authentication_required' });
           return;
         }
-        response.status(201).json(createSiteResponseSchema.parse(result));
+        const responseBody = createSiteResponseSchema.parse(result);
+        sites.recordEvent?.(
+          `site_create_succeeded_${input.accessScope.toLowerCase()}`,
+        );
+        response.status(201).json(responseBody);
       } catch (error) {
         if (error instanceof SitesForbiddenError) {
+          sites.recordEvent?.('site_create_rejected_forbidden');
           response.status(403).json({ error: error.code });
           return;
         }
@@ -1035,6 +1057,9 @@ export function createApp(
           error instanceof SitesPaidSeatRequiredError ||
           error instanceof SitesConflictError
         ) {
+          sites.recordEvent?.(
+            `site_create_rejected_${error.code.replace('sites_', '')}`,
+          );
           response.status(409).json({ error: error.code });
           return;
         }

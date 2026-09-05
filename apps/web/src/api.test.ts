@@ -71,8 +71,8 @@ describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
     const input = {
       idempotencyKey: 'site-request-00000000000000000001',
       name: 'New site',
+      accessScope: 'ORGANIZATION' as const,
       organizationAccess: 'VIEW_COMMENT' as const,
-      assignments: [],
     };
 
     await expect(loadSites('', fetcher)).resolves.toEqual(page);
@@ -106,8 +106,8 @@ describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
         {
           idempotencyKey: 'site-request-00000000000000000001',
           name: 'New site',
+          accessScope: 'ORGANIZATION',
           organizationAccess: 'VIEW_COMMENT',
-          assignments: [],
         },
         '',
         unauthorized,
@@ -124,8 +124,8 @@ describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
         {
           idempotencyKey: 'site-request-00000000000000000001',
           name: 'New site',
+          accessScope: 'ORGANIZATION',
           organizationAccess: 'VIEW_COMMENT',
-          assignments: [],
         },
         '',
         limited,
@@ -145,8 +145,8 @@ describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
     const request = {
       idempotencyKey: 'site-request-00000000000000000001',
       name: 'New site',
+      accessScope: 'ORGANIZATION' as const,
       organizationAccess: 'VIEW_COMMENT' as const,
-      assignments: [],
     };
     await expect(createSite(request, '', unknown)).rejects.toMatchObject({
       code: 'sites_unavailable',

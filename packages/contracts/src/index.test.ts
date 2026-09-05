@@ -34,29 +34,24 @@ import {
   passwordResetRequestSchema,
   passwordResetResponseSchema,
   createSiteRequestSchema,
+  legacyCreateSiteRequestSchema,
   createSiteResponseSchema,
   sitesPageResponseSchema,
 } from './index.js';
 
 describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () => {
-  it('normalizes a strict two-step creation request and closed destination', () => {
+  it('normalizes a strict Organization-scoped request and closed destination [sites-access-scope REQ-015]', () => {
     expect(
       createSiteRequestSchema.parse({
         name: '  Café West  ',
+        accessScope: 'ORGANIZATION',
         organizationAccess: 'VIEW_COMMENT',
-        assignments: [
-          { email: ' ADMIN@EXAMPLE.COM ', role: 'ADMINISTRATOR' },
-          { email: 'viewer@example.com', role: 'VIEWER' },
-        ],
         idempotencyKey: 'a'.repeat(32),
       }),
     ).toEqual({
       name: 'Café West',
+      accessScope: 'ORGANIZATION',
       organizationAccess: 'VIEW_COMMENT',
-      assignments: [
-        { email: 'admin@example.com', role: 'ADMINISTRATOR' },
-        { email: 'viewer@example.com', role: 'VIEWER' },
-      ],
       idempotencyKey: 'a'.repeat(32),
     });
 
@@ -69,6 +64,67 @@ describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () 
       siteId: '7fced42f-e2e4-4c31-89db-f282bdaeea44',
       destination: '/sites/7fced42f-e2e4-4c31-89db-f282bdaeea44/activity',
     });
+  });
+
+  it('accepts a Private request without Organization capability or assignments [sites-access-scope REQ-010, REQ-015]', () => {
+    expect(
+      createSiteRequestSchema.parse({
+        name: 'Private site',
+        accessScope: 'PRIVATE',
+        idempotencyKey: 'b'.repeat(32),
+      }),
+    ).toEqual({
+      name: 'Private site',
+      accessScope: 'PRIVATE',
+      idempotencyKey: 'b'.repeat(32),
+    });
+  });
+
+  it('normalizes a People You Invite request with at least one assignment [sites-access-scope REQ-008, REQ-015]', () => {
+    expect(
+      createSiteRequestSchema.parse({
+        name: 'Invite-only site',
+        accessScope: 'PEOPLE_INVITED',
+        assignments: [
+          { email: ' ADMIN@EXAMPLE.COM ', role: 'ADMINISTRATOR' },
+          { email: 'viewer@example.com', role: 'VIEWER' },
+        ],
+        idempotencyKey: 'c'.repeat(32),
+      }),
+    ).toEqual({
+      name: 'Invite-only site',
+      accessScope: 'PEOPLE_INVITED',
+      assignments: [
+        { email: 'admin@example.com', role: 'ADMINISTRATOR' },
+        { email: 'viewer@example.com', role: 'VIEWER' },
+      ],
+      idempotencyKey: 'c'.repeat(32),
+    });
+  });
+
+  it('accepts only the prior strict Organization shape on the bounded compatibility path [sites-access-scope REQ-021]', () => {
+    expect(
+      legacyCreateSiteRequestSchema.parse({
+        name: 'Legacy site',
+        organizationAccess: 'EDIT_MANAGE',
+        assignments: [],
+        idempotencyKey: 'd'.repeat(32),
+      }),
+    ).toEqual({
+      name: 'Legacy site',
+      organizationAccess: 'EDIT_MANAGE',
+      assignments: [],
+      idempotencyKey: 'd'.repeat(32),
+    });
+    expect(() =>
+      legacyCreateSiteRequestSchema.parse({
+        name: 'Not legacy',
+        accessScope: 'PRIVATE',
+        organizationAccess: 'VIEW_COMMENT',
+        assignments: [],
+        idempotencyKey: 'e'.repeat(32),
+      }),
+    ).toThrow();
   });
 
   it('publishes only bounded tenant creation context and summaries', () => {
@@ -102,25 +158,88 @@ describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () 
   });
 
   it.each([
-    ['empty name', { name: '' }],
-    ['long name', { name: '😀'.repeat(101) }],
-    ['bad access', { organizationAccess: 'PUBLIC' }],
-    ['bad email', { assignments: [{ email: 'not-email', role: 'VIEWER' }] }],
+    [
+      'empty name',
+      {
+        name: '',
+        accessScope: 'ORGANIZATION',
+        organizationAccess: 'VIEW_COMMENT',
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
+    [
+      'long name',
+      {
+        name: '😀'.repeat(101),
+        accessScope: 'PRIVATE',
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
+    [
+      'bad access',
+      {
+        name: 'Main site',
+        accessScope: 'ORGANIZATION',
+        organizationAccess: 'PUBLIC',
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
+    [
+      'bad email',
+      {
+        name: 'Main site',
+        accessScope: 'PEOPLE_INVITED',
+        assignments: [{ email: 'not-email', role: 'VIEWER' }],
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
     [
       'bad role',
-      { assignments: [{ email: 'user@example.com', role: 'OWNER' }] },
-    ],
-    ['short key', { idempotencyKey: 'short' }],
-  ])('rejects %s', (_name, override) => {
-    expect(() =>
-      createSiteRequestSchema.parse({
+      {
         name: 'Main site',
-        organizationAccess: 'VIEW_COMMENT',
+        accessScope: 'PEOPLE_INVITED',
+        assignments: [{ email: 'user@example.com', role: 'OWNER' }],
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
+    [
+      'empty invite list',
+      {
+        name: 'Main site',
+        accessScope: 'PEOPLE_INVITED',
         assignments: [],
         idempotencyKey: 'a'.repeat(32),
-        ...override,
-      }),
-    ).toThrow();
+      },
+    ],
+    [
+      'assignments on Organization',
+      {
+        name: 'Main site',
+        accessScope: 'ORGANIZATION',
+        organizationAccess: 'VIEW_COMMENT',
+        assignments: [{ email: 'user@example.com', role: 'VIEWER' }],
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
+    [
+      'Organization capability on Private',
+      {
+        name: 'Main site',
+        accessScope: 'PRIVATE',
+        organizationAccess: 'VIEW_COMMENT',
+        idempotencyKey: 'a'.repeat(32),
+      },
+    ],
+    [
+      'short key',
+      {
+        name: 'Main site',
+        accessScope: 'PRIVATE',
+        idempotencyKey: 'short',
+      },
+    ],
+  ])('rejects %s [sites-access-scope REQ-015]', (_name, input) => {
+    expect(() => createSiteRequestSchema.parse(input)).toThrow();
   });
 });
 

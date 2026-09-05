@@ -532,6 +532,13 @@ export type SiteOrganizationAccess = z.infer<
   typeof siteOrganizationAccessSchema
 >;
 
+export const siteAccessScopeSchema = z.enum([
+  'ORGANIZATION',
+  'PEOPLE_INVITED',
+  'PRIVATE',
+]);
+export type SiteAccessScope = z.infer<typeof siteAccessScopeSchema>;
+
 const siteNameSchema = z
   .string()
   .trim()
@@ -551,15 +558,34 @@ export const siteAssignmentSchema = z
   .strict();
 export type SiteAssignment = z.infer<typeof siteAssignmentSchema>;
 
-export const createSiteRequestSchema = z
+const createSiteBaseSchema = z
   .object({
     name: siteNameSchema,
-    organizationAccess: siteOrganizationAccessSchema,
-    assignments: z.array(siteAssignmentSchema).max(100),
     idempotencyKey: z.string().min(32).max(200),
   })
   .strict();
+
+export const createSiteRequestSchema = z.discriminatedUnion('accessScope', [
+  createSiteBaseSchema.extend({
+    accessScope: z.literal('ORGANIZATION'),
+    organizationAccess: siteOrganizationAccessSchema,
+  }),
+  createSiteBaseSchema.extend({
+    accessScope: z.literal('PEOPLE_INVITED'),
+    assignments: z.array(siteAssignmentSchema).min(1).max(100),
+  }),
+  createSiteBaseSchema.extend({ accessScope: z.literal('PRIVATE') }),
+]);
 export type CreateSiteRequest = z.infer<typeof createSiteRequestSchema>;
+
+/** Temporary compatibility schema for the bounded site-access-scope rollout window. */
+export const legacyCreateSiteRequestSchema = createSiteBaseSchema.extend({
+  organizationAccess: siteOrganizationAccessSchema,
+  assignments: z.array(siteAssignmentSchema).max(100),
+});
+export type LegacyCreateSiteRequest = z.infer<
+  typeof legacyCreateSiteRequestSchema
+>;
 
 export const createSiteResponseSchema = z
   .object({

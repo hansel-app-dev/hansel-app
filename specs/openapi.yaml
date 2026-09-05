@@ -452,7 +452,10 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/CreateSiteRequest' }
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/CreateSiteRequest'
+                - $ref: '#/components/schemas/LegacyCreateSiteRequest'
       responses:
         '201':
           description: Site created or an identical request replayed
@@ -1363,7 +1366,55 @@ components:
       properties:
         email: { type: string, format: email }
         role: { $ref: '#/components/schemas/SiteRole' }
+    SiteAccessScope:
+      type: string
+      enum: [ORGANIZATION, PEOPLE_INVITED, PRIVATE]
+    OrganizationCreateSiteRequest:
+      type: object
+      additionalProperties: false
+      required: [name, accessScope, organizationAccess, idempotencyKey]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        accessScope: { type: string, const: ORGANIZATION }
+        organizationAccess:
+          type: string
+          enum: [VIEW_COMMENT, EDIT_MANAGE]
+        idempotencyKey: { type: string, minLength: 32, maxLength: 200 }
+    PeopleInvitedCreateSiteRequest:
+      type: object
+      additionalProperties: false
+      required: [name, accessScope, assignments, idempotencyKey]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        accessScope: { type: string, const: PEOPLE_INVITED }
+        assignments:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/SiteAssignment' }
+        idempotencyKey: { type: string, minLength: 32, maxLength: 200 }
+    PrivateCreateSiteRequest:
+      type: object
+      additionalProperties: false
+      required: [name, accessScope, idempotencyKey]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        accessScope: { type: string, const: PRIVATE }
+        idempotencyKey: { type: string, minLength: 32, maxLength: 200 }
     CreateSiteRequest:
+      oneOf:
+        - $ref: '#/components/schemas/OrganizationCreateSiteRequest'
+        - $ref: '#/components/schemas/PeopleInvitedCreateSiteRequest'
+        - $ref: '#/components/schemas/PrivateCreateSiteRequest'
+      discriminator:
+        propertyName: accessScope
+        mapping:
+          ORGANIZATION: '#/components/schemas/OrganizationCreateSiteRequest'
+          PEOPLE_INVITED: '#/components/schemas/PeopleInvitedCreateSiteRequest'
+          PRIVATE: '#/components/schemas/PrivateCreateSiteRequest'
+    LegacyCreateSiteRequest:
+      deprecated: true
+      description: Accepted only during the bounded site-access-scope rollout window and mapped to Organization scope.
       type: object
       additionalProperties: false
       required: [name, organizationAccess, assignments, idempotencyKey]

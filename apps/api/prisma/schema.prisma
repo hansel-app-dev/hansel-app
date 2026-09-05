@@ -64,6 +64,12 @@ enum SiteOrganizationAccess {
   EDIT_MANAGE
 }
 
+enum SiteAccessScope {
+  ORGANIZATION
+  PEOPLE_INVITED
+  PRIVATE
+}
+
 enum SiteRole {
   ADMINISTRATOR
   EDITOR
@@ -390,18 +396,19 @@ model Membership {
 }
 
 model Site {
-  id                    String                 @id @default(uuid()) @db.Uuid
-  tenantId              String                 @db.Uuid
-  createdByMembershipId String                 @db.Uuid
+  id                    String                  @id @default(uuid()) @db.Uuid
+  tenantId              String                  @db.Uuid
+  createdByMembershipId String                  @db.Uuid
   name                  String
-  organizationAccess    SiteOrganizationAccess
-  tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy             Membership             @relation("SiteCreator", fields: [createdByMembershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  accessScope           SiteAccessScope
+  organizationAccess    SiteOrganizationAccess?
+  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy             Membership              @relation("SiteCreator", fields: [createdByMembershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
   grants                SiteGrant[]
   invitations           SiteInvitation[]
   creationRequests      SiteCreationRequest[]
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
 
   @@unique([id, tenantId])
   @@index([tenantId, createdAt])

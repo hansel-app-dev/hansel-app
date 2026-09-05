@@ -300,8 +300,7 @@ describe('App [REQ-002]', () => {
     const newSite = screen.getAllByRole('button', { name: 'New site' }).at(0);
     if (!newSite) throw new Error('Expected the New site action');
     fireEvent.click(newSite);
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Create site' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add new site' }));
     expect(
       await screen.findByRole('heading', { name: 'New site' }),
     ).toBeVisible();

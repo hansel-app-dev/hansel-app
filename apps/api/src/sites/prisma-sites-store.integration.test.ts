@@ -122,7 +122,7 @@ function creationInput(
     principal,
     request: {
       name: 'Sydney Central',
-      organizationAccess: 'VIEW_COMMENT',
+      accessScope: 'PEOPLE_INVITED',
       assignments: [
         { email: editorEmail, role: 'EDITOR' },
         { email: 'guest@example.com', role: 'VIEWER' },
@@ -253,8 +253,8 @@ integration(
         creationInput(principal, seeded.editor.email, {
           request: {
             name: `Site ${randomUUID()}`,
+            accessScope: 'ORGANIZATION',
             organizationAccess: 'VIEW_COMMENT',
-            assignments: [],
             idempotencyKey: randomUUID(),
           },
           requestDigest: digest(randomUUID()),
@@ -276,6 +276,102 @@ integration(
       await expect(
         prisma.site.count({ where: { tenantId: seeded.tenant.id } }),
       ).resolves.toBe(1);
+    });
+
+    it('enforces scope-aware listing and Activity reads in PostgreSQL [sites-access-scope REQ-006, REQ-007, REQ-010, REQ-019]', async () => {
+      const seeded = await seedTenant();
+      const store = createPrismaSitesStore(prisma, digest);
+      const organizationSiteId = randomUUID();
+      const privateSiteId = randomUUID();
+      const creatorPrivateSiteId = randomUUID();
+      await prisma.site.createMany({
+        data: [
+          {
+            id: organizationSiteId,
+            tenantId: seeded.tenant.id,
+            createdByMembershipId: seeded.ownerMembership.id,
+            name: 'Organization site',
+            accessScope: 'ORGANIZATION',
+            organizationAccess: 'VIEW_COMMENT',
+          },
+          {
+            id: privateSiteId,
+            tenantId: seeded.tenant.id,
+            createdByMembershipId: seeded.ownerMembership.id,
+            name: 'Owner private site',
+            accessScope: 'PRIVATE',
+            organizationAccess: null,
+          },
+          {
+            id: creatorPrivateSiteId,
+            tenantId: seeded.tenant.id,
+            createdByMembershipId: seeded.editorMembership.id,
+            name: 'Creator private site',
+            accessScope: 'PRIVATE',
+            organizationAccess: null,
+          },
+        ],
+      });
+      await prisma.siteGrant.create({
+        data: {
+          siteId: privateSiteId,
+          tenantId: seeded.tenant.id,
+          membershipId: seeded.editorMembership.id,
+          role: 'VIEWER',
+        },
+      });
+      const editorPrincipal: ApplicationPrincipal = {
+        userId: seeded.editor.id,
+        tenantId: seeded.tenant.id,
+        membershipId: seeded.editorMembership.id,
+        roleId: 'editor',
+        email: seeded.editor.email,
+      };
+
+      const editorContext = await store.loadContext(editorPrincipal);
+      expect(editorContext.sites.map(({ name }) => name)).toEqual(
+        expect.arrayContaining(['Organization site', 'Creator private site']),
+      );
+      expect(editorContext.sites.map(({ name }) => name)).not.toContain(
+        'Owner private site',
+      );
+      await expect(
+        store.loadActivity(editorPrincipal, privateSiteId),
+      ).resolves.toBeNull();
+      await expect(
+        store.loadActivity(editorPrincipal, organizationSiteId),
+      ).resolves.toMatchObject({ id: organizationSiteId });
+
+      const ownerPrincipal: ApplicationPrincipal = {
+        userId: seeded.owner.id,
+        tenantId: seeded.tenant.id,
+        membershipId: seeded.ownerMembership.id,
+        roleId: 'owner',
+        email: seeded.owner.email,
+      };
+      await expect(
+        store.loadActivity(ownerPrincipal, privateSiteId),
+      ).resolves.toMatchObject({ id: privateSiteId });
+    });
+
+    it('rejects impossible scope and Organization-capability combinations at the database boundary [sites-access-scope REQ-020]', async () => {
+      const seeded = await seedTenant();
+      const invalidSiteId = randomUUID();
+      await expect(
+        prisma.site.create({
+          data: {
+            id: invalidSiteId,
+            tenantId: seeded.tenant.id,
+            createdByMembershipId: seeded.ownerMembership.id,
+            name: 'Invalid private site',
+            accessScope: 'PRIVATE',
+            organizationAccess: 'VIEW_COMMENT',
+          },
+        }),
+      ).rejects.toThrow();
+      await expect(
+        prisma.site.count({ where: { id: invalidSiteId } }),
+      ).resolves.toBe(0);
     });
   },
 );

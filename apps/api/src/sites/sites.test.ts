@@ -18,8 +18,8 @@ const principal = {
 };
 const request = {
   name: 'Main site',
+  accessScope: 'ORGANIZATION' as const,
   organizationAccess: 'VIEW_COMMENT' as const,
-  assignments: [],
   idempotencyKey: 'a'.repeat(32),
 };
 
@@ -54,6 +54,27 @@ function harness(overrides: Record<string, unknown> = {}) {
 }
 
 describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
+  it('creates a Private site without Organization access or invite assignments [sites-access-scope REQ-010, REQ-015..REQ-018]', async () => {
+    const h = harness();
+    const privateRequest = {
+      name: 'Private site',
+      accessScope: 'PRIVATE' as const,
+      idempotencyKey: 'p'.repeat(32),
+    };
+
+    await expect(h.feature.create(principal, privateRequest)).resolves.toEqual({
+      siteId,
+      destination: `/sites/${siteId}/activity`,
+    });
+    expect(h.dependencies.persist).toHaveBeenCalledWith({
+      principal,
+      request: privateRequest,
+      requestDigest: 'request-digest',
+      internalAssignments: [],
+      externalInvitations: [],
+    });
+  });
+
   it.each(['editor', 'viewer', 'unknown'])(
     'forbids the %s role from creating sites',
     async (roleId) => {
@@ -133,12 +154,14 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
   it('normalizes duplicate staging, classifies tenant members, and creates seven-day Viewer invitations', async () => {
     const h = harness();
     const input = {
-      ...request,
+      name: request.name,
+      accessScope: 'PEOPLE_INVITED' as const,
       assignments: [
         { email: 'editor@example.com', role: 'EDITOR' as const },
         { email: 'guest@example.com', role: 'ADMINISTRATOR' as const },
         { email: 'guest@example.com', role: 'VIEWER' as const },
       ],
+      idempotencyKey: request.idempotencyKey,
     };
     await expect(h.feature.create(principal, input)).resolves.toEqual({
       siteId,
@@ -147,11 +170,13 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
     expect(h.dependencies.persist).toHaveBeenCalledWith({
       principal,
       request: {
-        ...request,
+        name: request.name,
+        accessScope: 'PEOPLE_INVITED',
         assignments: [
           { email: 'editor@example.com', role: 'EDITOR' },
           { email: 'guest@example.com', role: 'VIEWER' },
         ],
+        idempotencyKey: request.idempotencyKey,
       },
       requestDigest: 'request-digest',
       internalAssignments: [{ email: 'editor@example.com', role: 'EDITOR' }],
@@ -180,15 +205,19 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
     });
     await expect(
       free.feature.create(principal, {
-        ...request,
+        name: request.name,
+        accessScope: 'PEOPLE_INVITED',
         assignments: [{ email: 'guest@example.com', role: 'VIEWER' }],
+        idempotencyKey: request.idempotencyKey,
       }),
     ).rejects.toBeInstanceOf(SitesUpgradeRequiredError);
     const paid = harness();
     await expect(
       paid.feature.create(principal, {
-        ...request,
+        name: request.name,
+        accessScope: 'PEOPLE_INVITED',
         assignments: [{ email: 'guest@example.com', role: 'EDITOR' }],
+        idempotencyKey: request.idempotencyKey,
       }),
     ).rejects.toBeInstanceOf(SitesPaidSeatRequiredError);
   });

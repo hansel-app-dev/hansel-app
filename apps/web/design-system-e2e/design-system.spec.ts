@@ -641,7 +641,7 @@ test('Sites and authentication use the same shared primary Button color [design-
   expect(sitesColor).toBe(loginColor);
 });
 
-test('Add site steps match the cookbook, remain accessible, and reflow narrowly [sites-add-new REQ-001..REQ-009, REQ-017, REQ-021]', async ({
+test('Add site scopes match the cookbook, remain accessible, and reflow narrowly [sites-access-scope REQ-001..REQ-005, REQ-022..REQ-025]', async ({
   page,
 }) => {
   await page.goto(
@@ -650,7 +650,7 @@ test('Add site steps match the cookbook, remain accessible, and reflow narrowly 
   await expect(
     page.getByRole('dialog', { name: 'Add new site' }),
   ).toBeVisible();
-  await expect(page.getByText('Step 1 of 2')).toBeVisible();
+  await expect(page.getByText('Step 1 of 1')).toBeVisible();
   expect((await analyzeAccessibility(page)).violations).toEqual([]);
   await expect(page).toHaveScreenshot('sites-add-site-step-one.png', {
     animations: 'disabled',
@@ -692,6 +692,31 @@ test('Add site steps match the cookbook, remain accessible, and reflow narrowly 
     ),
   ).toBe(true);
 });
+
+for (const [name, storyId] of [
+  ['sites-add-site-access-open.png', 'sites-add-site-modal--organization-open'],
+  ['sites-add-site-private.png', 'sites-add-site-modal--private'],
+  ['sites-add-site-access-free.png', 'sites-add-site-modal--free-plan'],
+  [
+    'sites-add-site-long-organization.png',
+    'sites-add-site-modal--long-organization-name',
+  ],
+] as const) {
+  test(`captures ${storyId} in the access-scope regression matrix [sites-access-scope REQ-024, REQ-025]`, async ({
+    page,
+  }) => {
+    await page.goto(`/iframe.html?id=${storyId}&viewMode=story`);
+    await expect(
+      page.getByRole('dialog', { name: 'Add new site' }),
+    ).toBeVisible();
+    expect((await analyzeAccessibility(page)).violations).toEqual([]);
+    await expect(page).toHaveScreenshot(name, {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    });
+  });
+}
 
 for (const [name, storyId] of [
   [

@@ -1,4 +1,4 @@
-/** @spec sites-add-new REQ-001..REQ-009, REQ-017, REQ-020 @figma 2029:1630 */
+/** @spec sites-access-scope REQ-001..REQ-005, REQ-022..REQ-025 @figma 2029:1630, 2097:6260, 2130:1285, 2151:1744 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import { AddSiteModal } from '../src/sites/AddSiteModal.js';
@@ -44,9 +44,45 @@ type Story = StoryObj<typeof meta>;
 
 export const StepOne: Story = {};
 
+export const OrganizationOpen: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Who has access' }),
+    );
+    await expect(canvas.getByRole('listbox')).toBeVisible();
+  },
+};
+
+export const Private: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Who has access' }),
+    );
+    await userEvent.click(canvas.getByRole('option', { name: 'Private' }));
+    await expect(
+      canvas.getByText('Only you and organization owners'),
+    ).toBeVisible();
+  },
+};
+
+export const LongOrganizationName: Story = {
+  args: {
+    organizationName:
+      'Hansel International Healthcare and Community Services Organization',
+  },
+};
+
 export const StepTwo: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Who has access' }),
+    );
+    await userEvent.click(
+      canvas.getByRole('option', { name: 'People you invite' }),
+    );
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }));
     await expect(canvas.getByText('Invite team members')).toBeVisible();
   },
@@ -56,8 +92,17 @@ export const FreePlan: Story = {
   args: { canInviteMembers: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Next' }));
-    await expect(canvas.getByText('Invite team members')).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Who has access' }),
+    );
+    const inviteOnly = canvas.getByRole('option', {
+      name: 'People you invite',
+    });
+    await expect(inviteOnly).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(inviteOnly);
+    await expect(canvas.getByRole('alert')).toHaveTextContent(
+      'Upgrade your plan',
+    );
   },
 };
 
@@ -68,6 +113,12 @@ export const Narrow: Story = {
 export const InternalAndExternalMembers: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Who has access' }),
+    );
+    await userEvent.click(
+      canvas.getByRole('option', { name: 'People you invite' }),
+    );
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }));
     const email = canvas.getByLabelText('Email or team member');
     await userEvent.type(email, 'alex@example.com');
@@ -83,6 +134,12 @@ export const InternalAndExternalMembers: Story = {
 export const PaidSeatWarning: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Who has access' }),
+    );
+    await userEvent.click(
+      canvas.getByRole('option', { name: 'People you invite' }),
+    );
     await userEvent.click(canvas.getByRole('button', { name: 'Next' }));
     await userEvent.type(
       canvas.getByLabelText('Email or team member'),
@@ -99,8 +156,7 @@ export const PendingCreation: Story = {
   args: { createSite: () => new Promise(() => undefined) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Next' }));
-    await userEvent.click(canvas.getByRole('button', { name: 'Create site' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Add new site' }));
     await expect(
       canvas.getByRole('button', { name: 'Creating…' }),
     ).toBeDisabled();
@@ -111,8 +167,7 @@ export const ServerFailure: Story = {
   args: { createSite: () => Promise.reject(new Error('unavailable')) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('button', { name: 'Next' }));
-    await userEvent.click(canvas.getByRole('button', { name: 'Create site' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Add new site' }));
     await expect(canvas.getByRole('alert')).toHaveTextContent(
       "We couldn't create the site",
     );

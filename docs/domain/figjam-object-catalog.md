@@ -44,7 +44,7 @@ Labels in the following table preserve the board's wording. Canonical interpreta
 
 - `Lastname` should be discussed as **last name**, paired with **first name** rather than the board's generic `Name`.
 - `Profile Pic` should be discussed as **profile image** in specifications unless exact UI copy requires otherwise.
-- `Site can access` and `Users with access` both point toward **Site Access**, but the board does not define their cardinality or permission precedence.
+- `Site can access` and `Users with access` both point toward **Site Access**. The approved `sites-access-scope` specification resolves creation and visibility through Organization, People You Invite, and Private scopes; broader sharing rules remain unspecified.
 - `Photo / Cover`, `Photos`, `PDF / Image`, and comment `Image` describe media usage, but the board does not say whether these are owned records, references to the Image object, or embedded values.
 - `Linked to` implies an asset association but does not identify the allowed target object types or whether one asset may have multiple links.
 - `Activities` appears in the Organization column as metadata, while the canonical model treats **Activity** as a product object. Its fields and retention rules are not shown.
@@ -109,7 +109,7 @@ Do not implement any of the following without resolving it in the relevant featu
 1. The Site column contains a teal nested item labelled `Sites` (`25:310`), creating an unexplained self-reference. It may be intentional or a board typo.
 2. The board places `Role` under User, while Hansel's canonical language assigns an Organization Role to a Membership so one User can participate in more than one Organization.
 3. The board places `Password` under User but does not describe authentication providers or storage. Existing authentication specifications require passwords never to be stored in plain text; the label is not authorization to expose or persist a raw password.
-4. `Users with access`, `Site can access`, and `shared sites` do not define whether access comes from Organization Role, a direct Site Access grant, an invitation, or a combination.
+4. `shared sites` remains undefined. For approved site creation, `sites-access-scope` specifies Organization visibility, direct People You Invite grants, creator access, and the Owner override; changes beyond those rules require another specification.
 5. The Site column contains two separate notes both labelled `Date / time modified` (`25:173` and `31:925`) and no note labelled `Date / time created`; a feature must not silently rename either note.
 6. The board does not define whether an Organization can have multiple Owners or how ownership may be transferred.
 7. No lifecycle values are supplied for Sign `State`, invitations, comments, assets, Activities, or deletion and archival.
@@ -144,7 +144,7 @@ This section is an index for discovery, not a promise that the current data mode
 | User                                  | Prisma `User` plus provider and credential records                 | Implemented for current authentication scope         |
 | Membership and Organization Role      | Prisma `Membership.roleId`; centralized permission map             | Implemented for current site scope                   |
 | Plan allowances                       | `OnboardingPlanSelection` including `maximumSites`                 | Partial; seat and storage allowances are not modeled |
-| Site and Site Access                  | Prisma `Site`, `SiteGrant`, and `SiteInvitation`                   | Implemented for approved creation scope              |
+| Site and Site Access                  | Prisma `Site`, `SiteGrant`, and `SiteInvitation`                   | Organization, People You Invite, and Private scopes  |
 | Allocation Plan                       | No approved persistent model                                       | Source-only concept                                  |
 | Sign                                  | No approved persistent model                                       | Source-only concept                                  |
 | Document, Image, Video                | No approved persistent models                                      | Source-only concepts                                 |
