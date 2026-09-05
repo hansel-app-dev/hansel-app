@@ -1,10 +1,11 @@
 # Feature: Site details Activity shell
 
 - ID: `site-details-activity-shell`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-05`
+- Product approval: `Approved by product owner in the Codex task on 2026-09-05`
 - Domain references: `CONTEXT.md — Organization, Membership, Site, Site Access, Allocation Plan, Sign, Activity; docs/domain/figjam-object-catalog.md — Site, Allocation Plan, Sign, and Organization objects, Canonical interpretation notes, Current implementation alignment, and Known ambiguities 1, 4, 5, and 10`
 - Design authority: `Figma Hansel App UI frame 2030:3333 (Workspace / Sites / Site)`
 - Design evidence: `Browser-inspected through the signed-in Figma file on 2026-09-05; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
