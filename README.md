@@ -10,7 +10,7 @@ No product change starts in application code. Create a feature directory under `
 pnpm spec:check
 ```
 
-The authoritative lifecycle is documented in [`docs/spec-driven-development.md`](docs/spec-driven-development.md). Architecture decisions live in [`docs/adr`](docs/adr), while API behavior is defined in [`specs/openapi.yaml`](specs/openapi.yaml).
+The authoritative lifecycle is documented in [`docs/spec-driven-development.md`](docs/spec-driven-development.md). Canonical product language lives in [`CONTEXT.md`](CONTEXT.md), and the FigJam-sourced object/data-point reference lives in [`docs/domain/figjam-object-catalog.md`](docs/domain/figjam-object-catalog.md). Architecture decisions live in [`docs/adr`](docs/adr), while API behavior is defined in [`specs/openapi.yaml`](specs/openapi.yaml).
 
 ## Quick start
 
@@ -44,4 +44,6 @@ pnpm --filter @hansel/infra cdk:synth
 - `packages/contracts` — shared runtime schemas and TypeScript contracts
 - `infra` — AWS CDK application
 - `specs` — product and API specifications
+- `CONTEXT.md` — canonical Hansel domain language
+- `docs/domain` — product object catalogs and source evidence
 - `docs/adr` — architecture decisions

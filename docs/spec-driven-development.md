@@ -2,22 +2,25 @@
 
 ## Rule
 
-A feature may enter implementation only after its specification is marked `approved`. Pull requests must name the feature ID and keep the specification, executable contract, code, and tests in the same change.
+A feature may enter implementation only after its specification is marked `approved`. Before drafting it, contributors must read [`CONTEXT.md`](../CONTEXT.md) and the [FigJam object catalog](domain/figjam-object-catalog.md), then cite the affected domain references in the specification. Pull requests must name the feature ID and keep the specification, executable contract, code, and tests traceable to one another.
 
 ## Lifecycle
 
-1. **Propose** — copy `specs/templates/feature.md` to `specs/features/<feature-id>/spec.md`. Use a stable kebab-case ID.
-2. **Clarify** — make every requirement testable, record exclusions, failure behavior, observability, security, data, rollout, and rollback.
-3. **Design** — update OpenAPI, Prisma schema, architecture decisions, and threat model when affected.
-4. **Approve** — a product owner and technical reviewer change `Status` to `approved`. Approval is expressed through CODEOWNERS review in GitHub, not by an unchecked box.
-5. **Implement** — write tests from acceptance scenarios, then production code. Each test references a requirement ID in its name or adjacent comment.
-6. **Verify** — CI validates the spec, API contract, lint, types, 100% unit coverage, builds, CDK synthesis, and E2E tests.
-7. **Release** — deploy immutable artifacts through protected GitHub environments. Run Prisma migrations as a one-off ECS task before changing service traffic.
-8. **Observe** — verify alarms and the spec's success metrics. Roll back the service if the stated guardrail fails.
+1. **Align the domain** — read `CONTEXT.md` and the object catalog. Use canonical terms, identify affected objects and data points, and record contradictions or ambiguities instead of guessing.
+2. **Propose** — copy `specs/templates/feature.md` to `specs/features/<feature-id>/spec.md`. Use a stable kebab-case ID and cite the relevant domain references.
+3. **Clarify** — make every requirement testable, record exclusions, failure behavior, observability, security, data, rollout, and rollback. A catalog data point is not a requirement until the specification selects and defines it.
+4. **Design** — update OpenAPI, Prisma schema, architecture decisions, threat model, and domain documentation when affected.
+5. **Approve** — commit and push the specification separately. A product owner and technical reviewer then change `Status` to `approved`; approval is expressed through CODEOWNERS review in GitHub, not by an unchecked box.
+6. **Implement** — only after approval, write tests from acceptance scenarios and then production code. Each test references a requirement ID in its name or adjacent comment.
+7. **Verify** — CI validates the spec, API contract, lint, types, 100% unit coverage, builds, CDK synthesis, and E2E tests.
+8. **Release** — deploy immutable artifacts through protected GitHub environments. Run Prisma migrations as a one-off ECS task before changing service traffic.
+9. **Observe** — verify alarms and the spec's success metrics. Roll back the service if the stated guardrail fails.
 
 ## Definition of ready
 
 - Status is `approved`.
+- Domain references identify the affected canonical terms and object-catalog sections.
+- Terminology agrees with `CONTEXT.md`; catalog ambiguities are either out of scope or explicitly resolved.
 - Problem, outcome, and non-goals are explicit.
 - Requirements have unique `REQ-###` identifiers and measurable language.
 - Acceptance scenarios use Given/When/Then and cite requirements.

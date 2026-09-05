@@ -4,8 +4,9 @@
 - Status: `draft`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-09-02`
+- Last updated: `2026-09-05`
 - Product approval: `Pending explicit approval of this specification`
+- Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access; docs/domain/figjam-object-catalog.md — Site, User, and Organization objects plus Known ambiguities 1–5`
 - Design authority: `Figma Hansel App UI frame 2025:11221, 1.1 Sites Populated / Grid View`
 - Design evidence: `Browser-inspected through the signed-in Figma file on 2026-09-02; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
 

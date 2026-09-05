@@ -5,6 +5,7 @@
 - Owner: `<product owner>`
 - Technical owner: `<engineering owner>`
 - Last updated: `YYYY-MM-DD`
+- Domain references: `<CONTEXT.md terms and docs/domain/figjam-object-catalog.md sections used>`
 
 ## Problem
 
