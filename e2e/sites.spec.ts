@@ -10,6 +10,13 @@ const populatedSite = {
   memberCount: 1,
   memberPreview: [{ displayName: 'Nabin Singh', initials: 'NS' }],
 };
+const olderSite = {
+  ...populatedSite,
+  id: 'c1745b68-2885-45dd-9f05-7a35f9466c1c',
+  name: 'Older Site',
+  createdAt: '2026-07-01T10:00:00.000Z',
+  updatedAt: '2026-07-01T10:00:00.000Z',
+};
 
 test('both New site actions complete the accessible People You Invite flow and populate the grid [sites-access-scope AC-001, AC-003, AC-007; sites-populated-state AC-001]', async ({
   page,
@@ -205,6 +212,86 @@ test('populated Sites supports keyboard switching, disclosure, and every Activit
     .getByRole('link', { name: 'Sydney Central' })
     .click();
   await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
+});
+
+test('a newly created Site appears before an older Site on the next load [sites-latest-first AC-003, REQ-004, REQ-007]', async ({
+  page,
+}) => {
+  let created = false;
+  await page.route('**/api/dashboard', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        viewer: {
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+          roleLabel: 'Owner',
+        },
+      }),
+    }),
+  );
+  await page.route('**/api/sites', (route) => {
+    if (route.request().method() === 'POST') {
+      created = true;
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          siteId,
+          destination: `/sites/${siteId}/activity`,
+        }),
+      });
+    }
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        organizationName: 'Hansel',
+        canCreateSite: true,
+        canInviteMembers: true,
+        creator: {
+          email: 'owner@example.com',
+          displayName: 'Nabin Singh',
+          initials: 'NS',
+        },
+        siteLimitReached: false,
+        maximumSites: null,
+        members: [],
+        sites: created ? [populatedSite, olderSite] : [olderSite],
+      }),
+    });
+  });
+  await page.route(`**/api/sites/${siteId}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ site: { id: siteId, name: 'Sydney Central' } }),
+    }),
+  );
+
+  await page.goto('/sites');
+  await expect(
+    page.getByRole('link', { name: 'Older Site' }).last(),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'New site' }).click();
+  await page.getByLabel('Name').fill('Sydney Central');
+  await page.getByRole('button', { name: 'Add new site' }).click();
+  await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
+
+  await page.goto('/sites');
+  const gridLinks = page
+    .getByRole('list', { name: 'Sites grid' })
+    .getByRole('link');
+  await expect(gridLinks).toHaveCount(2);
+  await expect(gridLinks.nth(0)).toHaveAttribute(
+    'href',
+    `/sites/${siteId}/activity`,
+  );
+  await expect(gridLinks.nth(1)).toHaveAttribute(
+    'href',
+    `/sites/${olderSite.id}/activity`,
+  );
 });
 
 test('Organization and Private create exact branch-specific requests [sites-access-scope AC-001, AC-002]', async ({

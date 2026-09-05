@@ -1,4 +1,4 @@
-/** @spec sites-populated-state REQ-001, REQ-004..REQ-025 @figma 2025:11221, 2043:3580 */
+/** @spec sites-populated-state REQ-001, REQ-004..REQ-025 @spec sites-latest-first REQ-003, REQ-007 @figma 2025:11221, 2043:3580 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, userEvent, within } from 'storybook/test';
 import type { SitesPageResponse } from '@hansel/contracts';
@@ -18,6 +18,14 @@ const populatedPage: SitesPageResponse = {
   maximumSites: null,
   members: [],
   sites: [
+    {
+      id: '5d6dcff1-035c-4615-b8b3-4c27db312f3f',
+      name: "Mother's & Children's Hospital",
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      memberCount: 0,
+      memberPreview: [],
+    },
     {
       id: 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9',
       name: 'Building A – General Teaching Space',
@@ -41,14 +49,6 @@ const populatedPage: SitesPageResponse = {
         { displayName: 'Alex Smith', initials: 'AS' },
         { displayName: 'Mary King', initials: 'MK' },
       ],
-    },
-    {
-      id: '5d6dcff1-035c-4615-b8b3-4c27db312f3f',
-      name: "Mother's & Children's Hospital",
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-      memberCount: 0,
-      memberPreview: [],
     },
   ],
 };

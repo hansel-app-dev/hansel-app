@@ -619,17 +619,19 @@ test('Sites retry state is keyboard reachable and accessible [sites-empty-state 
   expect((await analyzeAccessibility(page)).violations).toEqual([]);
 });
 
-test('Sites populated grid and list match Figma and remain accessible [sites-populated-state REQ-001, REQ-009..REQ-015, REQ-020..REQ-025]', async ({
+test('Sites populated grid and list match Figma, preserve latest-first order, and remain accessible [sites-populated-state REQ-001, REQ-009..REQ-015, REQ-020..REQ-025; sites-latest-first REQ-003, REQ-007]', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1512, height: 982 });
   await page.goto(
     '/iframe.html?id=sites-populated-page--figma-grid&viewMode=story',
   );
-  await expect(page.getByRole('list', { name: 'Sites grid' })).toBeVisible();
-  await expect(
-    page.getByRole('list', { name: 'Sites grid' }).getByRole('listitem'),
-  ).toHaveCount(3);
+  const grid = page.getByRole('list', { name: 'Sites grid' });
+  await expect(grid).toBeVisible();
+  await expect(grid.getByRole('link').first()).toHaveAccessibleName(
+    "Mother's & Children's Hospital",
+  );
+  await expect(grid.getByRole('listitem')).toHaveCount(3);
   await expect(page.getByText('Workspace Name')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Grid view' })).toHaveAttribute(
     'aria-pressed',
@@ -647,6 +649,9 @@ test('Sites populated grid and list match Figma and remain accessible [sites-pop
   );
   const table = page.getByRole('table', { name: 'Sites list' });
   await expect(table).toBeVisible();
+  await expect(table.getByRole('link').first()).toHaveAccessibleName(
+    "Mother's & Children's Hospital",
+  );
   await expect(table.locator('tbody tr')).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute(
     'aria-pressed',

@@ -268,14 +268,14 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
     );
   });
 
-  it('filters non-Owner site lists through Organization, creator, and direct invite access [sites-access-scope REQ-006, REQ-007, REQ-010, REQ-019]', async () => {
+  it('loads visible Sites newest-created first with a stable Site-ID tie-breaker [sites-access-scope REQ-006, REQ-007, REQ-010, REQ-019; sites-latest-first REQ-001, REQ-002, REQ-007]', async () => {
     const h = harness();
     await h.store.loadContext({ ...principal, roleId: 'administrator' });
     expect(h.prisma.tenant.findUniqueOrThrow).toHaveBeenCalledWith({
       where: { id: 'tenant-1' },
       select: expect.objectContaining({
         sites: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
           where: {
             OR: [
               { accessScope: 'ORGANIZATION' },

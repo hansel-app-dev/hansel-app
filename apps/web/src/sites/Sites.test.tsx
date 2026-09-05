@@ -122,15 +122,23 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     );
   });
 
-  it('uses one ordered collection for the expanded Sites navigation and Figma grid [sites-populated-state REQ-001, REQ-004..REQ-010]', async () => {
-    const melbourneSite = {
+  it('preserves one newest-first collection across the sidebar, grid, and list [sites-populated-state REQ-001, REQ-004..REQ-010; sites-latest-first REQ-003, REQ-007]', async () => {
+    const olderSite = {
       ...sydneySite,
       id: 'c1745b68-2885-45dd-9f05-7a35f9466c1c',
-      name: 'Melbourne',
+      name: 'Alpha Older',
+      createdAt: '2026-07-01T10:00:00.000Z',
+      updatedAt: '2026-07-01T10:00:00.000Z',
+    };
+    const latestSite = {
+      ...sydneySite,
+      name: 'Zulu Latest',
+      createdAt: '2026-09-01T10:00:00.000Z',
+      updatedAt: '2026-09-01T10:00:00.000Z',
     };
     const loadSites = vi
       .fn()
-      .mockResolvedValue({ ...emptyPage, sites: [sydneySite, melbourneSite] });
+      .mockResolvedValue({ ...emptyPage, sites: [latestSite, olderSite] });
     render(
       <Sites
         {...props}
@@ -142,15 +150,34 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     const navigation = within(
       screen.getByRole('navigation', { name: 'Application' }),
     );
-    expect(
-      await navigation.findByRole('link', { name: 'Sydney Central' }),
-    ).toHaveAttribute('href', `/sites/${sydneySite.id}/activity`);
-    expect(navigation.getByRole('link', { name: 'Melbourne' })).toHaveAttribute(
-      'href',
-      `/sites/${melbourneSite.id}/activity`,
+    const sidebarSites = within(
+      await navigation.findByRole('list', { name: 'Sites' }),
     );
+    const expectedDestinations = [
+      `/sites/${latestSite.id}/activity`,
+      `/sites/${olderSite.id}/activity`,
+    ];
+    expect(
+      sidebarSites
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(expectedDestinations);
+    expect(
+      sidebarSites.getByRole('link', { name: 'Zulu Latest' }),
+    ).toHaveAttribute('href', `/sites/${latestSite.id}/activity`);
     const grid = screen.getByRole('list', { name: 'Sites grid' });
     expect(within(grid).getAllByRole('listitem')).toHaveLength(2);
+    expect(
+      within(grid)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(expectedDestinations);
+    fireEvent.click(screen.getByRole('button', { name: 'List view' }));
+    expect(
+      within(screen.getByRole('table', { name: 'Sites list' }))
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(expectedDestinations);
     expect(screen.queryByText('Your sites')).not.toBeInTheDocument();
     expect(screen.queryByText('2 sites')).not.toBeInTheDocument();
     expect(screen.getByText('Hansel')).toBeVisible();

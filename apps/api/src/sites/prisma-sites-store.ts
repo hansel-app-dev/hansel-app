@@ -1,4 +1,4 @@
-/** @spec sites-add-new REQ-010..REQ-016, REQ-019 @spec sites-populated-state REQ-002..REQ-004, REQ-012, REQ-019, REQ-024 */
+/** @spec sites-add-new REQ-010..REQ-016, REQ-019 @spec sites-populated-state REQ-002..REQ-004, REQ-012, REQ-019, REQ-024 @spec sites-latest-first REQ-001..REQ-007 */
 import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { SiteSummary } from '@hansel/contracts';
@@ -193,7 +193,7 @@ export function createPrismaSitesStore(
             },
           },
           sites: {
-            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+            orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
             ...(accessWhere ? { where: accessWhere } : {}),
             select: siteSummarySelect,
           },

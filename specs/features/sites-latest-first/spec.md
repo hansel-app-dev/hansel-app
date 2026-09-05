@@ -1,7 +1,7 @@
 # Feature: Sites latest-first ordering
 
 - ID: `sites-latest-first`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-05`
@@ -100,6 +100,14 @@ The stable tie-breaker prevents records with equal creation instants from changi
 - Add or refine frontend preservation tests using deliberately non-alphabetical Sites whose response order is newest-first; do not add frontend sorting.
 - Extend the existing Sites application E2E creation journey with an older Site and assert the newly created Site is first after returning to `/sites`.
 - Run specification validation, formatting, lint, typecheck, frontend/backend coverage, production builds, Storybook build, design-system tests, focused Sites E2E, and CDK synthesis once before committing and pushing implementation.
+
+## Implementation evidence
+
+- The Prisma adapter test was changed first and failed while `createdAt` was still ascending; the tenant-scoped Sites query now orders by `createdAt` descending and `id` ascending.
+- Frontend component tests prove the sidebar, grid, and list preserve one received newest-first collection and switch views without another request.
+- Storybook's deterministic populated fixtures and all three populated visual baselines now represent the approved newest-first order.
+- Application E2E proves that Site creation retains its Activity destination and that returning to `/sites` places the new Site before an older Site.
+- Repository specification, formatting, lint, typecheck, contract, build, and Storybook build gates pass. The frontend suite passes 188 tests and the backend suite passes 454 tests with 100% statement, branch, function, and line coverage. All 53 design-system tests and all 37 application E2E tests pass.
 
 ## Rollout and rollback
 

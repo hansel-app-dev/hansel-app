@@ -1,4 +1,4 @@
-/** @spec sites-populated-state REQ-009..REQ-015, REQ-020..REQ-025 @figma 2025:11221, 2043:3580 */
+/** @spec sites-populated-state REQ-009..REQ-015, REQ-020..REQ-025 @spec sites-latest-first REQ-003, REQ-007 @figma 2025:11221, 2043:3580 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, within } from 'storybook/test';
 import type { SiteSummary } from '@hansel/contracts';
@@ -37,7 +37,7 @@ const hospitalSite: SiteSummary = {
   memberCount: 0,
   memberPreview: [],
 };
-const figmaSites = [buildingSite, aviationSite, hospitalSite];
+const figmaSites = [hospitalSite, buildingSite, aviationSite];
 
 const meta = {
   title: 'Sites/Site Collection',
