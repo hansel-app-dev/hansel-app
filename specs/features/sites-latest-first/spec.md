@@ -1,11 +1,11 @@
 # Feature: Sites latest-first ordering
 
 - ID: `sites-latest-first`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-05`
-- Product approval: `Pending explicit approval after this change-control specification is committed and pushed`
+- Product approval: `Approved by product owner in the Codex task on 2026-09-05`
 - Domain references: `CONTEXT.md — Organization, Membership, Site, Site Access; docs/domain/figjam-object-catalog.md — Site object, Canonical interpretation notes, Nesting map, Known ambiguities 4, 5, and 10`
 - Supersedes on implementation: `sites-populated-state REQ-004 ordering direction only; all other sites-populated-state requirements remain authoritative`
 - Design authority: `Existing approved Sites populated grid and list frames 2025:11221 and 2043:3580; this specification does not infer sorting behavior from the decorative Figma arrow`
