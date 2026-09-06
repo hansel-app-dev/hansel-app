@@ -37,6 +37,13 @@ describe('S3 Allocation Plan objects [site-allocation-plans-add REQ-009..REQ-014
         expiresInSeconds: 900,
       }),
     ).resolves.toBe('https://uploads.example/one');
+    expect(sign).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        unhoistableHeaders: new Set(['x-amz-checksum-sha256']),
+      }),
+    );
     await expect(store.inspect('quarantine/one')).resolves.toEqual({
       byteSize: 5,
       mediaType: 'application/pdf',

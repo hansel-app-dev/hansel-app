@@ -28,7 +28,10 @@ export function createS3AllocationPlanObjectStore(input: {
           ContentLength: request.byteSize,
           ChecksumSHA256: request.checksumSha256,
         }),
-        { expiresIn: request.expiresInSeconds },
+        {
+          expiresIn: request.expiresInSeconds,
+          unhoistableHeaders: new Set(['x-amz-checksum-sha256']),
+        },
       );
     },
     async inspect(objectKey) {
