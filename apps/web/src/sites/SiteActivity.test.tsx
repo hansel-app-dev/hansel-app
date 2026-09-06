@@ -194,7 +194,7 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     expect(loadSites).toHaveBeenCalledTimes(2);
   });
 
-  it('renders the Figma-derived hierarchy without fabricated Activity data or actions [site-details-activity-shell REQ-001, REQ-007, REQ-009..REQ-012, AC-001, AC-002]', async () => {
+  it('renders the Figma-derived hierarchy without fabricated Activity data or actions [site-details-activity-shell REQ-001, REQ-007, REQ-009..REQ-012, AC-001, AC-002; site-allocation-plans-empty-state REQ-023]', async () => {
     render(
       <SiteActivity
         {...props}
@@ -232,11 +232,22 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     expect(
       within(sections).getByRole('link', { name: 'Activity' }),
     ).toHaveAttribute('aria-current', 'page');
-    for (const section of ['Allocations', 'Signage Schedule'])
-      expect(within(sections).getByText(section)).toHaveAttribute(
-        'aria-disabled',
-        'true',
-      );
+    expect(
+      within(sections).getByRole('link', { name: 'Allocations' }),
+    ).toHaveAttribute('href', `/sites/${siteId}/allocations`);
+    const preventNativeNavigation = vi.fn((event: MouseEvent) => {
+      event.preventDefault();
+    });
+    document.addEventListener('click', preventNativeNavigation);
+    fireEvent.click(
+      within(sections).getByRole('link', { name: 'Allocations' }),
+    );
+    document.removeEventListener('click', preventNativeNavigation);
+    expect(preventNativeNavigation).toHaveBeenCalledOnce();
+    expect(within(sections).getByText('Signage Schedule')).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     expect(
       screen.getAllByRole('heading', { name: 'Widget title', level: 2 }),
     ).toHaveLength(4);
@@ -283,7 +294,7 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     expect(screen.getByText('+2')).toBeVisible();
   });
 
-  it('uses the established client-navigation seam for Site links [site-details-activity-shell REQ-002, REQ-014]', async () => {
+  it('uses the established client-navigation seam for Site links [site-details-activity-shell REQ-002, REQ-014; site-allocation-plans-empty-state REQ-023]', async () => {
     const navigate = vi.fn();
     render(
       <SiteActivity
@@ -303,6 +314,8 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     expect(navigate).not.toHaveBeenCalled();
     fireEvent.click(activity);
     expect(navigate).toHaveBeenLastCalledWith(`/sites/${siteId}/activity`);
+    fireEvent.click(screen.getByRole('link', { name: 'Allocations' }));
+    expect(navigate).toHaveBeenLastCalledWith(`/sites/${siteId}/allocations`);
     fireEvent.click(
       within(
         screen.getByRole('navigation', { name: 'Site breadcrumb' }),

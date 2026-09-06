@@ -882,6 +882,81 @@ test('Site details Activity shell reflows at narrow width and 200% zoom [site-de
   ).toBe(true);
 });
 
+test('Site Allocation Plans empty state matches Figma and remains accessible [site-allocation-plans-empty-state AC-001, AC-002, REQ-009..REQ-013, REQ-018, REQ-020]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto(
+    '/iframe.html?id=sites-site-allocation-plans--no-plans&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', {
+      name: 'Building A – General Teaching Space Allocation Plans',
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Allocations' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'No plans', level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByText('Upload an architectural plan')).toBeVisible();
+  await expect(
+    page.getByText('or plot your signage on Google Maps'),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add plan' })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Use Google Maps' }),
+  ).toBeDisabled();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('site-allocation-plans-empty.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test('Site Allocation Plans empty state reflows at narrow width and 200% zoom [site-allocation-plans-empty-state AC-006, REQ-017, REQ-018, REQ-020]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto(
+    '/iframe.html?id=sites-site-allocation-plans--narrow&viewMode=story',
+  );
+  await expect(
+    page.getByRole('heading', { name: 'No plans', level: 2 }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot(
+    'site-allocation-plans-empty-narrow.png',
+    {
+      animations: 'disabled',
+      fullPage: true,
+      maxDiffPixelRatio: 0.001,
+    },
+  );
+
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.goto(
+    '/iframe.html?id=sites-site-allocation-plans--no-plans&viewMode=story',
+  );
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

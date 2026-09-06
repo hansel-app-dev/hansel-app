@@ -399,6 +399,93 @@ describe('App [REQ-002]', () => {
     ).toBeVisible();
   });
 
+  it('renders the authorized Allocation Plans empty route [site-allocation-plans-empty-state REQ-001, REQ-002, AC-001]', async () => {
+    const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify(
+              url.endsWith('/api/dashboard')
+                ? {
+                    viewer: {
+                      displayName: 'Nabin Singh',
+                      initials: 'NS',
+                      roleLabel: 'Owner',
+                    },
+                  }
+                : url.endsWith('/api/sites')
+                  ? {
+                      organizationName: 'Hansel',
+                      canCreateSite: true,
+                      canInviteMembers: true,
+                      creator: {
+                        email: 'owner@example.com',
+                        displayName: 'Owner',
+                        initials: 'O',
+                      },
+                      siteLimitReached: false,
+                      maximumSites: null,
+                      members: [],
+                      sites: [
+                        {
+                          id: siteId,
+                          name: 'Direct site',
+                          createdAt: '2026-09-05T10:00:00.000Z',
+                          updatedAt: '2026-09-05T10:00:00.000Z',
+                          memberCount: 0,
+                          memberPreview: [],
+                        },
+                      ],
+                    }
+                  : { site: { id: siteId, name: 'Direct site' } },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    render(<App path={`/sites/${siteId}/allocations`} />);
+
+    expect(
+      await screen.findByRole('heading', { name: 'No plans', level: 2 }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('link', { name: 'Allocations', current: 'page' }),
+    ).toHaveAttribute('href', `/sites/${siteId}/allocations`);
+  });
+
+  it.each(['/sites/allocations', '/sites/not-a-site/allocations'])(
+    'rejects the malformed Allocation Plans route %s through the generic Site boundary [site-allocation-plans-empty-state REQ-001, AC-003]',
+    async (path) => {
+      const fetcher = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            viewer: {
+              displayName: 'Nabin Singh',
+              initials: 'NS',
+              roleLabel: 'Owner',
+            },
+          }),
+        ),
+      );
+      vi.stubGlobal('fetch', fetcher);
+
+      render(<App path={path} />);
+
+      expect(
+        await screen.findByText("We couldn't load this site."),
+      ).toBeVisible();
+      expect(screen.queryByText('Hansel')).not.toBeInTheDocument();
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(fetcher).toHaveBeenCalledWith(
+        '/api/dashboard',
+        expect.any(Object),
+      );
+    },
+  );
+
   it('returns an unauthenticated Sites page to login [sites-empty-state REQ-002]', async () => {
     window.history.replaceState({}, '', '/sites');
     vi.stubGlobal(

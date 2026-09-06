@@ -1,4 +1,4 @@
-/** @spec site-details-activity-shell REQ-001..REQ-021 @figma 2030:3333 */
+/** @spec site-details-activity-shell REQ-001..REQ-021 @spec site-allocation-plans-empty-state REQ-001..REQ-023 @figma 2030:3333, 2037:1019 */
 import { useEffect, useState } from 'react';
 import type {
   DashboardResponse,
@@ -12,38 +12,39 @@ import {
 import { Button } from '../design-system/index.js';
 import { SiteMemberPreview } from './SiteCollection.js';
 
-interface SiteActivityRequest {
+interface SiteDetailsRequest {
   attempt: number;
-  loadActivity: () => Promise<SiteActivityResponse>;
   loadDashboard: () => Promise<DashboardResponse>;
+  loadSite: () => Promise<SiteActivityResponse>;
   loadSites: () => Promise<SitesPageResponse>;
 }
 
-type SiteActivityLoadState =
-  | (SiteActivityRequest & {
+type SiteDetailsLoadState =
+  | (SiteDetailsRequest & {
       status: 'loaded';
       dashboard: DashboardResponse;
-      activity: SiteActivityResponse;
+      siteContext: SiteActivityResponse;
       sitesPage: SitesPageResponse;
     })
-  | (SiteActivityRequest & { status: 'failed' });
+  | (SiteDetailsRequest & { status: 'failed' });
 
-export function SiteActivity({
-  loadActivity,
-  loadDashboard,
-  loadSites,
-  logout,
-  navigate,
-}: {
-  loadActivity: () => Promise<SiteActivityResponse>;
+interface SharedSiteDetailsProps {
   loadDashboard: () => Promise<DashboardResponse>;
+  loadSite: () => Promise<SiteActivityResponse>;
   loadSites: () => Promise<SitesPageResponse>;
   logout: () => Promise<void>;
   navigate?: (destination: string) => void;
-}) {
-  const [loadState, setLoadState] = useState<SiteActivityLoadState | null>(
-    null,
-  );
+}
+
+function SiteDetails({
+  activeSection,
+  loadDashboard,
+  loadSite,
+  loadSites,
+  logout,
+  navigate,
+}: SharedSiteDetailsProps & { activeSection: 'activity' | 'allocations' }) {
+  const [loadState, setLoadState] = useState<SiteDetailsLoadState | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -52,24 +53,24 @@ export function SiteActivity({
     const load = async () => {
       const dashboard = await loadDashboard();
       if (!isActive()) return;
-      const [activity, sitesPage] = await Promise.all([
-        loadActivity(),
+      const [siteContext, sitesPage] = await Promise.all([
+        loadSite(),
         loadSites(),
       ]);
       if (!isActive()) return;
       const visibleSite = sitesPage.sites.find(
-        (site) => site.id === activity.site.id,
+        (site) => site.id === siteContext.site.id,
       );
-      if (visibleSite?.name !== activity.site.name)
+      if (visibleSite?.name !== siteContext.site.name)
         throw new Error('Inconsistent Site context');
       setLoadState({
         status: 'loaded',
         attempt,
-        loadActivity,
         loadDashboard,
+        loadSite,
         loadSites,
         dashboard,
-        activity,
+        siteContext,
         sitesPage,
       });
     };
@@ -78,20 +79,20 @@ export function SiteActivity({
         setLoadState({
           status: 'failed',
           attempt,
-          loadActivity,
           loadDashboard,
+          loadSite,
           loadSites,
         });
     });
     return () => {
       lifecycle.active = false;
     };
-  }, [attempt, loadActivity, loadDashboard, loadSites]);
+  }, [attempt, loadDashboard, loadSite, loadSites]);
 
   const currentState =
     loadState?.attempt === attempt &&
-    loadState.loadActivity === loadActivity &&
     loadState.loadDashboard === loadDashboard &&
+    loadState.loadSite === loadSite &&
     loadState.loadSites === loadSites
       ? loadState
       : null;
@@ -125,11 +126,13 @@ export function SiteActivity({
       </main>
     );
 
-  const { activity, dashboard, sitesPage } = currentState;
+  const { dashboard, siteContext, sitesPage } = currentState;
   const selectedSite = sitesPage.sites.find(
-    (site) => site.id === activity.site.id,
+    (site) => site.id === siteContext.site.id,
   );
-  const activityDestination = `/sites/${encodeURIComponent(activity.site.id)}/activity`;
+  const siteId = encodeURIComponent(siteContext.site.id);
+  const activityDestination = `/sites/${siteId}/activity`;
+  const allocationsDestination = `/sites/${siteId}/allocations`;
 
   return (
     <ApplicationShell
@@ -202,9 +205,9 @@ export function SiteActivity({
             <li
               aria-current="page"
               className="min-w-0 truncate font-semibold"
-              title={activity.site.name}
+              title={siteContext.site.name}
             >
-              {activity.site.name}
+              {siteContext.site.name}
             </li>
           </ol>
         </nav>
@@ -213,8 +216,12 @@ export function SiteActivity({
       loadErrorMessage="We couldn't load your account. Please try again."
       logout={logout}
       navigate={navigate}
-      currentSiteId={activity.site.id}
-      pageHeading={activity.site.name}
+      currentSiteId={siteContext.site.id}
+      pageHeading={
+        activeSection === 'allocations'
+          ? `${siteContext.site.name} Allocation Plans`
+          : siteContext.site.name
+      }
       preloadedViewer={dashboard.viewer}
       siteNavigation={sitesPage.sites}
       workspaceName={sitesPage.organizationName}
@@ -224,9 +231,11 @@ export function SiteActivity({
           aria-label="Site sections"
           className="flex min-h-[54px] max-w-full items-end gap-8 overflow-x-auto rounded border border-site-card-border bg-surface px-6 shadow-site-card"
         >
-          <span className="flex min-h-[53px] shrink-0 items-center gap-2 border-b-2 border-action-primary px-1 text-[14px] font-medium">
+          <span
+            className={`flex min-h-[53px] shrink-0 items-center gap-2 px-1 text-[14px] font-medium ${activeSection === 'activity' ? 'border-b-2 border-action-primary' : ''}`}
+          >
             <a
-              aria-current="page"
+              aria-current={activeSection === 'activity' ? 'page' : undefined}
               className="flex min-h-[53px] items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
               href={activityDestination}
               onClick={(event) => {
@@ -240,22 +249,34 @@ export function SiteActivity({
               </AppSymbol>
               Activity
             </a>
-            <AppSymbol
-              className="pointer-events-none !size-4 text-[18px]"
-              weight={100}
-            >
-              more_horiz
-            </AppSymbol>
           </span>
           <span
-            aria-disabled="true"
-            className="flex min-h-[53px] shrink-0 items-center gap-2 text-[14px] text-content-muted"
+            className={`flex min-h-[53px] shrink-0 items-center gap-2 px-1 text-[14px] font-medium ${activeSection === 'allocations' ? 'border-b-2 border-action-primary' : ''}`}
           >
-            <AppSymbol className="!size-5 text-[20px]" weight={100}>
-              map
-            </AppSymbol>
-            Allocations
+            <a
+              aria-current={
+                activeSection === 'allocations' ? 'page' : undefined
+              }
+              className="flex min-h-[53px] items-center gap-2 rounded focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
+              href={allocationsDestination}
+              onClick={(event) => {
+                if (!navigate) return;
+                event.preventDefault();
+                navigate(allocationsDestination);
+              }}
+            >
+              <AppSymbol className="!size-5 text-[20px]" weight={100}>
+                map
+              </AppSymbol>
+              Allocations
+            </a>
           </span>
+          <AppSymbol
+            className="pointer-events-none !size-4 text-[18px]"
+            weight={100}
+          >
+            more_horiz
+          </AppSymbol>
           <span
             aria-disabled="true"
             className="flex min-h-[53px] shrink-0 items-center gap-2 text-[14px] text-content-muted"
@@ -266,38 +287,90 @@ export function SiteActivity({
             Signage Schedule
           </span>
         </nav>
-        <section aria-labelledby="site-summary-heading">
-          <h2 id="site-summary-heading" className="sr-only">
-            Site summary
-          </h2>
-          <div className="mt-8 grid grid-cols-4 gap-6 max-xl:grid-cols-2 max-md:grid-cols-1">
-            {Array.from({ length: 4 }, (_, index) => (
-              <article
-                key={index}
-                className="min-h-[212px] overflow-hidden rounded-lg border border-site-card-border bg-surface shadow-site-card"
+        {activeSection === 'activity' ? (
+          <>
+            <section aria-labelledby="site-summary-heading">
+              <h2 id="site-summary-heading" className="sr-only">
+                Site summary
+              </h2>
+              <div className="mt-8 grid grid-cols-4 gap-6 max-xl:grid-cols-2 max-md:grid-cols-1">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <article
+                    key={index}
+                    className="min-h-[212px] overflow-hidden rounded-lg border border-site-card-border bg-surface shadow-site-card"
+                  >
+                    <h2 className="border-b border-control-border px-6 py-5 text-[16px] font-normal">
+                      Widget title
+                    </h2>
+                  </article>
+                ))}
+              </div>
+            </section>
+            <section
+              aria-labelledby="site-activity-heading"
+              className="mt-8 max-w-[390px] overflow-hidden rounded-lg border border-site-card-border bg-surface shadow-site-card max-md:max-w-none"
+            >
+              <h2
+                id="site-activity-heading"
+                className="border-b border-control-border px-6 py-5 text-[16px] font-semibold"
               >
-                <h2 className="border-b border-control-border px-6 py-5 text-[16px] font-normal">
-                  Widget title
-                </h2>
-              </article>
-            ))}
-          </div>
-        </section>
-        <section
-          aria-labelledby="site-activity-heading"
-          className="mt-8 max-w-[390px] overflow-hidden rounded-lg border border-site-card-border bg-surface shadow-site-card max-md:max-w-none"
-        >
-          <h2
-            id="site-activity-heading"
-            className="border-b border-control-border px-6 py-5 text-[16px] font-semibold"
+                Activity
+              </h2>
+              <div className="grid min-h-[320px] place-items-center px-6 text-center text-sm text-content-muted">
+                Site activity will appear here.
+              </div>
+            </section>
+          </>
+        ) : (
+          <section
+            aria-labelledby="no-allocation-plans-heading"
+            className="grid min-h-[calc(100vh-220px)] place-items-center py-16 text-center max-md:min-h-[420px]"
           >
-            Activity
-          </h2>
-          <div className="grid min-h-[320px] place-items-center px-6 text-center text-sm text-content-muted">
-            Site activity will appear here.
-          </div>
-        </section>
+            <div className="flex flex-col items-center">
+              <AppSymbol className="!size-12 text-[44px]" weight={100}>
+                map
+              </AppSymbol>
+              <h2
+                id="no-allocation-plans-heading"
+                className="mt-3 text-[16px] font-semibold"
+              >
+                No plans
+              </h2>
+              <p className="mt-2 text-[15px] leading-[19px]">
+                <span className="block">Upload an architectural plan</span>
+                <span className="block">
+                  or plot your signage on Google Maps
+                </span>
+              </p>
+              <div className="mt-7 flex flex-wrap justify-center gap-4">
+                <Button className="gap-2" disabled type="button">
+                  <AppSymbol className="!size-4 text-[18px]" weight={100}>
+                    add
+                  </AppSymbol>
+                  Add plan
+                </Button>
+                <Button disabled type="button" variant="secondary">
+                  Use Google Maps
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
       </section>
     </ApplicationShell>
   );
+}
+
+type SiteActivityProps = Omit<SharedSiteDetailsProps, 'loadSite'> & {
+  loadActivity: () => Promise<SiteActivityResponse>;
+};
+
+export function SiteActivity({ loadActivity, ...props }: SiteActivityProps) {
+  return (
+    <SiteDetails {...props} activeSection="activity" loadSite={loadActivity} />
+  );
+}
+
+export function SiteAllocationPlans(props: SharedSiteDetailsProps) {
+  return <SiteDetails {...props} activeSection="allocations" />;
 }

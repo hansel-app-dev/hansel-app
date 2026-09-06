@@ -33,7 +33,7 @@ import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
 import { Dashboard } from './dashboard/Dashboard.js';
 import { Sites } from './sites/Sites.js';
-import { SiteActivity } from './sites/SiteActivity.js';
+import { SiteActivity, SiteAllocationPlans } from './sites/SiteActivity.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -173,6 +173,35 @@ export function App({
         }
         loadDashboard={loadAuthenticatedViewer}
         loadSites={() => handleApplicationSession(loadSites(apiUrl))}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+      />
+    );
+  }
+  const siteAllocationsMatch = /^\/sites\/(?:([^/]*)\/)?allocations$/.exec(
+    currentPath,
+  );
+  if (siteAllocationsMatch) {
+    const siteId = siteAllocationsMatch[1] ?? '';
+    const validSiteId =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        siteId,
+      );
+    const rejectInvalidSitePath = () =>
+      Promise.reject(new Error('Invalid Site route'));
+    return (
+      <SiteAllocationPlans
+        loadDashboard={loadAuthenticatedViewer}
+        loadSite={() =>
+          validSiteId
+            ? handleApplicationSession(loadSiteActivity(siteId, apiUrl))
+            : rejectInvalidSitePath()
+        }
+        loadSites={() =>
+          validSiteId
+            ? handleApplicationSession(loadSites(apiUrl))
+            : rejectInvalidSitePath()
+        }
         logout={logoutAuthenticatedViewer}
         navigate={navigate}
       />

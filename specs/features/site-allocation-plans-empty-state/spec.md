@@ -1,7 +1,7 @@
 # Feature: Site Allocation Plans empty state
 
 - ID: `site-allocation-plans-empty-state`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
@@ -10,6 +10,14 @@
 - Design authority: `Figma Hansel App UI frame 2037:1019 (New Site / Allocation Plan / No plans)`
 - Design evidence: `The exact frame was browser-inspected at 113% zoom on 2026-09-06; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
 - Supersedes on implementation: `site-details-activity-shell REQ-010 only where Allocations is unavailable; Activity, Signage Schedule, and all other Site-shell requirements remain authoritative`
+
+## Implementation evidence
+
+- `pnpm verify` passed specification validation, formatting, linting, type checking, production builds, Storybook build, and all 56 deterministic visual/accessibility checks.
+- Frontend and backend suites retained 100% statement, branch, function, and line coverage: 208 frontend tests and 454 backend tests passed. The 65 contract tests and 6 infrastructure tests also passed.
+- All 39 isolated Chromium application E2E journeys passed, including Activity-to-Allocations navigation, the real empty route, inaccessible Site handling, expired-session replacement, and existing authentication/onboarding regressions.
+- Storybook covers zero-member, member-preview, long-name, loading, retryable-failure, narrow-width, and 200%-zoom states. Desktop and narrow deterministic visual baselines cover the complete Site shell and No Plans state.
+- Independent specification and repository-standards reviews passed after adding malformed/missing Site-route rejection and complete requirement traceability. OpenAPI, Prisma, AWS infrastructure, integrations, observability, and client persistence remain unchanged.
 
 ## Problem
 

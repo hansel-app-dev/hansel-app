@@ -214,7 +214,7 @@ test('populated Sites supports keyboard switching, disclosure, and every Activit
   await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
 });
 
-test('authorized Site details preserves truthful Figma hierarchy and latest-first navigation [site-details-activity-shell AC-001, AC-002, AC-005]', async ({
+test('authorized Site details preserves truthful Activity and Allocation Plans navigation [site-details-activity-shell REQ-001, REQ-002, REQ-018, AC-001, AC-002, AC-005; site-allocation-plans-empty-state REQ-001, REQ-009, REQ-012, REQ-015, REQ-021, REQ-023, AC-001, AC-002, AC-005]', async ({
   page,
 }) => {
   await page.route('**/api/dashboard', (route) =>
@@ -287,6 +287,25 @@ test('authorized Site details preserves truthful Figma hierarchy and latest-firs
   await expect(page.getByText(/invoice/i)).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
+  await page.getByRole('link', { name: 'Allocations' }).click();
+  await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/allocations$`));
+  await expect(
+    page.getByRole('heading', {
+      name: 'Sydney Central Allocation Plans',
+      level: 1,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'No plans', level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add plan' })).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Use Google Maps' }),
+  ).toBeDisabled();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.getByRole('link', { name: 'Activity' }).click();
+  await expect(page).toHaveURL(new RegExp(`/sites/${siteId}/activity$`));
   await page
     .getByRole('navigation', { name: 'Site breadcrumb' })
     .getByRole('link', { name: 'Sites' })
@@ -294,7 +313,7 @@ test('authorized Site details preserves truthful Figma hierarchy and latest-firs
   await expect(page).toHaveURL(/\/sites$/);
 });
 
-test('inaccessible and expired Site detail reads disclose no Site context [site-details-activity-shell AC-003, AC-004]', async ({
+test('inaccessible and expired Site detail reads disclose no Site context [site-details-activity-shell REQ-003, REQ-013, REQ-015, AC-003, AC-004; site-allocation-plans-empty-state REQ-001..REQ-003, REQ-014, REQ-019, REQ-021, AC-003, AC-004]', async ({
   page,
 }) => {
   await page.route('**/api/dashboard', (route) =>
@@ -339,6 +358,12 @@ test('inaccessible and expired Site detail reads disclose no Site context [site-
   );
 
   await page.goto(`/sites/${siteId}/activity`);
+  await expect(page.getByRole('alert')).toContainText(
+    "We couldn't load this site.",
+  );
+  await expect(page.getByText('Sydney Central')).toHaveCount(0);
+
+  await page.goto(`/sites/${siteId}/allocations`);
   await expect(page.getByRole('alert')).toContainText(
     "We couldn't load this site.",
   );
