@@ -1,5 +1,6 @@
 /** @spec site-allocation-plan-preview REQ-006..REQ-013 @figma supplied 03.png */
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import { AllocationPlanViewer } from '../src/sites/AllocationPlanViewer.js';
 
 const plan = {
@@ -49,4 +50,14 @@ export const Zoom200: Story = {
       </div>
     ),
   ],
+};
+export const SpacePanArmed: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('img', { name: plan.filename });
+    await userEvent.hover(
+      canvas.getByRole('region', { name: `${plan.filename} preview` }),
+    );
+    await userEvent.keyboard('[Space>]');
+  },
 };

@@ -1,5 +1,5 @@
 /** @spec site-allocation-plan-preview REQ-005..REQ-013 @figma supplied 03.png */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AllocationPlan } from '@hansel/contracts';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
 
@@ -58,6 +58,20 @@ export function AllocationPlanViewer({
     | { status: 'failed' }
     | ({ status: 'ready' } & RenderedPlan)
   >({ status: 'loading' });
+  const [pointerInside, setPointerInside] = useState(false);
+  const [spaceArmed, setSpaceArmed] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const viewport = useRef<HTMLDivElement>(null);
+  const drag = useRef<
+    | {
+        pointerId: number;
+        clientX: number;
+        clientY: number;
+        scrollLeft: number;
+        scrollTop: number;
+      }
+    | undefined
+  >(undefined);
   useEffect(() => {
     let active = true;
     let rendered: RenderedPlan | undefined;
@@ -77,12 +91,56 @@ export function AllocationPlanViewer({
     };
   }, [loadContent, render]);
 
+  const stopDragging = useCallback(() => {
+    const activeDrag = drag.current;
+    if (activeDrag) {
+      const element = viewport.current;
+      if (element?.hasPointerCapture(activeDrag.pointerId))
+        element.releasePointerCapture(activeDrag.pointerId);
+      drag.current = undefined;
+    }
+    setDragging(false);
+  }, []);
+
+  useEffect(() => {
+    const keyDown = (event: KeyboardEvent) => {
+      if (
+        event.code !== 'Space' ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        !pointerInside
+      )
+        return;
+      event.preventDefault();
+      setSpaceArmed(true);
+    };
+    const keyUp = (event: KeyboardEvent) => {
+      if (event.code !== 'Space') return;
+      setSpaceArmed(false);
+      stopDragging();
+    };
+    const blur = () => {
+      setSpaceArmed(false);
+      stopDragging();
+    };
+    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keyup', keyUp);
+    window.addEventListener('blur', blur);
+    return () => {
+      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keyup', keyUp);
+      window.removeEventListener('blur', blur);
+      stopDragging();
+    };
+  }, [pointerInside, stopDragging]);
+
   const changeZoom = (next: number) =>
     setZoom(Math.min(400, Math.max(25, next)));
   return (
     <section
       aria-label={`${plan.filename} preview`}
-      className="relative mt-4 min-h-[calc(100vh-190px)] overflow-hidden rounded border border-control-border bg-[#fafafa]"
+      className={`relative mt-4 min-h-[calc(100vh-190px)] overflow-hidden rounded border border-control-border bg-[#fafafa] ${dragging ? 'cursor-grabbing select-none' : spaceArmed ? 'cursor-grab select-none' : ''}`}
       onKeyDown={(event) => {
         if (event.altKey || event.ctrlKey || event.metaKey) return;
         if (event.key === '+' || event.key === '=') changeZoom(zoom + 25);
@@ -91,9 +149,40 @@ export function AllocationPlanViewer({
         else return;
         event.preventDefault();
       }}
+      onPointerEnter={() => setPointerInside(true)}
+      onPointerLeave={() => {
+        if (!drag.current) setPointerInside(false);
+      }}
       tabIndex={0}
     >
-      <div className="absolute inset-0 overflow-auto p-4 pb-20">
+      <div
+        className="absolute inset-0 overflow-auto p-4 pb-20"
+        data-testid="plan-pan-viewport"
+        onPointerCancel={stopDragging}
+        onPointerDown={(event) => {
+          if (!spaceArmed || event.button !== 0) return;
+          event.preventDefault();
+          drag.current = {
+            pointerId: event.pointerId,
+            clientX: event.clientX,
+            clientY: event.clientY,
+            scrollLeft: event.currentTarget.scrollLeft,
+            scrollTop: event.currentTarget.scrollTop,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setDragging(true);
+        }}
+        onPointerMove={(event) => {
+          const activeDrag = drag.current;
+          if (!activeDrag || activeDrag.pointerId !== event.pointerId) return;
+          event.currentTarget.scrollLeft =
+            activeDrag.scrollLeft + activeDrag.clientX - event.clientX;
+          event.currentTarget.scrollTop =
+            activeDrag.scrollTop + activeDrag.clientY - event.clientY;
+        }}
+        onPointerUp={stopDragging}
+        ref={viewport}
+      >
         {state.status === 'loading' ? (
           <p className="grid h-full place-items-center text-sm text-content-muted">
             Loading plan…
@@ -112,6 +201,9 @@ export function AllocationPlanViewer({
               <img
                 alt={plan.filename}
                 className="block h-auto w-full object-contain"
+                onDragStart={(event) => {
+                  if (spaceArmed) event.preventDefault();
+                }}
                 src={state.src}
               />
             </div>

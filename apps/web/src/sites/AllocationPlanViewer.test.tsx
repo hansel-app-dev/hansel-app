@@ -153,6 +153,118 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
     expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled();
   });
 
+  it('pans with Space-primary-pointer drag and exits cleanly [REQ-016, AC-005]', async () => {
+    render(
+      <AllocationPlanViewer
+        loadContent={() => Promise.resolve(new Blob())}
+        plan={plan}
+        render={() =>
+          Promise.resolve({ src: 'preview.png', release: vi.fn() })
+        }
+      />,
+    );
+    await screen.findByRole('img');
+    const viewer = screen.getByRole('region', {
+      name: `${plan.filename} preview`,
+    });
+    const viewport = screen.getByTestId('plan-pan-viewport');
+    Object.assign(viewport, {
+      scrollLeft: 180,
+      scrollTop: 120,
+      hasPointerCapture: vi.fn().mockReturnValue(true),
+      setPointerCapture: vi.fn(),
+      releasePointerCapture: vi.fn(),
+    });
+
+    fireEvent.pointerEnter(viewer);
+    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    expect(viewer).toHaveClass('cursor-grab');
+    const dispatchPointer = (
+      type: string,
+      properties: Record<string, number>,
+    ) => {
+      const event = new Event(type, { bubbles: true });
+      Object.assign(event, properties);
+      fireEvent(viewport, event);
+    };
+    dispatchPointer('pointerdown', {
+      button: 0,
+      clientX: 100,
+      clientY: 80,
+      pointerId: 4,
+    });
+    expect(viewer).toHaveClass('cursor-grabbing');
+    fireEvent.pointerLeave(viewer);
+    expect(viewer).toHaveClass('cursor-grabbing');
+    fireEvent.dragStart(screen.getByRole('img'));
+    dispatchPointer('pointermove', {
+      clientX: 70,
+      clientY: 50,
+      pointerId: 4,
+    });
+    expect(viewport).toMatchObject({ scrollLeft: 210, scrollTop: 150 });
+    expect(viewport.setPointerCapture).toHaveBeenCalledWith(4);
+    dispatchPointer('pointerup', { pointerId: 4 });
+    expect(viewport.releasePointerCapture).toHaveBeenCalledWith(4);
+    expect(viewer).toHaveClass('cursor-grab');
+    fireEvent.keyUp(window, { key: ' ', code: 'Space' });
+    expect(viewer).not.toHaveClass('cursor-grab');
+    fireEvent.dragStart(screen.getByRole('img'));
+
+    dispatchPointer('pointermove', {
+      clientX: 1,
+      clientY: 1,
+      pointerId: 4,
+    });
+    dispatchPointer('pointerdown', {
+      button: 0,
+      clientX: 1,
+      clientY: 1,
+      pointerId: 5,
+    });
+    fireEvent.pointerLeave(viewer);
+    fireEvent.keyDown(window, { key: 'x', code: 'KeyX' });
+    fireEvent.keyUp(window, { key: 'x', code: 'KeyX' });
+    fireEvent.keyDown(window, { key: ' ', code: 'Space', altKey: true });
+    fireEvent.keyDown(window, { key: ' ', code: 'Space', ctrlKey: true });
+    fireEvent.keyDown(window, { key: ' ', code: 'Space', metaKey: true });
+    expect(viewer).not.toHaveClass('cursor-grab');
+    fireEvent.keyUp(window, { key: ' ', code: 'Space' });
+
+    fireEvent.pointerEnter(viewer);
+    fireEvent.keyDown(window, { key: ' ', code: 'Space' });
+    dispatchPointer('pointerdown', {
+      button: 1,
+      clientX: 40,
+      clientY: 40,
+      pointerId: 6,
+    });
+    expect(viewer).not.toHaveClass('cursor-grabbing');
+    dispatchPointer('pointerdown', {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerId: 6,
+    });
+    dispatchPointer('pointermove', {
+      clientX: 20,
+      clientY: 20,
+      pointerId: 7,
+    });
+    dispatchPointer('pointercancel', { pointerId: 6 });
+    expect(viewer).toHaveClass('cursor-grab');
+
+    dispatchPointer('pointerdown', {
+      button: 0,
+      clientX: 40,
+      clientY: 40,
+      pointerId: 8,
+    });
+    vi.mocked(viewport.hasPointerCapture).mockReturnValue(false);
+    fireEvent(window, new Event('blur'));
+    expect(viewer).not.toHaveClass('cursor-grab');
+  });
+
   it('shows a generic failure and releases rendered content on unmount [AC-003, AC-004]', async () => {
     const failed = render(
       <AllocationPlanViewer
