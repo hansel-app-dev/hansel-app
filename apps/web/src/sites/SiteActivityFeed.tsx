@@ -69,12 +69,12 @@ export function SiteActivityFeed({
   const [announcement, setAnnouncement] = useState('');
   const commentId = useId();
   const active = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    active.current = true;
+    return () => {
       active.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
   const submit = async () => {
     const value = text.trim();
     if (!value || submitting) return;

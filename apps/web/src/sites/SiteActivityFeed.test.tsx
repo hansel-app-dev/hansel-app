@@ -7,6 +7,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { StrictMode } from 'react';
 import type { SiteActivityItem } from '@hansel/contracts';
 import { SiteActivityFeed } from './SiteActivityFeed.js';
 
@@ -68,5 +69,26 @@ describe('SiteActivityFeed [site-activity-feed-comments REQ-011..REQ-019, AC-001
     fireEvent.click(view.getByRole('button', { name: 'Comment' }));
     expect(await view.findByRole('alert')).toBeVisible();
     expect(field).toHaveValue('Keep me');
+  });
+
+  it('settles a successful comment under React Strict Mode [site-activity-feed-comments REQ-014, REQ-017]', async () => {
+    render(
+      <StrictMode>
+        <SiteActivityFeed
+          initial={{ items: [], nextCursor: null }}
+          loadOlder={vi.fn()}
+          submitComment={vi.fn().mockResolvedValue(comment)}
+        />
+      </StrictMode>,
+    );
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'Ready for review.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Comment' }));
+    expect(
+      await screen.findByRole('button', { name: 'Comment' }),
+    ).toBeDisabled();
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    expect(screen.getByText('Ready for review.')).toBeVisible();
   });
 });
