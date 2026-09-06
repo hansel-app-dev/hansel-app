@@ -7,13 +7,14 @@ import type {
   AllocationPlansResponse,
   CreateAllocationPlanUploadBatchRequest,
   CreateAllocationPlanUploadBatchResponse,
+  AllocationPlan,
 } from '@hansel/contracts';
 import {
   ApplicationShell,
   AppSymbol,
 } from '../application-shell/ApplicationShell.js';
 import { Button } from '../design-system/index.js';
-import { SiteMemberPreview } from './SiteCollection.js';
+import { relativeTime, SiteMemberPreview } from './SiteCollection.js';
 import { AddPlansModal } from './AddPlansModal.js';
 
 interface SiteDetailsRequest {
@@ -50,6 +51,106 @@ interface SharedSiteDetailsProps {
     options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
   ) => Promise<void>;
   finalizeAllocationPlanUpload?: (uploadId: string) => Promise<void>;
+}
+
+export function AllocationPlanCollection({
+  now = new Date(),
+  plans,
+}: {
+  now?: Date;
+  plans: readonly AllocationPlan[];
+}) {
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const visiblePlans = plans.filter((plan) =>
+    plan.filename.toLocaleLowerCase().includes(normalizedQuery),
+  );
+
+  return (
+    <>
+      <label className="relative block max-w-[280px]">
+        <span className="sr-only">Search plans</span>
+        <AppSymbol
+          className="pointer-events-none absolute left-3 top-1/2 !size-4 -translate-y-1/2 text-[18px] text-content-muted"
+          weight={100}
+        >
+          search
+        </AppSymbol>
+        <input
+          className="min-h-10 w-full rounded border border-control-border bg-surface py-2 pl-9 pr-3 text-sm outline-none focus:border-focus"
+          onChange={(event) => {
+            setQuery(event.target.value);
+          }}
+          placeholder="Search plans"
+          type="search"
+          value={query}
+        />
+      </label>
+      <div className="mt-5 max-w-full overflow-x-auto">
+        <table
+          aria-label="Allocation Plans"
+          className="w-full min-w-[620px] table-fixed border-separate border-spacing-0 text-left"
+        >
+          <thead className="text-[12px] font-normal text-site-meta">
+            <tr>
+              <th className="w-1/2 py-2 font-normal" scope="col">
+                Name
+              </th>
+              <th className="w-1/4 px-3 py-2 font-normal" scope="col">
+                <span className="inline-flex items-center gap-1">
+                  <AppSymbol className="!size-3 text-[14px]" weight={100}>
+                    arrow_downward
+                  </AppSymbol>
+                  Last modified
+                </span>
+              </th>
+              <th className="w-1/4 px-3 py-2 font-normal" scope="col">
+                Created
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visiblePlans.length === 0 ? (
+              <tr>
+                <td className="py-8 text-sm text-content-muted" colSpan={3}>
+                  No plans match your search.
+                </td>
+              </tr>
+            ) : (
+              visiblePlans.map((plan) => (
+                <tr className="text-[14px]" key={plan.id}>
+                  <td className="h-12 py-1 pr-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <AppSymbol
+                        className="!size-5 text-[20px] text-content-muted"
+                        weight={100}
+                      >
+                        {plan.mediaType === 'application/pdf'
+                          ? 'picture_as_pdf'
+                          : 'image'}
+                      </AppSymbol>
+                      <span
+                        className="min-w-0 truncate font-medium"
+                        title={plan.filename}
+                      >
+                        {plan.filename}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-1 text-[12px] text-site-row">
+                    {relativeTime(plan.modifiedAt, now)}
+                  </td>
+                  <td className="px-3 py-1 text-[12px] text-site-row">
+                    {relativeTime(plan.createdAt, now)}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
 }
 
 function SiteDetails({
@@ -422,36 +523,9 @@ function SiteDetails({
                 Add plan
               </Button>
             </div>
-            <ul
-              aria-label="Allocation Plans"
-              className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-            >
-              {allocationPlans.plans.map((plan) => (
-                <li
-                  className="rounded-lg border border-site-card-border bg-surface p-5 shadow-site-card"
-                  key={plan.id}
-                >
-                  <AppSymbol
-                    className="!size-8 text-[32px] text-content-muted"
-                    weight={100}
-                  >
-                    {plan.mediaType === 'application/pdf'
-                      ? 'picture_as_pdf'
-                      : 'image'}
-                  </AppSymbol>
-                  <p
-                    className="mt-3 truncate font-semibold"
-                    title={plan.filename}
-                  >
-                    {plan.filename}
-                  </p>
-                  <p className="mt-1 text-sm text-content-muted">
-                    {(plan.byteSize / 1_048_576).toFixed(1)} MB ·{' '}
-                    {plan.uploadedBy}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-5">
+              <AllocationPlanCollection plans={allocationPlans.plans} />
+            </div>
           </section>
         )}
       </section>

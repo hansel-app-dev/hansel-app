@@ -957,6 +957,31 @@ test('Site Allocation Plans empty state reflows at narrow width and 200% zoom [s
   ).toBe(true);
 });
 
+test('Site Allocation Plans populated collection matches Figma and remains accessible [site-allocation-plans-add REQ-021, REQ-025, AC-008]', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto(
+    '/iframe.html?id=sites-site-allocation-plans--populated&viewMode=story',
+  );
+  const table = page.getByRole('table', { name: 'Allocation Plans' });
+  await expect(table).toBeVisible();
+  await expect(
+    table.getByRole('columnheader', { name: 'Last modified' }),
+  ).toBeVisible();
+  await expect(table.getByText('Ground Floor.pdf')).toBeVisible();
+  await expect(table.getByText('First Floor.png')).toBeVisible();
+  expect((await analyzeAccessibility(page)).violations).toEqual([]);
+  await expect(page).toHaveScreenshot('site-allocation-plans-populated.png', {
+    animations: 'disabled',
+    fullPage: true,
+    maxDiffPixelRatio: 0.001,
+  });
+
+  await page.getByRole('searchbox', { name: 'Search plans' }).fill('roof');
+  await expect(page.getByText('No plans match your search.')).toBeVisible();
+});
+
 test('email verification is accessible and visually stable [AC-002, REQ-006, REQ-084]', async ({
   page,
 }) => {

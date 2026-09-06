@@ -1,6 +1,10 @@
-/** @spec site-allocation-plans-empty-state REQ-020 @figma 2037:1019 */
+/** @spec site-allocation-plans-empty-state REQ-020 @spec site-allocation-plans-add REQ-021, REQ-025 @figma 2037:1019, 2053:2594 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { SitesPageResponse } from '@hansel/contracts';
+import type {
+  AllocationPlansResponse,
+  SitesPageResponse,
+} from '@hansel/contracts';
+import { expect, userEvent, within } from 'storybook/test';
 import { SiteAllocationPlans } from '../src/sites/SiteActivity.js';
 
 const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
@@ -38,6 +42,29 @@ const sitesPage: SitesPageResponse = {
   members: [],
   sites: [selectedSite, otherSite],
 };
+const populatedPlans: AllocationPlansResponse = {
+  canAddPlans: true,
+  plans: [
+    {
+      id: '00000000-0000-4000-8000-000000000006',
+      filename: 'Ground Floor.pdf',
+      mediaType: 'application/pdf',
+      byteSize: 1_048_576,
+      createdAt: '2026-06-06T00:00:00.000Z',
+      modifiedAt: '2026-09-05T00:00:00.000Z',
+      uploadedBy: 'Nabin Singh',
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000007',
+      filename: 'First Floor.png',
+      mediaType: 'image/png',
+      byteSize: 512,
+      createdAt: '2026-06-06T00:00:00.000Z',
+      modifiedAt: '2026-09-04T00:00:00.000Z',
+      uploadedBy: 'Nabin Singh',
+    },
+  ],
+};
 
 const meta = {
   title: 'Sites/Site Allocation Plans',
@@ -73,6 +100,29 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const NoPlans: Story = {};
+
+const populatedArgs = {
+  loadAllocationPlans: () => Promise.resolve(populatedPlans),
+};
+
+export const Populated: Story = { args: populatedArgs };
+
+export const NoSearchMatches: Story = {
+  args: populatedArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.type(
+      await canvas.findByRole('searchbox', { name: 'Search plans' }),
+      'roof',
+    );
+    await expect(canvas.getByText('No plans match your search.')).toBeVisible();
+  },
+};
+
+export const PopulatedNarrow: Story = {
+  args: populatedArgs,
+  parameters: { viewport: { defaultViewport: 'mobile1' } },
+};
 
 export const ZeroMembers: Story = {
   args: {
