@@ -43,14 +43,22 @@ const upload = {
 
 function fixture() {
   const tx = {
-    allocationPlanUploadBatch: { findUnique: vi.fn(), create: vi.fn() },
+    allocationPlanUploadBatch: {
+      findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      create: vi.fn(),
+    },
     membership: {
       findUnique: vi
         .fn()
         .mockResolvedValue({ userId: 'u', tenantId: 't', roleId: 'owner' }),
     },
     site: { count: vi.fn().mockResolvedValue(1) },
-    allocationPlanUpload: { findFirst: vi.fn(), update: vi.fn() },
+    allocationPlanUpload: {
+      createMany: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+    },
     allocationPlan: { create: vi.fn().mockResolvedValue(plan) },
   };
   const prisma = {
@@ -130,11 +138,22 @@ describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-0
     };
     const created = fixture();
     created.tx.allocationPlanUploadBatch.findUnique.mockResolvedValue(null);
-    created.tx.allocationPlanUploadBatch.create.mockResolvedValue({
+    created.tx.allocationPlanUploadBatch.create.mockResolvedValue({ id: 'b' });
+    created.tx.allocationPlanUploadBatch.findUniqueOrThrow.mockResolvedValue({
       uploads: [upload],
     });
     await expect(created.store.createBatch(input)).resolves.toMatchObject({
       status: 'created',
+    });
+    expect(created.tx.allocationPlanUpload.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          batchId: 'b',
+          tenantId: 't',
+          siteId: 's',
+          uploadedById: 'u',
+        }),
+      ],
     });
     const replay = fixture();
     replay.tx.allocationPlanUploadBatch.findUnique.mockResolvedValue({

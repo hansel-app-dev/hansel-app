@@ -141,19 +141,25 @@ export function createPrismaAllocationPlanStore(
             siteId: input.siteId,
             keyDigest: input.keyDigest,
             requestDigest: input.requestDigest,
-            uploads: {
-              create: input.uploads.map((upload) => ({
-                ...upload,
-                tenantId: input.principal.tenantId,
-                siteId: input.siteId,
-                uploadedById: input.principal.userId,
-                expiresAt: input.expiresAt,
-              })),
-            },
           },
-          include: { uploads: { include: uploadInclude } },
         });
-        return { status: 'created', uploads: batch.uploads.map(toUpload) };
+        await transaction.allocationPlanUpload.createMany({
+          data: input.uploads.map((upload) => ({
+            ...upload,
+            batchId: batch.id,
+            tenantId: input.principal.tenantId,
+            siteId: input.siteId,
+            uploadedById: input.principal.userId,
+            expiresAt: input.expiresAt,
+          })),
+        });
+        const created = await transaction.allocationPlanUploadBatch.findUniqueOrThrow(
+          {
+            where: { id: batch.id },
+            include: { uploads: { include: uploadInclude } },
+          },
+        );
+        return { status: 'created', uploads: created.uploads.map(toUpload) };
       });
     },
     async findUpload(principal, siteId, uploadId) {
