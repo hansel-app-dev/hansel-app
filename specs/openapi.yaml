@@ -848,8 +848,7 @@ paths:
           headers:
             Cache-Control:
               { schema: { type: string, const: 'private, no-store' } }
-            X-Content-Type-Options:
-              { schema: { type: string, const: nosniff } }
+            X-Content-Type-Options: { schema: { type: string, const: nosniff } }
           content:
             image/png: { schema: { type: string, format: binary } }
             image/jpeg: { schema: { type: string, format: binary } }
@@ -878,6 +877,215 @@ paths:
                 required: [plan]
                 properties:
                   plan: { $ref: '#/components/schemas/AllocationPlan' }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/signage-schedule:
+    parameters: [{ $ref: '#/components/parameters/SiteId' }]
+    get:
+      operationId: loadSignageSchedule
+      responses:
+        '200':
+          description: Site-scoped Sign Types and Signs
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    { $ref: '#/components/schemas/SignageScheduleResponse' },
+                },
+            }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/sign-types:
+    parameters: [{ $ref: '#/components/parameters/SiteId' }]
+    post:
+      operationId: createSignType
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      additionalProperties: false,
+                      required: [name],
+                      properties:
+                        { name: { type: string, minLength: 1, maxLength: 80 } },
+                    },
+                },
+            },
+        }
+      responses:
+        '201':
+          {
+            description: Created Sign Type,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/SignType' } },
+              },
+          }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/sign-types/{signTypeId}:
+    parameters:
+      [
+        { $ref: '#/components/parameters/SiteId' },
+        {
+          name: signTypeId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        },
+      ]
+    patch:
+      operationId: updateSignType
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      additionalProperties: false,
+                      required: [name, expectedUpdatedAt],
+                      properties:
+                        {
+                          name: { type: string, minLength: 1, maxLength: 80 },
+                          expectedUpdatedAt:
+                            { type: string, format: date-time },
+                        },
+                    },
+                },
+            },
+        }
+      responses:
+        '200':
+          {
+            description: Updated Sign Type,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/SignType' } },
+              },
+          }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/sign-types/{signTypeId}/signs:
+    parameters:
+      [
+        { $ref: '#/components/parameters/SiteId' },
+        {
+          name: signTypeId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        },
+      ]
+    post:
+      operationId: createSign
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                { schema: { $ref: '#/components/schemas/CreateSignRequest' } },
+            },
+        }
+      responses:
+        '201':
+          {
+            description: Created Sign,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/Sign' } },
+              },
+          }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/signs/{signId}:
+    parameters:
+      [
+        { $ref: '#/components/parameters/SiteId' },
+        {
+          name: signId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        },
+      ]
+    patch:
+      operationId: updateSign
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      additionalProperties: false,
+                      required: [field, value, expectedUpdatedAt],
+                      properties:
+                        {
+                          field:
+                            {
+                              enum:
+                                [
+                                  code,
+                                  quantity,
+                                  location,
+                                  content,
+                                  comments,
+                                  status,
+                                ],
+                            },
+                          value: {},
+                          expectedUpdatedAt:
+                            { type: string, format: date-time },
+                        },
+                    },
+                },
+            },
+        }
+      responses:
+        '200':
+          {
+            description: Updated Sign,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: '#/components/schemas/Sign' } },
+              },
+          }
         '400': { $ref: '#/components/responses/SitesError' }
         '401': { $ref: '#/components/responses/SitesError' }
         '403': { $ref: '#/components/responses/SitesError' }
@@ -1681,6 +1889,64 @@ components:
           properties:
             id: { type: string, format: uuid }
             name: { type: string, minLength: 1, maxLength: 100 }
+    Sign:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          signTypeId,
+          code,
+          quantity,
+          location,
+          content,
+          comments,
+          status,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        signTypeId: { type: string, format: uuid }
+        code: { type: string, minLength: 1, maxLength: 40 }
+        quantity: { type: integer, minimum: 1, maximum: 9999 }
+        location: { type: string, maxLength: 200 }
+        content: { type: string, maxLength: 200 }
+        comments: { type: string, maxLength: 1000 }
+        status: { enum: [UNSPECIFIED, IN_PROGRESS, APPROVED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    SignType:
+      type: object
+      additionalProperties: false
+      required: [id, name, color, createdAt, updatedAt, quantityTotal, signs]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 80 }
+        color: { enum: [SLATE, RED, TEAL] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        quantityTotal: { type: integer, minimum: 0 }
+        signs: { type: array, items: { $ref: '#/components/schemas/Sign' } }
+    SignageScheduleResponse:
+      type: object
+      additionalProperties: false
+      required: [canManageSigns, signTypes]
+      properties:
+        canManageSigns: { type: boolean }
+        signTypes:
+          { type: array, items: { $ref: '#/components/schemas/SignType' } }
+    CreateSignRequest:
+      type: object
+      additionalProperties: false
+      required: [code, quantity, location, content, comments, status]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 40 }
+        quantity: { type: integer, minimum: 1, maximum: 9999 }
+        location: { type: string, maxLength: 200 }
+        content: { type: string, maxLength: 200 }
+        comments: { type: string, maxLength: 1000 }
+        status: { enum: [UNSPECIFIED, IN_PROGRESS, APPROVED] }
     HealthResponse:
       type: object
       additionalProperties: false

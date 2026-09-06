@@ -90,6 +90,18 @@ enum AllocationPlanUploadStatus {
   EXPIRED
 }
 
+enum SignTypeColor {
+  SLATE
+  RED
+  TEAL
+}
+
+enum SignStatus {
+  UNSPECIFIED
+  IN_PROGRESS
+  APPROVED
+}
+
 model User {
   id                            String                               @id @default(uuid()) @db.Uuid
   email                         String                               @unique
@@ -323,6 +335,8 @@ model Tenant {
   sites                       Site[]
   siteCreationRequests        SiteCreationRequest[]
   allocationPlans             AllocationPlan[]
+  signTypes                   SignType[]
+  signs                       Sign[]
   allocationPlanUploads       AllocationPlanUpload[]
   allocationPlanUploadBatches AllocationPlanUploadBatch[]
   createdAt                   DateTime                    @default(now())
@@ -420,6 +434,8 @@ model Site {
   invitations                 SiteInvitation[]
   creationRequests            SiteCreationRequest[]
   allocationPlans             AllocationPlan[]
+  signTypes                   SignType[]
+  signs                       Sign[]
   allocationPlanUploads       AllocationPlanUpload[]
   allocationPlanUploadBatches AllocationPlanUploadBatch[]
   createdAt                   DateTime                    @default(now())
@@ -427,6 +443,46 @@ model Site {
 
   @@unique([id, tenantId])
   @@index([tenantId, createdAt])
+}
+
+model SignType {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  siteId         String        @db.Uuid
+  name           String        @db.VarChar(80)
+  normalizedName String        @db.VarChar(80)
+  color          SignTypeColor
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site           Site          @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  signs          Sign[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([id, tenantId, siteId])
+  @@unique([tenantId, siteId, normalizedName])
+  @@index([siteId, createdAt])
+}
+
+model Sign {
+  id             String     @id @default(uuid()) @db.Uuid
+  tenantId       String     @db.Uuid
+  siteId         String     @db.Uuid
+  signTypeId     String     @db.Uuid
+  code           String     @db.VarChar(40)
+  normalizedCode String     @db.VarChar(40)
+  quantity       Int        @default(1)
+  location       String     @default("") @db.VarChar(200)
+  content        String     @default("") @db.VarChar(200)
+  comments       String     @default("") @db.VarChar(1000)
+  status         SignStatus @default(UNSPECIFIED)
+  tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site           Site       @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  signType       SignType   @relation(fields: [signTypeId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([tenantId, siteId, normalizedCode])
+  @@index([signTypeId, normalizedCode])
 }
 
 model AllocationPlan {

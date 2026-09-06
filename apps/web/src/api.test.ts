@@ -29,6 +29,11 @@ import {
   createAllocationPlanUploadBatch,
   uploadAllocationPlan,
   finalizeAllocationPlanUpload,
+  loadSignageSchedule,
+  createSignType,
+  updateSignType,
+  createSign,
+  updateSign,
 } from './api.js';
 import {
   countryOptions,
@@ -168,6 +173,70 @@ describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
     await expect(loadSiteActivity(siteId, '', unavailableRead)).rejects.toThrow(
       'site_activity_load_failed',
     );
+  });
+});
+
+describe('signage schedule API [site-signage-schedule REQ-016]', () => {
+  const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+  const typeId = '00000000-0000-4000-8000-000000000010';
+  const now = '2026-09-06T00:00:00.000Z';
+  const sign = {
+    id: '00000000-0000-4000-8000-000000000011',
+    signTypeId: typeId,
+    code: 'A.1',
+    quantity: 1,
+    location: '',
+    content: '',
+    comments: '',
+    status: 'UNSPECIFIED',
+    createdAt: now,
+    updatedAt: now,
+  };
+  const type = {
+    id: typeId,
+    name: 'Regulatory',
+    color: 'RED',
+    createdAt: now,
+    updatedAt: now,
+    quantityTotal: 1,
+    signs: [sign],
+  };
+
+  it('loads and mutates using exact JSON contracts', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ canManageSigns: true, signTypes: [type] }),
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify(type)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(type)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(sign)))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ...sign, quantity: 2 })),
+      );
+    await expect(
+      loadSignageSchedule(siteId, '', fetcher),
+    ).resolves.toMatchObject({ canManageSigns: true });
+    await createSignType(siteId, 'Regulatory', '', fetcher);
+    await updateSignType(siteId, type as never, 'Safety', '', fetcher);
+    await createSign(siteId, typeId, 'A.1', '', fetcher);
+    await updateSign(siteId, sign as never, 'quantity', 2, '', fetcher);
+    expect(fetcher).toHaveBeenCalledTimes(5);
+  });
+
+  it('rejects categorical request failures', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 409 }));
+    await expect(loadSignageSchedule(siteId, '', fetcher)).rejects.toThrow(
+      'signage_schedule_failed',
+    );
+    fetcher.mockResolvedValue(new Response(null, { status: 401 }));
+    await expect(
+      loadSignageSchedule(siteId, '', fetcher),
+    ).rejects.toBeInstanceOf(DashboardAuthenticationRequiredError);
   });
 });
 

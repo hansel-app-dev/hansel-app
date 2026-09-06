@@ -37,6 +37,11 @@ import {
   createAllocationPlanUploadBatchRequestSchema,
   createAllocationPlanUploadBatchResponseSchema,
   finalizeAllocationPlanUploadResponseSchema,
+  signageScheduleResponseSchema,
+  createSignTypeRequestSchema,
+  updateSignTypeRequestSchema,
+  createSignRequestSchema,
+  updateSignRequestSchema,
   resendOnboardingVerificationRequestSchema,
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
@@ -73,6 +78,9 @@ import {
   type CreateAllocationPlanUploadBatchRequest,
   type CreateAllocationPlanUploadBatchResponse,
   type FinalizeAllocationPlanUploadResponse,
+  type SignageScheduleResponse,
+  type SignType,
+  type Sign,
 } from '@hansel/contracts';
 import type { PasswordLoginResult } from './auth/password-login.js';
 import { PasswordResetRejectedError } from './auth/password-recovery.js';
@@ -105,6 +113,11 @@ import {
   AllocationPlansForbiddenError,
   AllocationPlansNotFoundError,
 } from './sites/allocation-plans.js';
+import {
+  SignageConflictError,
+  SignageForbiddenError,
+  SignageNotFoundError,
+} from './sites/signage-schedule.js';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
@@ -229,6 +242,41 @@ export interface SitesModule {
     siteId: string,
     planId: string,
   ): Promise<{ mediaType: string; bytes: Uint8Array } | null>;
+  loadSignageSchedule?(
+    accessCredential: string,
+    siteId: string,
+  ): Promise<SignageScheduleResponse | null>;
+  createSignType?(
+    accessCredential: string,
+    siteId: string,
+    name: string,
+  ): Promise<SignType | null>;
+  updateSignType?(
+    accessCredential: string,
+    siteId: string,
+    id: string,
+    name: string,
+    expectedUpdatedAt: string,
+  ): Promise<SignType | null>;
+  createSign?(
+    accessCredential: string,
+    siteId: string,
+    typeId: string,
+    input: {
+      code: string;
+      quantity: number;
+      location: string;
+      content: string;
+      comments: string;
+      status: Sign['status'];
+    },
+  ): Promise<Sign | null>;
+  updateSign?(
+    accessCredential: string,
+    siteId: string,
+    id: string,
+    input: { field: string; value: string | number; expectedUpdatedAt: string },
+  ): Promise<Sign | null>;
   createAllocationPlanUploadBatch?(
     accessCredential: string,
     siteId: string,
@@ -448,6 +496,7 @@ export function createApp(
     externalAuthEnabled?: boolean;
     sitesEnabled?: boolean;
     allocationPlansEnabled?: boolean;
+    signageScheduleEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
@@ -1134,6 +1183,169 @@ export function createApp(
         }
         sites.recordEvent?.('site_activity_unavailable');
         response.status(503).json({ error: 'sites_unavailable' });
+      }
+    });
+
+    const signageResponse = (response: express.Response, error: unknown) => {
+      if (error instanceof SignageForbiddenError)
+        return response.status(403).json({ error: 'signage_forbidden' });
+      if (error instanceof SignageNotFoundError)
+        return response.status(404).json({ error: 'signage_not_found' });
+      if (error instanceof SignageConflictError)
+        return response.status(409).json({ error: 'signage_conflict' });
+      return response.status(503).json({ error: 'signage_unavailable' });
+    };
+    app.get(
+      '/api/sites/:siteId/signage-schedule',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (!config.signageScheduleEnabled || !sites.loadSignageSchedule)
+          return response.status(404).json({ error: 'not_found' });
+        const id = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        );
+        const credential = readApplicationCredential(request);
+        if (!id.success)
+          return response.status(400).json({ error: 'invalid_request' });
+        if (!credential)
+          return response
+            .status(401)
+            .json({ error: 'authentication_required' });
+        try {
+          const result = await sites.loadSignageSchedule(credential, id.data);
+          return result
+            ? response.json(signageScheduleResponseSchema.parse(result))
+            : response.status(401).json({ error: 'authentication_required' });
+        } catch (error) {
+          return signageResponse(response, error);
+        }
+      },
+    );
+    app.post('/api/sites/:siteId/sign-types', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (!config.signageScheduleEnabled || !sites.createSignType)
+        return response.status(404).json({ error: 'not_found' });
+      const id = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        ),
+        body = createSignTypeRequestSchema.safeParse(request.body),
+        credential = readApplicationCredential(request);
+      if (!id.success || !body.success)
+        return response.status(400).json({ error: 'invalid_request' });
+      if (!credential)
+        return response.status(401).json({ error: 'authentication_required' });
+      try {
+        const result = await sites.createSignType(
+          credential,
+          id.data,
+          body.data.name,
+        );
+        return result
+          ? response.status(201).json(result)
+          : response.status(401).json({ error: 'authentication_required' });
+      } catch (error) {
+        return signageResponse(response, error);
+      }
+    });
+    app.patch(
+      '/api/sites/:siteId/sign-types/:signTypeId',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (!config.signageScheduleEnabled || !sites.updateSignType)
+          return response.status(404).json({ error: 'not_found' });
+        const site = createSiteResponseSchema.shape.siteId.safeParse(
+            request.params.siteId,
+          ),
+          id = createSiteResponseSchema.shape.siteId.safeParse(
+            request.params.signTypeId,
+          ),
+          body = updateSignTypeRequestSchema.safeParse(request.body),
+          credential = readApplicationCredential(request);
+        if (!site.success || !id.success || !body.success)
+          return response.status(400).json({ error: 'invalid_request' });
+        if (!credential)
+          return response
+            .status(401)
+            .json({ error: 'authentication_required' });
+        try {
+          const result = await sites.updateSignType(
+            credential,
+            site.data,
+            id.data,
+            body.data.name,
+            body.data.expectedUpdatedAt,
+          );
+          return result
+            ? response.json(result)
+            : response.status(401).json({ error: 'authentication_required' });
+        } catch (error) {
+          return signageResponse(response, error);
+        }
+      },
+    );
+    app.post(
+      '/api/sites/:siteId/sign-types/:signTypeId/signs',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (!config.signageScheduleEnabled || !sites.createSign)
+          return response.status(404).json({ error: 'not_found' });
+        const site = createSiteResponseSchema.shape.siteId.safeParse(
+            request.params.siteId,
+          ),
+          id = createSiteResponseSchema.shape.siteId.safeParse(
+            request.params.signTypeId,
+          ),
+          body = createSignRequestSchema.safeParse(request.body),
+          credential = readApplicationCredential(request);
+        if (!site.success || !id.success || !body.success)
+          return response.status(400).json({ error: 'invalid_request' });
+        if (!credential)
+          return response
+            .status(401)
+            .json({ error: 'authentication_required' });
+        try {
+          const result = await sites.createSign(
+            credential,
+            site.data,
+            id.data,
+            body.data,
+          );
+          return result
+            ? response.status(201).json(result)
+            : response.status(401).json({ error: 'authentication_required' });
+        } catch (error) {
+          return signageResponse(response, error);
+        }
+      },
+    );
+    app.patch('/api/sites/:siteId/signs/:signId', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (!config.signageScheduleEnabled || !sites.updateSign)
+        return response.status(404).json({ error: 'not_found' });
+      const site = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        ),
+        id = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.signId,
+        ),
+        body = updateSignRequestSchema.safeParse(request.body),
+        credential = readApplicationCredential(request);
+      if (!site.success || !id.success || !body.success)
+        return response.status(400).json({ error: 'invalid_request' });
+      if (!credential)
+        return response.status(401).json({ error: 'authentication_required' });
+      try {
+        const result = await sites.updateSign(
+          credential,
+          site.data,
+          id.data,
+          body.data,
+        );
+        return result
+          ? response.json(result)
+          : response.status(401).json({ error: 'authentication_required' });
+      } catch (error) {
+        return signageResponse(response, error);
       }
     });
 

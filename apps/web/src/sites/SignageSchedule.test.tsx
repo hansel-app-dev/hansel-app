@@ -1,0 +1,263 @@
+/* eslint-disable @typescript-eslint/require-await -- Async callbacks model persistence. */
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Sign, SignType } from '@hansel/contracts';
+import { SignageSchedule } from './SignageSchedule.js';
+const now = '2026-09-06T00:00:00.000Z';
+const typeId = '00000000-0000-4000-8000-000000000010';
+const sign: Sign = {
+  id: '00000000-0000-4000-8000-000000000011',
+  signTypeId: typeId,
+  code: 'RS.101',
+  quantity: 1,
+  location: 'G001',
+  content: 'Fire safety',
+  comments: '',
+  status: 'APPROVED',
+  createdAt: now,
+  updatedAt: now,
+};
+const type: SignType = {
+  id: typeId,
+  name: 'Regulatory Signs',
+  color: 'RED',
+  createdAt: now,
+  updatedAt: now,
+  quantityTotal: 1,
+  signs: [sign],
+};
+afterEach(cleanup);
+describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
+  it('renders real groups and performs inline create and edit actions', async () => {
+    const createType = vi.fn(async (name: string) => ({
+      ...type,
+      id: '00000000-0000-4000-8000-000000000020',
+      name,
+      signs: [],
+      quantityTotal: 0,
+    }));
+    const updateType = vi.fn(async (_type: typeof type, name: string) => ({
+      ...type,
+      name,
+    }));
+    const createSign = vi.fn(async () => ({
+      ...sign,
+      id: '00000000-0000-4000-8000-000000000021',
+      code: 'RS.102',
+    }));
+    const updateSign = vi.fn(
+      async (_sign: typeof sign, field: string, value: string | number) => ({
+        ...sign,
+        [field]: value,
+      }),
+    );
+    render(
+      <SignageSchedule
+        initial={{ canManageSigns: true, signTypes: [type] }}
+        createType={createType}
+        updateType={updateType}
+        createSign={createSign}
+        updateSign={updateSign}
+      />,
+    );
+    expect(screen.getByDisplayValue('RS.101')).toBeVisible();
+    expect(screen.getByRole('combobox', { name: 'RS.101 status' })).toHaveValue(
+      'APPROVED',
+    );
+    expect(screen.getByDisplayValue('1')).toBeVisible();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search signs' }), {
+      target: { value: 'missing' },
+    });
+    expect(screen.queryByDisplayValue('RS.101')).toBeNull();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Collapse Regulatory Signs' }),
+    );
+    expect(screen.queryByDisplayValue('RS.101')).toBeNull();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Expand Regulatory Signs' }),
+    );
+    const location = screen.getByRole('textbox', { name: 'RS.101 location' });
+    fireEvent.change(location, { target: { value: 'G002' } });
+    fireEvent.blur(location);
+    await waitFor(() => {
+      expect(updateSign).toHaveBeenCalledWith(sign, 'location', 'G002');
+    });
+    const name = screen.getByRole('textbox', { name: 'Regulatory Signs name' });
+    fireEvent.change(name, { target: { value: 'Regulatory' } });
+    fireEvent.blur(name);
+    await waitFor(() => {
+      expect(updateType).toHaveBeenCalled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Add sign/ }));
+    const code = screen.getByRole('textbox', { name: /New sign code/ });
+    fireEvent.change(code, { target: { value: 'RS.102' } });
+    fireEvent.blur(code);
+    await waitFor(() => {
+      expect(createSign).toHaveBeenCalledWith(typeId, 'RS.102');
+    });
+    fireEvent.click(screen.getByRole('button', { name: /New sign type/ }));
+    const newName = screen.getByRole('textbox', { name: 'New sign type name' });
+    fireEvent.change(newName, { target: { value: 'Wayfinding' } });
+    fireEvent.blur(newName);
+    await waitFor(() => {
+      expect(createType).toHaveBeenCalledWith('Wayfinding');
+    });
+  });
+
+  it('filters, sorts, selects, cancels drafts, and keeps failed values editable', async () => {
+    const older = {
+      ...sign,
+      id: '00000000-0000-4000-8000-000000000012',
+      code: 'RS.2',
+      status: 'IN_PROGRESS' as const,
+      createdAt: '2026-09-05T00:00:00.000Z',
+    };
+    const initial = {
+      canManageSigns: true,
+      signTypes: [{ ...type, signs: [sign, older], quantityTotal: 2 }],
+    };
+    const rejected = vi.fn().mockRejectedValue(new Error('conflict'));
+    render(
+      <SignageSchedule
+        initial={initial}
+        createType={rejected}
+        updateType={rejected}
+        createSign={rejected}
+        updateSign={rejected}
+      />,
+    );
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort signs' }), {
+      target: { value: 'ZA' },
+    });
+    expect(
+      screen
+        .getAllByLabelText(/ code$/)
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(['RS.101', 'RS.2']);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort signs' }), {
+      target: { value: 'NEWEST' },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort signs' }), {
+      target: { value: 'OLDEST' },
+    });
+    fireEvent.click(screen.getByText('Filter'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Approved' }));
+    expect(screen.queryByDisplayValue('RS.2')).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Approved' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Regulatory Signs' }));
+    expect(screen.getByDisplayValue('RS.2')).toBeVisible();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select sign RS.2' }));
+    expect(screen.getByText('1 signs selected')).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /Select all visible/ }),
+    );
+    expect(screen.getByText('2 signs selected')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Add sign/ }));
+    fireEvent.keyDown(screen.getByRole('textbox', { name: /New sign code/ }), {
+      key: 'Escape',
+    });
+    expect(screen.queryByRole('textbox', { name: /New sign code/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Add sign/ }));
+    const failedCode = screen.getByRole('textbox', { name: /New sign code/ });
+    fireEvent.change(failedCode, { target: { value: 'duplicate' } });
+    fireEvent.blur(failedCode);
+    expect(await screen.findByText(/Could not add this sign/)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /New sign type/ }));
+    const draft = screen.getByRole('textbox', { name: 'New sign type name' });
+    fireEvent.change(draft, { target: { value: 'Duplicate' } });
+    fireEvent.blur(draft);
+    expect(
+      await screen.findByText(/Could not add this sign type/),
+    ).toBeVisible();
+    fireEvent.keyDown(draft, { key: 'Escape' });
+    expect(
+      screen.queryByRole('textbox', { name: 'New sign type name' }),
+    ).toBeNull();
+    const typeName = screen.getByRole('textbox', {
+      name: 'Regulatory Signs name',
+    });
+    fireEvent.change(typeName, { target: { value: 'Broken' } });
+    fireEvent.keyDown(typeName, { key: 'Enter' });
+    expect(
+      await screen.findByText('Could not save this sign type.'),
+    ).toBeVisible();
+    fireEvent.keyDown(typeName, { key: 'Escape' });
+    const location = screen.getByRole('textbox', { name: 'RS.101 location' });
+    fireEvent.change(location, { target: { value: 'failed value' } });
+    fireEvent.blur(location);
+    expect(await screen.findByText(/Could not save this value/)).toBeVisible();
+    fireEvent.keyDown(location, { key: 'Escape' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'RS.101 status' }), {
+      target: { value: 'IN_PROGRESS' },
+    });
+  });
+
+  it('renders viewers without mutation controls', () => {
+    render(
+      <SignageSchedule
+        initial={{ canManageSigns: false, signTypes: [type] }}
+        createType={vi.fn()}
+        updateType={vi.fn()}
+        createSign={vi.fn()}
+        updateSign={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /New sign type/ })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'RS.101 code' })).toBeDisabled();
+    expect(
+      screen.getByRole('heading', { name: 'Regulatory Signs' }),
+    ).toBeVisible();
+  });
+
+  it('reconciles mutations without changing unrelated groups', async () => {
+    const other: SignType = {
+      ...type,
+      id: '00000000-0000-4000-8000-000000000030',
+      name: 'Wayfinding',
+      color: 'TEAL',
+      signs: [],
+      quantityTotal: 0,
+    };
+    const updated = { ...sign, location: 'G009' };
+    render(
+      <SignageSchedule
+        initial={{ canManageSigns: true, signTypes: [type, other] }}
+        createType={() => Promise.resolve(other)}
+        updateType={() => Promise.resolve(type)}
+        createSign={() =>
+          Promise.resolve({
+            ...sign,
+            id: '00000000-0000-4000-8000-000000000040',
+          })
+        }
+        updateSign={() => Promise.resolve(updated)}
+      />,
+    );
+    const location = screen.getByRole('textbox', { name: 'RS.101 location' });
+    fireEvent.change(location, { target: { value: 'G009' } });
+    fireEvent.blur(location);
+    const add = screen.getAllByRole('button', { name: /Add sign/ })[0];
+    expect(add).toBeDefined();
+    fireEvent.click(add as HTMLElement);
+    const code = screen.getByRole('textbox', {
+      name: /New sign code in Regulatory/,
+    });
+    fireEvent.change(code, { target: { value: 'RS.200' } });
+    fireEvent.blur(code);
+    await waitFor(() =>
+      expect(
+        screen.getByRole('textbox', { name: 'RS.101 location' }),
+      ).toHaveValue('G009'),
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'Wayfinding name' }),
+    ).toBeVisible();
+  });
+});

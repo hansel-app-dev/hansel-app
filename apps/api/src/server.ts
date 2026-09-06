@@ -91,6 +91,7 @@ import { createSiteInvitationWorker } from './sites/site-invitation-worker.js';
 import { createAllocationPlansFeature } from './sites/allocation-plans.js';
 import { createPrismaAllocationPlanStore } from './sites/prisma-allocation-plan-store.js';
 import { createS3AllocationPlanObjectStore } from './sites/s3-allocation-plan-object-store.js';
+import { createSignageScheduleFeature } from './sites/signage-schedule.js';
 
 configureDatabaseUrl();
 const config = loadConfig();
@@ -431,12 +432,47 @@ const allocationPlansFeature = createAllocationPlansFeature({
   digest: (value) => security.digestApplicationCredential(value),
   now: () => new Date(),
 });
+const signageScheduleFeature = createSignageScheduleFeature(prisma);
 const resolveSitePrincipal = (credential: string) =>
   sitesStore.resolvePrincipal(
     security.digestApplicationCredential(credential),
     new Date(),
   );
 const sites: SitesModule = {
+  async loadSignageSchedule(credential, siteId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal ? signageScheduleFeature.load(principal, siteId) : null;
+  },
+  async createSignType(credential, siteId, name) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? signageScheduleFeature.createType(principal, siteId, name)
+      : null;
+  },
+  async updateSignType(credential, siteId, id, name, expectedUpdatedAt) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? signageScheduleFeature.updateType(
+          principal,
+          siteId,
+          id,
+          name,
+          expectedUpdatedAt,
+        )
+      : null;
+  },
+  async createSign(credential, siteId, typeId, input) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? signageScheduleFeature.createSign(principal, siteId, typeId, input)
+      : null;
+  },
+  async updateSign(credential, siteId, id, input) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? signageScheduleFeature.updateSign(principal, siteId, id, input)
+      : null;
+  },
   async load(credential) {
     const principal = await resolveSitePrincipal(credential);
     return principal ? sitesFeature.load(principal) : null;

@@ -28,6 +28,11 @@ import {
   AllocationPlansNotFoundError,
 } from './sites/allocation-plans.js';
 import {
+  SignageConflictError,
+  SignageForbiddenError,
+  SignageNotFoundError,
+} from './sites/signage-schedule.js';
+import {
   countryOptions,
   discoveryManagementOptions,
   industryOptions,
@@ -122,6 +127,22 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
           uploadedBy: 'Owner',
         },
       }),
+      loadSignageSchedule: vi.fn().mockResolvedValue({
+        canManageSigns: true,
+        signTypes: [],
+      }),
+      createSignType: vi.fn().mockResolvedValue({
+        id: '00000000-0000-4000-8000-000000000010',
+        name: 'Regulatory',
+        color: 'RED',
+        createdAt: '2026-09-06T00:00:00.000Z',
+        updatedAt: '2026-09-06T00:00:00.000Z',
+        quantityTotal: 0,
+        signs: [],
+      }),
+      updateSignType: vi.fn().mockResolvedValue(null),
+      createSign: vi.fn().mockResolvedValue(null),
+      updateSign: vi.fn().mockResolvedValue(null),
       recordEvent: vi.fn(),
       ...overrides,
     };
@@ -132,6 +153,7 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
           allowedOrigin: 'https://app.example.com',
           sitesEnabled: true,
           allocationPlansEnabled: true,
+          signageScheduleEnabled: true,
         },
         undefined,
         undefined,
@@ -141,6 +163,87 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       ),
     };
   };
+
+  it('reads and creates signage schedule records privately [site-signage-schedule AC-001, AC-002]', async () => {
+    const fixture = create();
+    const cookie = 'hansel_access=access-token';
+    await request(fixture.app)
+      .get(`/api/sites/${siteId}/signage-schedule`)
+      .set('Cookie', cookie)
+      .expect('Cache-Control', /no-store/)
+      .expect(200, { canManageSigns: true, signTypes: [] });
+    await request(fixture.app)
+      .post(`/api/sites/${siteId}/sign-types`)
+      .set('Cookie', cookie)
+      .send({ name: 'Regulatory' })
+      .expect(201);
+    expect(fixture.sites.createSignType).toHaveBeenCalledWith(
+      'access-token',
+      siteId,
+      'Regulatory',
+    );
+  });
+
+  it('validates and maps signage mutation failures [site-signage-schedule AC-006]', async () => {
+    const cookie = 'hansel_access=access-token';
+    const id = '00000000-0000-4000-8000-000000000010';
+    await request(create().app)
+      .get('/api/sites/no/signage-schedule')
+      .expect(400);
+    await request(create().app)
+      .get(`/api/sites/${siteId}/signage-schedule`)
+      .expect(401);
+    await request(
+      create({ loadSignageSchedule: vi.fn().mockResolvedValue(null) }).app,
+    )
+      .get(`/api/sites/${siteId}/signage-schedule`)
+      .set('Cookie', cookie)
+      .expect(401);
+    for (const [error, status] of [
+      [new SignageForbiddenError(), 403],
+      [new SignageNotFoundError(), 404],
+      [new SignageConflictError(), 409],
+      [new Error('private'), 503],
+    ] as const) {
+      await request(
+        create({ loadSignageSchedule: vi.fn().mockRejectedValue(error) }).app,
+      )
+        .get(`/api/sites/${siteId}/signage-schedule`)
+        .set('Cookie', cookie)
+        .expect(status);
+    }
+    await request(create().app)
+      .post(`/api/sites/${siteId}/sign-types`)
+      .set('Cookie', cookie)
+      .send({ name: '' })
+      .expect(400);
+    await request(create().app)
+      .patch(`/api/sites/${siteId}/sign-types/${id}`)
+      .set('Cookie', cookie)
+      .send({ name: 'New', expectedUpdatedAt: '2026-09-06T00:00:00.000Z' })
+      .expect(401);
+    await request(create().app)
+      .post(`/api/sites/${siteId}/sign-types/${id}/signs`)
+      .set('Cookie', cookie)
+      .send({
+        code: 'A',
+        quantity: 1,
+        location: '',
+        content: '',
+        comments: '',
+        status: 'UNSPECIFIED',
+      })
+      .expect(401);
+    await request(create().app)
+      .patch(`/api/sites/${siteId}/signs/${id}`)
+      .set('Cookie', cookie)
+      .send({
+        field: 'quantity',
+        value: 2,
+        expectedUpdatedAt: '2026-09-06T00:00:00.000Z',
+      })
+      .expect(401);
+  });
 
   it('lists, creates, and finalizes Allocation Plan uploads privately [site-allocation-plans-add AC-001]', async () => {
     const fixture = create();

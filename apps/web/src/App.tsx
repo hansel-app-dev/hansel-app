@@ -26,6 +26,11 @@ import {
   uploadAllocationPlan,
   finalizeAllocationPlanUpload,
   loadSites,
+  loadSignageSchedule,
+  createSignType,
+  updateSignType,
+  createSign,
+  updateSign,
 } from './api.js';
 import { ForgotPassword } from './auth/ForgotPassword.js';
 import { Login } from './auth/Login.js';
@@ -38,7 +43,11 @@ import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
 import { Dashboard } from './dashboard/Dashboard.js';
 import { Sites } from './sites/Sites.js';
-import { SiteActivity, SiteAllocationPlans } from './sites/SiteActivity.js';
+import {
+  SiteActivity,
+  SiteAllocationPlans,
+  SiteSignageSchedule,
+} from './sites/SiteActivity.js';
 import './styles.css';
 
 const verificationEmailKey = 'hansel.verificationEmail';
@@ -169,6 +178,40 @@ export function App({
   const siteActivityMatch = /^\/sites\/([0-9a-f-]{36})\/activity$/.exec(
     currentPath,
   );
+  const signageMatch = /^\/sites\/([0-9a-f-]{36})\/signage-schedule$/.exec(
+    currentPath,
+  );
+  if (signageMatch?.[1]) {
+    const siteId = signageMatch[1];
+    return (
+      <SiteSignageSchedule
+        loadDashboard={loadAuthenticatedViewer}
+        loadSite={() =>
+          handleApplicationSession(loadSiteActivity(siteId, apiUrl))
+        }
+        loadSites={() => handleApplicationSession(loadSites(apiUrl))}
+        loadSignageSchedule={() =>
+          handleApplicationSession(loadSignageSchedule(siteId, apiUrl))
+        }
+        createSignType={(name) =>
+          handleApplicationSession(createSignType(siteId, name, apiUrl))
+        }
+        updateSignType={(type, name) =>
+          handleApplicationSession(updateSignType(siteId, type, name, apiUrl))
+        }
+        createSign={(typeId, code) =>
+          handleApplicationSession(createSign(siteId, typeId, code, apiUrl))
+        }
+        updateSign={(sign, field, value) =>
+          handleApplicationSession(
+            updateSign(siteId, sign, field, value, apiUrl),
+          )
+        }
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+      />
+    );
+  }
   if (siteActivityMatch?.[1]) {
     const siteId = siteActivityMatch[1];
     return (

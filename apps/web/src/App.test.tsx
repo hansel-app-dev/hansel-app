@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-base-to-string -- Request bodies are JSON strings in these fetch fixtures. */
 import {
   act,
   cleanup,
@@ -550,6 +551,124 @@ describe('App [REQ-002]', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  it('renders and mutates the persisted Signage Schedule route [site-signage-schedule AC-001..AC-003]', async () => {
+    const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    const typeId = '00000000-0000-4000-8000-000000000010';
+    const signId = '00000000-0000-4000-8000-000000000011';
+    const now = '2026-09-06T00:00:00.000Z';
+    const sign = {
+      id: signId,
+      signTypeId: typeId,
+      code: 'A.1',
+      quantity: 1,
+      location: '',
+      content: '',
+      comments: '',
+      status: 'UNSPECIFIED',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const type = {
+      id: typeId,
+      name: 'Regulatory',
+      color: 'RED',
+      createdAt: now,
+      updatedAt: now,
+      quantityTotal: 1,
+      signs: [sign],
+    };
+    const fetcher = vi.fn((url: string, init?: RequestInit) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            url.endsWith('/api/dashboard')
+              ? {
+                  viewer: {
+                    displayName: 'Nabin Singh',
+                    initials: 'NS',
+                    roleLabel: 'Owner',
+                  },
+                }
+              : url.endsWith('/api/sites')
+                ? {
+                    organizationName: 'Hansel',
+                    canCreateSite: true,
+                    canInviteMembers: true,
+                    creator: {
+                      email: 'owner@example.com',
+                      displayName: 'Owner',
+                      initials: 'O',
+                    },
+                    siteLimitReached: false,
+                    maximumSites: null,
+                    members: [],
+                    sites: [
+                      {
+                        id: siteId,
+                        name: 'Direct site',
+                        createdAt: now,
+                        updatedAt: now,
+                        memberCount: 0,
+                        memberPreview: [],
+                      },
+                    ],
+                  }
+                : url.endsWith('/signage-schedule')
+                  ? { canManageSigns: true, signTypes: [type] }
+                  : url.endsWith('/sign-types')
+                    ? {
+                        ...type,
+                        id: '00000000-0000-4000-8000-000000000020',
+                        name: JSON.parse(String(init?.body)).name,
+                        signs: [],
+                        quantityTotal: 0,
+                      }
+                    : url.includes('/sign-types/') && init?.method === 'PATCH'
+                      ? { ...type, name: JSON.parse(String(init.body)).name }
+                      : url.endsWith('/signs')
+                        ? {
+                            ...sign,
+                            id: '00000000-0000-4000-8000-000000000021',
+                            code: JSON.parse(String(init?.body)).code,
+                          }
+                        : url.includes('/signs/')
+                          ? {
+                              ...sign,
+                              [JSON.parse(String(init?.body)).field]:
+                                JSON.parse(String(init?.body)).value,
+                            }
+                          : { site: { id: siteId, name: 'Direct site' } },
+          ),
+        ),
+      ),
+    );
+    vi.stubGlobal('fetch', fetcher);
+    render(<App path={`/sites/${siteId}/signage-schedule`} />);
+    expect(
+      await screen.findByRole('region', { name: 'Signage Schedule' }),
+    ).toBeVisible();
+    const location = screen.getByRole('textbox', { name: 'A.1 location' });
+    fireEvent.change(location, { target: { value: 'G001' } });
+    fireEvent.blur(location);
+    const typeName = screen.getByRole('textbox', { name: 'Regulatory name' });
+    fireEvent.change(typeName, { target: { value: 'Safety' } });
+    fireEvent.blur(typeName);
+    fireEvent.click(screen.getByRole('button', { name: /Add sign/ }));
+    const code = screen.getByRole('textbox', { name: /New sign code/ });
+    fireEvent.change(code, { target: { value: 'A.2' } });
+    fireEvent.blur(code);
+    fireEvent.click(screen.getByRole('button', { name: /New sign type/ }));
+    const draft = screen.getByRole('textbox', { name: 'New sign type name' });
+    fireEvent.change(draft, { target: { value: 'Wayfinding' } });
+    fireEvent.blur(draft);
+    await waitFor(() => {
+      expect(fetcher).toHaveBeenCalledWith(
+        expect.stringContaining(`/signs/${signId}`),
+        expect.objectContaining({ method: 'PATCH' }),
+      );
     });
   });
 

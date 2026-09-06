@@ -8,6 +8,9 @@ import type {
   CreateAllocationPlanUploadBatchRequest,
   CreateAllocationPlanUploadBatchResponse,
   AllocationPlan,
+  SignageScheduleResponse,
+  SignType,
+  Sign,
 } from '@hansel/contracts';
 import {
   ApplicationShell,
@@ -17,6 +20,7 @@ import { Button } from '../design-system/index.js';
 import { relativeTime, SiteMemberPreview } from './SiteCollection.js';
 import { AddPlansModal } from './AddPlansModal.js';
 import { AllocationPlanViewer } from './AllocationPlanViewer.js';
+import { SignageSchedule } from './SignageSchedule.js';
 
 interface SiteDetailsRequest {
   attempt: number;
@@ -32,6 +36,7 @@ type SiteDetailsLoadState =
       siteContext: SiteActivityResponse;
       sitesPage: SitesPageResponse;
       allocationPlans: AllocationPlansResponse;
+      signageSchedule: SignageScheduleResponse;
     })
   | (SiteDetailsRequest & { status: 'failed' });
 
@@ -54,6 +59,15 @@ interface SharedSiteDetailsProps {
   finalizeAllocationPlanUpload?: (uploadId: string) => Promise<void>;
   previewPlanId?: string;
   loadAllocationPlanContent?: () => Promise<Blob>;
+  loadSignageSchedule?: () => Promise<SignageScheduleResponse>;
+  createSignType?: (name: string) => Promise<SignType>;
+  updateSignType?: (type: SignType, name: string) => Promise<SignType>;
+  createSign?: (typeId: string, code: string) => Promise<Sign>;
+  updateSign?: (
+    sign: Sign,
+    field: 'code' | 'quantity' | 'location' | 'content' | 'comments' | 'status',
+    value: string | number,
+  ) => Promise<Sign>;
 }
 
 export function AllocationPlanCollection({
@@ -106,7 +120,7 @@ export function AllocationPlanCollection({
               aria-pressed={view === candidate}
               className="grid size-9 place-items-center rounded text-content-muted hover:bg-[#f7f7f7] aria-pressed:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               key={candidate}
-              onClick={() => setView(candidate)}
+              onClick={() => { setView(candidate); }}
               type="button"
             >
               <AppSymbol className="!size-5 text-[21px]" weight={100}>
@@ -256,7 +270,14 @@ function SiteDetails({
   finalizeAllocationPlanUpload,
   previewPlanId,
   loadAllocationPlanContent,
-}: SharedSiteDetailsProps & { activeSection: 'activity' | 'allocations' }) {
+  loadSignageSchedule,
+  createSignType,
+  updateSignType,
+  createSign,
+  updateSign,
+}: SharedSiteDetailsProps & {
+  activeSection: 'activity' | 'allocations' | 'signage';
+}) {
   const [loadState, setLoadState] = useState<SiteDetailsLoadState | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [showAddPlans, setShowAddPlans] = useState(false);
@@ -267,13 +288,17 @@ function SiteDetails({
     const load = async () => {
       const dashboard = await loadDashboard();
       if (!isActive()) return;
-      const [siteContext, sitesPage, allocationPlans] = await Promise.all([
-        loadSite(),
-        loadSites(),
-        activeSection === 'allocations' && loadAllocationPlans
-          ? loadAllocationPlans()
-          : Promise.resolve({ canAddPlans: false, plans: [] }),
-      ]);
+      const [siteContext, sitesPage, allocationPlans, signageSchedule] =
+        await Promise.all([
+          loadSite(),
+          loadSites(),
+          activeSection === 'allocations' && loadAllocationPlans
+            ? loadAllocationPlans()
+            : Promise.resolve({ canAddPlans: false, plans: [] }),
+          activeSection === 'signage' && loadSignageSchedule
+            ? loadSignageSchedule()
+            : Promise.resolve({ canManageSigns: false, signTypes: [] }),
+        ]);
       if (!isActive()) return;
       const visibleSite = sitesPage.sites.find(
         (site) => site.id === siteContext.site.id,
@@ -290,6 +315,7 @@ function SiteDetails({
         siteContext,
         sitesPage,
         allocationPlans,
+        signageSchedule,
       });
     };
     void load().catch(() => {
@@ -309,6 +335,7 @@ function SiteDetails({
     activeSection,
     attempt,
     loadAllocationPlans,
+    loadSignageSchedule,
     loadDashboard,
     loadSite,
     loadSites,
@@ -351,13 +378,20 @@ function SiteDetails({
       </main>
     );
 
-  const { dashboard, siteContext, sitesPage, allocationPlans } = currentState;
+  const {
+    dashboard,
+    siteContext,
+    sitesPage,
+    allocationPlans,
+    signageSchedule,
+  } = currentState;
   const selectedSite = sitesPage.sites.find(
     (site) => site.id === siteContext.site.id,
   );
   const siteId = encodeURIComponent(siteContext.site.id);
   const activityDestination = `/sites/${siteId}/activity`;
   const allocationsDestination = `/sites/${siteId}/allocations`;
+  const signageDestination = `/sites/${siteId}/signage-schedule`;
 
   return (
     <ApplicationShell
@@ -445,7 +479,9 @@ function SiteDetails({
       pageHeading={
         activeSection === 'allocations'
           ? `${siteContext.site.name} Allocation Plans`
-          : siteContext.site.name
+          : activeSection === 'signage'
+            ? `${siteContext.site.name} Signage Schedule`
+            : siteContext.site.name
       }
       preloadedViewer={dashboard.viewer}
       siteNavigation={sitesPage.sites}
@@ -502,15 +538,21 @@ function SiteDetails({
           >
             more_horiz
           </AppSymbol>
-          <span
-            aria-disabled="true"
-            className="flex min-h-[53px] shrink-0 items-center gap-2 text-[14px] text-content-muted"
+          <a
+            aria-current={activeSection === 'signage' ? 'page' : undefined}
+            className={`flex min-h-[53px] shrink-0 items-center gap-2 text-[14px] ${activeSection === 'signage' ? 'border-b-2 border-action-primary font-medium text-content' : 'text-content-muted'}`}
+            href={signageDestination}
+            onClick={(event) => {
+              if (!navigate) return;
+              event.preventDefault();
+              navigate(signageDestination);
+            }}
           >
             <AppSymbol className="!size-5 text-[20px]" weight={100}>
               calendar_month
             </AppSymbol>
             Signage Schedule
-          </span>
+          </a>
         </nav>
         {activeSection === 'activity' ? (
           <>
@@ -546,6 +588,18 @@ function SiteDetails({
               </div>
             </section>
           </>
+        ) : activeSection === 'signage' &&
+          createSignType &&
+          updateSignType &&
+          createSign &&
+          updateSign ? (
+          <SignageSchedule
+            initial={signageSchedule}
+            createType={createSignType}
+            updateType={updateSignType}
+            createSign={createSign}
+            updateSign={updateSign}
+          />
         ) : previewPlanId && loadAllocationPlanContent ? (
           (() => {
             const plan = allocationPlans.plans.find(
@@ -674,4 +728,8 @@ export function SiteActivity({ loadActivity, ...props }: SiteActivityProps) {
 
 export function SiteAllocationPlans(props: SharedSiteDetailsProps) {
   return <SiteDetails {...props} activeSection="allocations" />;
+}
+
+export function SiteSignageSchedule(props: SharedSiteDetailsProps) {
+  return <SiteDetails {...props} activeSection="signage" />;
 }

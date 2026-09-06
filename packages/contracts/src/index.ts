@@ -733,3 +733,114 @@ export const finalizeAllocationPlanUploadResponseSchema = z
 export type FinalizeAllocationPlanUploadResponse = z.infer<
   typeof finalizeAllocationPlanUploadResponseSchema
 >;
+
+const signageText = (maximum: number) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => value.normalize('NFC'))
+    .pipe(z.string().refine((value) => Array.from(value).length <= maximum));
+export const signStatusSchema = z.enum([
+  'UNSPECIFIED',
+  'IN_PROGRESS',
+  'APPROVED',
+]);
+export const signTypeColorSchema = z.enum(['SLATE', 'RED', 'TEAL']);
+export const signSchema = z
+  .object({
+    id: z.uuid(),
+    signTypeId: z.uuid(),
+    code: signageText(40).pipe(z.string().min(1)),
+    quantity: z.number().int().min(1).max(9_999),
+    location: signageText(200),
+    content: signageText(200),
+    comments: signageText(1_000),
+    status: signStatusSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+  })
+  .strict();
+export type Sign = z.infer<typeof signSchema>;
+export const signTypeSchema = z
+  .object({
+    id: z.uuid(),
+    name: signageText(80).pipe(z.string().min(1)),
+    color: signTypeColorSchema,
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
+    quantityTotal: z.number().int().nonnegative(),
+    signs: z.array(signSchema).max(5_000),
+  })
+  .strict();
+export type SignType = z.infer<typeof signTypeSchema>;
+export const signageScheduleResponseSchema = z
+  .object({
+    canManageSigns: z.boolean(),
+    signTypes: z.array(signTypeSchema).max(100),
+  })
+  .strict();
+export type SignageScheduleResponse = z.infer<
+  typeof signageScheduleResponseSchema
+>;
+export const createSignTypeRequestSchema = z
+  .object({ name: signageText(80).pipe(z.string().min(1)) })
+  .strict();
+export const updateSignTypeRequestSchema = createSignTypeRequestSchema
+  .extend({ expectedUpdatedAt: z.iso.datetime() })
+  .strict();
+export const signValuesSchema = z
+  .object({
+    code: signageText(40).pipe(z.string().min(1)),
+    quantity: z.number().int().min(1).max(9_999),
+    location: signageText(200),
+    content: signageText(200),
+    comments: signageText(1_000),
+    status: signStatusSchema,
+  })
+  .strict();
+export const createSignRequestSchema = signValuesSchema;
+const expectedUpdate = { expectedUpdatedAt: z.iso.datetime() };
+export const updateSignRequestSchema = z.discriminatedUnion('field', [
+  z
+    .object({
+      field: z.literal('code'),
+      value: signageText(40).pipe(z.string().min(1)),
+      ...expectedUpdate,
+    })
+    .strict(),
+  z
+    .object({
+      field: z.literal('quantity'),
+      value: z.number().int().min(1).max(9_999),
+      ...expectedUpdate,
+    })
+    .strict(),
+  z
+    .object({
+      field: z.literal('location'),
+      value: signageText(200),
+      ...expectedUpdate,
+    })
+    .strict(),
+  z
+    .object({
+      field: z.literal('content'),
+      value: signageText(200),
+      ...expectedUpdate,
+    })
+    .strict(),
+  z
+    .object({
+      field: z.literal('comments'),
+      value: signageText(1_000),
+      ...expectedUpdate,
+    })
+    .strict(),
+  z
+    .object({
+      field: z.literal('status'),
+      value: signStatusSchema,
+      ...expectedUpdate,
+    })
+    .strict(),
+]);

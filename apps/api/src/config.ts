@@ -5,6 +5,7 @@ interface BaseAppConfig {
   dashboardEnabled: boolean;
   sitesEnabled: boolean;
   allocationPlansEnabled: boolean;
+  signageScheduleEnabled: boolean;
   allocationPlansBucketName: string | null;
   discoveryEnabled: boolean;
   runtimeEnvironment: 'test' | 'production';
@@ -205,6 +206,10 @@ export function loadConfig(
       (environment.SITES_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
     allocationPlansEnabled: environment.ALLOCATION_PLANS_ENABLED === 'true',
+    signageScheduleEnabled:
+      environment.SIGNAGE_SCHEDULE_ENABLED === 'true' ||
+      (environment.SIGNAGE_SCHEDULE_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
     allocationPlansBucketName:
       environment.ALLOCATION_PLANS_BUCKET_NAME?.trim() ?? null,
     discoveryEnabled:

@@ -244,10 +244,16 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     );
     document.removeEventListener('click', preventNativeNavigation);
     expect(preventNativeNavigation).toHaveBeenCalledOnce();
-    expect(within(sections).getByText('Signage Schedule')).toHaveAttribute(
-      'aria-disabled',
-      'true',
+    const signage = within(sections).getByRole('link', {
+      name: 'Signage Schedule',
+    });
+    expect(signage).toHaveAttribute(
+      'href',
+      `/sites/${siteId}/signage-schedule`,
     );
+    document.addEventListener('click', preventNativeNavigation);
+    fireEvent.click(signage);
+    document.removeEventListener('click', preventNativeNavigation);
     expect(
       screen.getAllByRole('heading', { name: 'Widget title', level: 2 }),
     ).toHaveLength(4);
@@ -316,6 +322,10 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     expect(navigate).toHaveBeenLastCalledWith(`/sites/${siteId}/activity`);
     fireEvent.click(screen.getByRole('link', { name: 'Allocations' }));
     expect(navigate).toHaveBeenLastCalledWith(`/sites/${siteId}/allocations`);
+    fireEvent.click(screen.getByRole('link', { name: 'Signage Schedule' }));
+    expect(navigate).toHaveBeenLastCalledWith(
+      `/sites/${siteId}/signage-schedule`,
+    );
     fireEvent.click(
       within(
         screen.getByRole('navigation', { name: 'Site breadcrumb' }),

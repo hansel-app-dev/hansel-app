@@ -55,7 +55,128 @@ import {
   type CreateAllocationPlanUploadBatchRequest,
   type CreateAllocationPlanUploadBatchResponse,
   type FinalizeAllocationPlanUploadResponse,
+  signageScheduleResponseSchema,
+  signTypeSchema,
+  signSchema,
+  type SignageScheduleResponse,
+  type SignType,
+  type Sign,
 } from '@hansel/contracts';
+
+async function signageRequest(
+  path: string,
+  baseUrl: string,
+  init?: RequestInit,
+  fetcher: typeof fetch = fetch,
+) {
+  const response = await fetcher(`${baseUrl}${path}`, {
+    credentials: 'include',
+    ...init,
+  });
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('signage_schedule_failed');
+  return (await response.json()) as unknown;
+}
+export const loadSignageSchedule = async (
+  siteId: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SignageScheduleResponse> =>
+  signageScheduleResponseSchema.parse(
+    await signageRequest(
+      `/api/sites/${siteId}/signage-schedule`,
+      baseUrl,
+      undefined,
+      fetcher,
+    ),
+  );
+export const createSignType = async (
+  siteId: string,
+  name: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SignType> =>
+  signTypeSchema.parse(
+    await signageRequest(
+      `/api/sites/${siteId}/sign-types`,
+      baseUrl,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      },
+      fetcher,
+    ),
+  );
+export const updateSignType = async (
+  siteId: string,
+  type: SignType,
+  name: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SignType> =>
+  signTypeSchema.parse(
+    await signageRequest(
+      `/api/sites/${siteId}/sign-types/${type.id}`,
+      baseUrl,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, expectedUpdatedAt: type.updatedAt }),
+      },
+      fetcher,
+    ),
+  );
+export const createSign = async (
+  siteId: string,
+  typeId: string,
+  code: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Sign> =>
+  signSchema.parse(
+    await signageRequest(
+      `/api/sites/${siteId}/sign-types/${typeId}/signs`,
+      baseUrl,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          quantity: 1,
+          location: '',
+          content: '',
+          comments: '',
+          status: 'UNSPECIFIED',
+        }),
+      },
+      fetcher,
+    ),
+  );
+export const updateSign = async (
+  siteId: string,
+  sign: Sign,
+  field: 'code' | 'quantity' | 'location' | 'content' | 'comments' | 'status',
+  value: string | number,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Sign> =>
+  signSchema.parse(
+    await signageRequest(
+      `/api/sites/${siteId}/signs/${sign.id}`,
+      baseUrl,
+      {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          field,
+          value,
+          expectedUpdatedAt: sign.updatedAt,
+        }),
+      },
+      fetcher,
+    ),
+  );
 
 export class OnboardingSessionExpiredError extends Error {
   readonly code = 'onboarding_session_expired';

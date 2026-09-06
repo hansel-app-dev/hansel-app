@@ -205,10 +205,9 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
     expect(
       within(sections).getByRole('link', { name: 'Activity' }),
     ).toHaveAttribute('href', `/sites/${siteId}/activity`);
-    expect(within(sections).getByText('Signage Schedule')).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    expect(
+      within(sections).getByRole('link', { name: 'Signage Schedule' }),
+    ).toHaveAttribute('href', `/sites/${siteId}/signage-schedule`);
 
     for (const action of [
       'Add plan',
