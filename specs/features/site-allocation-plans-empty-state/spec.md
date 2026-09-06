@@ -1,10 +1,11 @@
 # Feature: Site Allocation Plans empty state
 
 - ID: `site-allocation-plans-empty-state`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
+- Product approval: `Approved by product owner in the Codex task on 2026-09-06`
 - Domain references: `CONTEXT.md — Organization, Membership, Site, Site Access, Allocation Plan, Sign; docs/domain/figjam-object-catalog.md — Site and Allocation Plan objects, Canonical interpretation notes, Nesting map, Current implementation alignment, and Known ambiguities 4, 7, 8, and 10`
 - Design authority: `Figma Hansel App UI frame 2037:1019 (New Site / Allocation Plan / No plans)`
 - Design evidence: `The exact frame was browser-inspected at 113% zoom on 2026-09-06; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
