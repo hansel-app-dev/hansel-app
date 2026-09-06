@@ -120,10 +120,29 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
     const viewer = screen.getByRole('region', {
       name: `${plan.filename} preview`,
     });
+    const viewport = screen.getByTestId('plan-pan-viewport');
+    const zoomSurface = screen.getByTestId('plan-zoom-surface');
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-    expect(screen.getByTestId('plan-zoom-surface')).toHaveStyle({
+    fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 400 },
+      clientHeight: { configurable: true, value: 300 },
+      scrollWidth: {
+        configurable: true,
+        get: () => Number.parseFloat(zoomSurface.style.width) * 10,
+      },
+      scrollHeight: {
+        configurable: true,
+        get: () => Number.parseFloat(zoomSurface.style.width) * 8,
+      },
+    });
+    viewport.scrollLeft = 300;
+    viewport.scrollTop = 250;
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(zoomSurface).toHaveStyle({
       width: '125%',
     });
+    expect(viewport).toMatchObject({ scrollLeft: 425, scrollTop: 350 });
     expect(screen.getByRole('img', { name: plan.filename })).toHaveClass(
       'w-full',
     );

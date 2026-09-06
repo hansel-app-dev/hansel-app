@@ -1,5 +1,11 @@
 /** @spec site-allocation-plan-preview REQ-005..REQ-013 @figma supplied 03.png */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { AllocationPlan } from '@hansel/contracts';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
 
@@ -62,6 +68,9 @@ export function AllocationPlanViewer({
   const [spaceArmed, setSpaceArmed] = useState(false);
   const [dragging, setDragging] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
+  const pendingCenter = useRef<{ x: number; y: number } | undefined>(
+    undefined,
+  );
   const drag = useRef<
     | {
         pointerId: number;
@@ -135,8 +144,38 @@ export function AllocationPlanViewer({
     };
   }, [pointerInside, stopDragging]);
 
-  const changeZoom = (next: number) =>
-    setZoom(Math.min(400, Math.max(25, next)));
+  useLayoutEffect(() => {
+    const center = pendingCenter.current;
+    const element = viewport.current;
+    if (!center || !element) return;
+    element.scrollLeft = Math.max(
+      0,
+      center.x * element.scrollWidth - element.clientWidth / 2,
+    );
+    element.scrollTop = Math.max(
+      0,
+      center.y * element.scrollHeight - element.clientHeight / 2,
+    );
+    pendingCenter.current = undefined;
+  }, [zoom]);
+
+  const changeZoom = (next: number) => {
+    const bounded = Math.min(400, Math.max(25, next));
+    if (bounded === zoom) return;
+    const element = viewport.current;
+    pendingCenter.current =
+      element && element.scrollWidth > 0 && element.scrollHeight > 0
+        ? {
+            x:
+              (element.scrollLeft + element.clientWidth / 2) /
+              element.scrollWidth,
+            y:
+              (element.scrollTop + element.clientHeight / 2) /
+              element.scrollHeight,
+          }
+        : undefined;
+    setZoom(bounded);
+  };
   return (
     <section
       aria-label={`${plan.filename} preview`}
