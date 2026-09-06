@@ -22,6 +22,12 @@ import {
   SitesUpgradeRequiredError,
 } from './sites/sites.js';
 import {
+  AllocationPlanUploadRejectedError,
+  AllocationPlansConflictError,
+  AllocationPlansForbiddenError,
+  AllocationPlansNotFoundError,
+} from './sites/allocation-plans.js';
+import {
   countryOptions,
   discoveryManagementOptions,
   industryOptions,
@@ -84,13 +90,45 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       activity: vi.fn().mockResolvedValue({
         site: { id: siteId, name: 'New site' },
       }),
+      listAllocationPlans: vi
+        .fn()
+        .mockResolvedValue({ canAddPlans: true, plans: [] }),
+      createAllocationPlanUploadBatch: vi.fn().mockResolvedValue({
+        uploads: [
+          {
+            uploadId: '00000000-0000-4000-8000-000000000005',
+            uploadUrl: 'https://uploads.example/plan',
+            expiresAt: '2026-09-06T00:15:00.000Z',
+            headers: {
+              'content-type': 'application/pdf',
+              'x-amz-checksum-sha256':
+                'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+            },
+          },
+        ],
+      }),
+      finalizeAllocationPlanUpload: vi.fn().mockResolvedValue({
+        plan: {
+          id: '00000000-0000-4000-8000-000000000006',
+          filename: 'plan.pdf',
+          mediaType: 'application/pdf',
+          byteSize: 5,
+          createdAt: '2026-09-06T00:00:00.000Z',
+          modifiedAt: '2026-09-06T00:00:00.000Z',
+          uploadedBy: 'Owner',
+        },
+      }),
       recordEvent: vi.fn(),
       ...overrides,
     };
     return {
       sites,
       app: createApp(
-        { allowedOrigin: 'https://app.example.com', sitesEnabled: true },
+        {
+          allowedOrigin: 'https://app.example.com',
+          sitesEnabled: true,
+          allocationPlansEnabled: true,
+        },
         undefined,
         undefined,
         undefined,
@@ -99,6 +137,225 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       ),
     };
   };
+
+  it('lists, creates, and finalizes Allocation Plan uploads privately [site-allocation-plans-add AC-001]', async () => {
+    const fixture = create();
+    const cookie = 'hansel_access=access-token';
+    await request(fixture.app)
+      .get(`/api/sites/${siteId}/allocation-plans`)
+      .set('Cookie', cookie)
+      .expect(200, { canAddPlans: true, plans: [] });
+    await request(fixture.app)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .set('Cookie', cookie)
+      .set('Origin', 'https://app.example.com')
+      .send({
+        idempotencyKey: '12345678901234567890123456789012',
+        files: [
+          {
+            filename: 'plan.pdf',
+            mediaType: 'application/pdf',
+            byteSize: 5,
+            checksumSha256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          },
+        ],
+      })
+      .expect(201);
+    await request(fixture.app)
+      .post(
+        `/api/sites/${siteId}/allocation-plan-uploads/00000000-0000-4000-8000-000000000005/finalize`,
+      )
+      .set('Cookie', cookie)
+      .set('Origin', 'https://app.example.com')
+      .expect(200);
+  });
+
+  it.each([
+    [new AllocationPlansNotFoundError(), 404, 'site_not_found'],
+    [new AllocationPlansForbiddenError(), 403, 'allocation_plans_forbidden'],
+    [new AllocationPlansConflictError(), 409, 'allocation_plans_conflict'],
+    [new AllocationPlanUploadRejectedError(), 400, 'invalid_request'],
+  ])(
+    'maps Allocation Plan intent rejection safely',
+    async (error, status, code) => {
+      const fixture = create({
+        createAllocationPlanUploadBatch: vi.fn().mockRejectedValue(error),
+      });
+      await request(fixture.app)
+        .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+        .set('Cookie', 'hansel_access=access-token')
+        .set('Origin', 'https://app.example.com')
+        .send({
+          idempotencyKey: '12345678901234567890123456789012',
+          files: [
+            {
+              filename: 'plan.pdf',
+              mediaType: 'application/pdf',
+              byteSize: 5,
+              checksumSha256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+            },
+          ],
+        })
+        .expect(status, { error: code });
+    },
+  );
+
+  it('guards disabled, malformed, and unauthenticated Allocation Plan routes', async () => {
+    const disabled = createApp(
+      { allowedOrigin: 'https://app.example.com', sitesEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      create().sites,
+    );
+    await request(disabled)
+      .get(`/api/sites/${siteId}/allocation-plans`)
+      .expect(404);
+    await request(disabled)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .expect(404);
+    await request(disabled)
+      .post(
+        `/api/sites/${siteId}/allocation-plan-uploads/00000000-0000-4000-8000-000000000005/finalize`,
+      )
+      .expect(404);
+    await request(create().app)
+      .get('/api/sites/not-a-uuid/allocation-plans')
+      .expect(400);
+    await request(create().app)
+      .get(`/api/sites/${siteId}/allocation-plans`)
+      .expect(401);
+    await request(create().app)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .expect(403);
+    await request(create().app)
+      .post(`/api/sites/not-a-uuid/allocation-plan-upload-batches`)
+      .set('Origin', 'https://app.example.com')
+      .send({})
+      .expect(400);
+    await request(create().app)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .set('Origin', 'https://app.example.com')
+      .send(input)
+      .expect(400);
+    await request(create().app)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .set('Origin', 'https://app.example.com')
+      .send({
+        idempotencyKey: '12345678901234567890123456789012',
+        files: [
+          {
+            filename: 'plan.pdf',
+            mediaType: 'application/pdf',
+            byteSize: 5,
+            checksumSha256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          },
+        ],
+      })
+      .expect(401);
+    await request(create().app)
+      .post(`/api/sites/${siteId}/allocation-plan-uploads/not-a-uuid/finalize`)
+      .set('Origin', 'https://app.example.com')
+      .expect(400);
+    await request(create().app)
+      .post(
+        `/api/sites/${siteId}/allocation-plan-uploads/00000000-0000-4000-8000-000000000005/finalize`,
+      )
+      .set('Origin', 'https://wrong.example.com')
+      .expect(403);
+    await request(create().app)
+      .post(
+        `/api/sites/${siteId}/allocation-plan-uploads/00000000-0000-4000-8000-000000000005/finalize`,
+      )
+      .set('Origin', 'https://app.example.com')
+      .expect(401);
+  });
+
+  it.each([
+    ['missing', new AllocationPlansNotFoundError(), 404],
+    ['forbidden', new AllocationPlansForbiddenError(), 403],
+    ['rejected', new AllocationPlanUploadRejectedError(), 409],
+    ['unexpected', new Error('offline'), 503],
+  ])('maps %s finalize failures', async (_name, error, status) => {
+    const fixture = create({
+      finalizeAllocationPlanUpload: vi.fn().mockRejectedValue(error),
+    });
+    await request(fixture.app)
+      .post(
+        `/api/sites/${siteId}/allocation-plan-uploads/00000000-0000-4000-8000-000000000005/finalize`,
+      )
+      .set('Cookie', 'hansel_access=access-token')
+      .set('Origin', 'https://app.example.com')
+      .expect(status);
+  });
+
+  it('maps empty and failed Allocation Plan service responses', async () => {
+    for (const override of [
+      { listAllocationPlans: vi.fn().mockResolvedValue(null) },
+      {
+        listAllocationPlans: vi
+          .fn()
+          .mockRejectedValue(new AllocationPlansNotFoundError()),
+      },
+      { listAllocationPlans: vi.fn().mockRejectedValue(new Error('offline')) },
+    ]) {
+      const response = await request(create(override).app)
+        .get(`/api/sites/${siteId}/allocation-plans`)
+        .set('Cookie', 'hansel_access=access-token');
+      expect([401, 404, 503]).toContain(response.status);
+    }
+    const emptyBatch = create({
+      createAllocationPlanUploadBatch: vi.fn().mockResolvedValue(null),
+    });
+    await request(emptyBatch.app)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .set('Cookie', 'hansel_access=access-token')
+      .set('Origin', 'https://app.example.com')
+      .send({
+        idempotencyKey: '12345678901234567890123456789012',
+        files: [
+          {
+            filename: 'plan.pdf',
+            mediaType: 'application/pdf',
+            byteSize: 5,
+            checksumSha256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          },
+        ],
+      })
+      .expect(401);
+    const failedBatch = create({
+      createAllocationPlanUploadBatch: vi
+        .fn()
+        .mockRejectedValue(new Error('offline')),
+    });
+    await request(failedBatch.app)
+      .post(`/api/sites/${siteId}/allocation-plan-upload-batches`)
+      .set('Cookie', 'hansel_access=access-token')
+      .set('Origin', 'https://app.example.com')
+      .send({
+        idempotencyKey: '12345678901234567890123456789012',
+        files: [
+          {
+            filename: 'plan.pdf',
+            mediaType: 'application/pdf',
+            byteSize: 5,
+            checksumSha256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          },
+        ],
+      })
+      .expect(503);
+    const emptyFinalize = create({
+      finalizeAllocationPlanUpload: vi.fn().mockResolvedValue(null),
+    });
+    await request(emptyFinalize.app)
+      .post(
+        `/api/sites/${siteId}/allocation-plan-uploads/00000000-0000-4000-8000-000000000005/finalize`,
+      )
+      .set('Cookie', 'hansel_access=access-token')
+      .set('Origin', 'https://app.example.com')
+      .expect(401);
+  });
 
   it('loads the tenant-scoped sites page using the private access cookie', async () => {
     const fixture = create();

@@ -83,6 +83,13 @@ enum SiteInvitationStatus {
   CANCELLED
 }
 
+enum AllocationPlanUploadStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+  EXPIRED
+}
+
 model User {
   id                            String                               @id @default(uuid()) @db.Uuid
   email                         String                               @unique
@@ -100,6 +107,8 @@ model User {
   passwordLockNotifications     PasswordLockNotificationIntent[]
   passwordRecoveryNotifications PasswordRecoveryNotificationIntent[]
   externalIdentities            ExternalIdentity[]
+  allocationPlans               AllocationPlan[]
+  allocationPlanUploads         AllocationPlanUpload[]
   createdAt                     DateTime                             @default(now())
   updatedAt                     DateTime                             @updatedAt
 }
@@ -302,19 +311,22 @@ model OnboardingJourney {
 }
 
 model Tenant {
-  id                   String                     @id @default(uuid()) @db.Uuid
-  name                 String
-  country              String
-  industry             String
-  placeService         String
-  organizationSize     String
-  memberships          Membership[]
-  onboardingJourney    OnboardingJourney?
-  sessionFamilies      ApplicationSessionFamily[]
-  sites                Site[]
-  siteCreationRequests SiteCreationRequest[]
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  id                          String                      @id @default(uuid()) @db.Uuid
+  name                        String
+  country                     String
+  industry                    String
+  placeService                String
+  organizationSize            String
+  memberships                 Membership[]
+  onboardingJourney           OnboardingJourney?
+  sessionFamilies             ApplicationSessionFamily[]
+  sites                       Site[]
+  siteCreationRequests        SiteCreationRequest[]
+  allocationPlans             AllocationPlan[]
+  allocationPlanUploads       AllocationPlanUpload[]
+  allocationPlanUploadBatches AllocationPlanUploadBatch[]
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
 }
 
 model OrganizationProfileSubmission {
@@ -396,22 +408,91 @@ model Membership {
 }
 
 model Site {
-  id                    String                  @id @default(uuid()) @db.Uuid
-  tenantId              String                  @db.Uuid
-  createdByMembershipId String                  @db.Uuid
-  name                  String
-  accessScope           SiteAccessScope
-  organizationAccess    SiteOrganizationAccess?
-  tenant                Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy             Membership              @relation("SiteCreator", fields: [createdByMembershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  grants                SiteGrant[]
-  invitations           SiteInvitation[]
-  creationRequests      SiteCreationRequest[]
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
+  id                          String                      @id @default(uuid()) @db.Uuid
+  tenantId                    String                      @db.Uuid
+  createdByMembershipId       String                      @db.Uuid
+  name                        String
+  accessScope                 SiteAccessScope
+  organizationAccess          SiteOrganizationAccess?
+  tenant                      Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy                   Membership                  @relation("SiteCreator", fields: [createdByMembershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  grants                      SiteGrant[]
+  invitations                 SiteInvitation[]
+  creationRequests            SiteCreationRequest[]
+  allocationPlans             AllocationPlan[]
+  allocationPlanUploads       AllocationPlanUpload[]
+  allocationPlanUploadBatches AllocationPlanUploadBatch[]
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
 
   @@unique([id, tenantId])
   @@index([tenantId, createdAt])
+}
+
+model AllocationPlan {
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @db.Uuid
+  siteId         String                @db.Uuid
+  uploadedById   String                @db.Uuid
+  objectKey      String                @unique @db.VarChar(512)
+  filename       String                @db.VarChar(255)
+  mediaType      String                @db.VarChar(32)
+  byteSize       Int
+  checksumSha256 String                @db.VarChar(44)
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site           Site                  @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  uploadedBy     User                  @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  upload         AllocationPlanUpload?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@unique([id, tenantId])
+  @@index([siteId, createdAt, id])
+}
+
+model AllocationPlanUploadBatch {
+  id            String                 @id @default(uuid()) @db.Uuid
+  tenantId      String                 @db.Uuid
+  siteId        String                 @db.Uuid
+  keyDigest     String                 @db.VarChar(64)
+  requestDigest String                 @db.VarChar(64)
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site          Site                   @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  uploads       AllocationPlanUpload[]
+  createdAt     DateTime               @default(now())
+
+  @@unique([tenantId, keyDigest])
+  @@unique([id, tenantId])
+  @@index([siteId])
+}
+
+model AllocationPlanUpload {
+  id               String                     @id @default(uuid()) @db.Uuid
+  batchId          String                     @db.Uuid
+  tenantId         String                     @db.Uuid
+  siteId           String                     @db.Uuid
+  uploadedById     String                     @db.Uuid
+  allocationPlanId String?                    @unique @db.Uuid
+  objectKey        String                     @unique @db.VarChar(512)
+  filename         String                     @db.VarChar(255)
+  mediaType        String                     @db.VarChar(32)
+  byteSize         Int
+  checksumSha256   String                     @db.VarChar(44)
+  status           AllocationPlanUploadStatus @default(PENDING)
+  rejectionCode    String?                    @db.VarChar(64)
+  expiresAt        DateTime
+  batch            AllocationPlanUploadBatch  @relation(fields: [batchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  tenant           Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site             Site                       @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  uploadedBy       User                       @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  allocationPlan   AllocationPlan?            @relation(fields: [allocationPlanId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@unique([id, tenantId])
+  @@unique([allocationPlanId, tenantId])
+  @@index([siteId, status])
+  @@index([status, expiresAt])
 }
 
 model SiteGrant {

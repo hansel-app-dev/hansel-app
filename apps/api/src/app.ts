@@ -33,6 +33,10 @@ import {
   createSiteResponseSchema,
   siteActivityResponseSchema,
   sitesPageResponseSchema,
+  allocationPlansResponseSchema,
+  createAllocationPlanUploadBatchRequestSchema,
+  createAllocationPlanUploadBatchResponseSchema,
+  finalizeAllocationPlanUploadResponseSchema,
   resendOnboardingVerificationRequestSchema,
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
@@ -65,6 +69,10 @@ import {
   type CreateSiteResponse,
   type SiteActivityResponse,
   type SitesPageResponse,
+  type AllocationPlansResponse,
+  type CreateAllocationPlanUploadBatchRequest,
+  type CreateAllocationPlanUploadBatchResponse,
+  type FinalizeAllocationPlanUploadResponse,
 } from '@hansel/contracts';
 import type { PasswordLoginResult } from './auth/password-login.js';
 import { PasswordResetRejectedError } from './auth/password-recovery.js';
@@ -91,6 +99,12 @@ import {
   SitesPaidSeatRequiredError,
   SitesUpgradeRequiredError,
 } from './sites/sites.js';
+import {
+  AllocationPlanUploadRejectedError,
+  AllocationPlansConflictError,
+  AllocationPlansForbiddenError,
+  AllocationPlansNotFoundError,
+} from './sites/allocation-plans.js';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
@@ -206,6 +220,20 @@ export interface SitesModule {
     accessCredential: string,
     siteId: string,
   ): Promise<SiteActivityResponse | null>;
+  listAllocationPlans?(
+    accessCredential: string,
+    siteId: string,
+  ): Promise<AllocationPlansResponse | null>;
+  createAllocationPlanUploadBatch?(
+    accessCredential: string,
+    siteId: string,
+    input: CreateAllocationPlanUploadBatchRequest,
+  ): Promise<CreateAllocationPlanUploadBatchResponse | null>;
+  finalizeAllocationPlanUpload?(
+    accessCredential: string,
+    siteId: string,
+    uploadId: string,
+  ): Promise<FinalizeAllocationPlanUploadResponse | null>;
   recordEvent?(name: string): void;
 }
 
@@ -414,6 +442,7 @@ export function createApp(
     passwordRecoveryEnabled?: boolean;
     externalAuthEnabled?: boolean;
     sitesEnabled?: boolean;
+    allocationPlansEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
@@ -1102,6 +1131,177 @@ export function createApp(
         response.status(503).json({ error: 'sites_unavailable' });
       }
     });
+
+    app.get(
+      '/api/sites/:siteId/allocation-plans',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (!config.allocationPlansEnabled || !sites.listAllocationPlans) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        const siteId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        );
+        const credential = readApplicationCredential(request);
+        if (!siteId.success) {
+          response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        if (!credential) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        try {
+          const result = await sites.listAllocationPlans(
+            credential,
+            siteId.data,
+          );
+          if (!result) {
+            response.status(401).json({ error: 'authentication_required' });
+            return;
+          }
+          response.json(allocationPlansResponseSchema.parse(result));
+        } catch (error) {
+          if (error instanceof AllocationPlansNotFoundError) {
+            response.status(404).json({ error: 'site_not_found' });
+            return;
+          }
+          sites.recordEvent?.('allocation_plans_load_unavailable');
+          response.status(503).json({ error: 'allocation_plans_unavailable' });
+        }
+      },
+    );
+
+    app.post(
+      '/api/sites/:siteId/allocation-plan-upload-batches',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (
+          !config.allocationPlansEnabled ||
+          !sites.createAllocationPlanUploadBatch
+        ) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        if (!hasAllowedFormOrigin(request, config.allowedOrigin)) {
+          response.status(403).json({ error: 'forbidden' });
+          return;
+        }
+        const siteId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        );
+        const input = createAllocationPlanUploadBatchRequestSchema.safeParse(
+          request.body,
+        );
+        const credential = readApplicationCredential(request);
+        if (!siteId.success || !input.success) {
+          response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        if (!credential) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        try {
+          const result = await sites.createAllocationPlanUploadBatch(
+            credential,
+            siteId.data,
+            input.data,
+          );
+          if (!result) {
+            response.status(401).json({ error: 'authentication_required' });
+            return;
+          }
+          response
+            .status(201)
+            .json(createAllocationPlanUploadBatchResponseSchema.parse(result));
+        } catch (error) {
+          if (error instanceof AllocationPlansNotFoundError) {
+            response.status(404).json({ error: 'site_not_found' });
+            return;
+          }
+          if (error instanceof AllocationPlansForbiddenError) {
+            response.status(403).json({ error: 'allocation_plans_forbidden' });
+            return;
+          }
+          if (error instanceof AllocationPlansConflictError) {
+            response.status(409).json({ error: 'allocation_plans_conflict' });
+            return;
+          }
+          if (error instanceof AllocationPlanUploadRejectedError) {
+            response.status(400).json({ error: 'invalid_request' });
+            return;
+          }
+          sites.recordEvent?.('allocation_plan_intent_unavailable');
+          response.status(503).json({ error: 'allocation_plans_unavailable' });
+        }
+      },
+    );
+
+    app.post(
+      '/api/sites/:siteId/allocation-plan-uploads/:uploadId/finalize',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (
+          !config.allocationPlansEnabled ||
+          !sites.finalizeAllocationPlanUpload
+        ) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        if (!hasAllowedFormOrigin(request, config.allowedOrigin)) {
+          response.status(403).json({ error: 'forbidden' });
+          return;
+        }
+        const siteId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        );
+        const uploadId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.uploadId,
+        );
+        const credential = readApplicationCredential(request);
+        if (!siteId.success || !uploadId.success) {
+          response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        if (!credential) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        try {
+          const result = await sites.finalizeAllocationPlanUpload(
+            credential,
+            siteId.data,
+            uploadId.data,
+          );
+          if (!result) {
+            response.status(401).json({ error: 'authentication_required' });
+            return;
+          }
+          response.json(
+            finalizeAllocationPlanUploadResponseSchema.parse(result),
+          );
+        } catch (error) {
+          if (error instanceof AllocationPlansNotFoundError) {
+            response.status(404).json({ error: 'site_not_found' });
+            return;
+          }
+          if (error instanceof AllocationPlansForbiddenError) {
+            response.status(403).json({ error: 'allocation_plans_forbidden' });
+            return;
+          }
+          if (error instanceof AllocationPlanUploadRejectedError) {
+            response
+              .status(409)
+              .json({ error: 'allocation_plan_upload_rejected' });
+            return;
+          }
+          sites.recordEvent?.('allocation_plan_finalize_unavailable');
+          response.status(503).json({ error: 'allocation_plans_unavailable' });
+        }
+      },
+    );
   }
   if (!onboarding)
     app.get('/onboarding/about-you', (_request, response) => {

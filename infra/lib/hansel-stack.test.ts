@@ -214,6 +214,48 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites
     });
   });
 
+  it('provisions private staged Allocation Plan storage [site-allocation-plans-add REQ-010, REQ-011, REQ-018, REQ-024]', () => {
+    const output = template('production', {
+      allocationPlansEnabled: 'true',
+      domainName: 'hansel.example.com',
+    });
+    output.resourceCountIs('AWS::S3::Bucket', 4);
+    output.hasResourceProperties('AWS::S3::Bucket', {
+      BucketEncryption: Match.anyValue(),
+      OwnershipControls: {
+        Rules: [{ ObjectOwnership: 'BucketOwnerEnforced' }],
+      },
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+      CorsConfiguration: {
+        CorsRules: Match.arrayWith([
+          Match.objectLike({
+            AllowedMethods: ['PUT'],
+            AllowedOrigins: ['https://hansel.example.com'],
+          }),
+        ]),
+      },
+      VersioningConfiguration: { Status: 'Enabled' },
+    });
+    output.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'ALLOCATION_PLANS_ENABLED', Value: 'true' },
+            Match.objectLike({ Name: 'ALLOCATION_PLANS_BUCKET_NAME' }),
+          ]),
+        }),
+      ]),
+    });
+    const policies = JSON.stringify(output.findResources('AWS::IAM::Policy'));
+    expect(policies).toContain('quarantine/*');
+    expect(policies).toContain('plans/*');
+  });
+
   it('injects stage-scoped provider configuration only when both rollout flags are enabled', () => {
     const output = template('test', {
       loginEnabled: 'true',

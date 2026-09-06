@@ -24,6 +24,10 @@ import {
   createSite,
   loadSiteActivity,
   loadSites,
+  loadAllocationPlans,
+  createAllocationPlanUploadBatch,
+  uploadAllocationPlan,
+  finalizeAllocationPlanUpload,
 } from './api.js';
 import {
   countryOptions,
@@ -163,6 +167,112 @@ describe('sites API [sites-add-new REQ-007..REQ-016]', () => {
     await expect(loadSiteActivity(siteId, '', unavailableRead)).rejects.toThrow(
       'site_activity_load_failed',
     );
+  });
+});
+
+describe('Allocation Plans API [site-allocation-plans-add REQ-006..REQ-017]', () => {
+  const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+  const uploadId = '00000000-0000-4000-8000-000000000005';
+  const requestBody = {
+    idempotencyKey: 'x'.repeat(32),
+    files: [
+      {
+        filename: 'plan.pdf',
+        mediaType: 'application/pdf' as const,
+        byteSize: 5,
+        checksumSha256: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      },
+    ],
+  };
+  const intent = {
+    uploads: [
+      {
+        uploadId,
+        uploadUrl: 'https://uploads.example/plan',
+        expiresAt: '2026-09-06T00:15:00.000Z',
+        headers: {
+          'content-type': 'application/pdf' as const,
+          'x-amz-checksum-sha256':
+            'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        },
+      },
+    ],
+  };
+  const plan = {
+    id: '00000000-0000-4000-8000-000000000006',
+    filename: 'plan.pdf',
+    mediaType: 'application/pdf' as const,
+    byteSize: 5,
+    createdAt: '2026-09-06T00:00:00.000Z',
+    modifiedAt: '2026-09-06T00:00:00.000Z',
+    uploadedBy: 'Owner',
+  };
+
+  it('loads, creates, uploads, and finalizes through bounded requests [AC-001]', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ canAddPlans: true, plans: [] })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(intent), { status: 201 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ plan })));
+    await expect(
+      loadAllocationPlans(siteId, '', fetcher),
+    ).resolves.toMatchObject({ canAddPlans: true });
+    await expect(
+      createAllocationPlanUploadBatch(siteId, requestBody, '', fetcher),
+    ).resolves.toEqual(intent);
+    const file = new File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' });
+    const [uploadIntent] = intent.uploads;
+    if (!uploadIntent) throw new Error('Expected upload intent');
+    await uploadAllocationPlan(
+      uploadIntent.uploadUrl,
+      file,
+      uploadIntent.headers,
+      fetcher,
+    );
+    await expect(
+      finalizeAllocationPlanUpload(siteId, uploadId, '', fetcher),
+    ).resolves.toEqual({ plan });
+  });
+
+  it('maps disabled, expired, and unavailable operations safely [AC-002, AC-003]', async () => {
+    await expect(
+      loadAllocationPlans(
+        siteId,
+        '',
+        vi.fn().mockResolvedValue(new Response(null, { status: 404 })),
+      ),
+    ).resolves.toEqual({ canAddPlans: false, plans: [] });
+    for (const operation of [
+      (fetcher: typeof fetch) => loadAllocationPlans(siteId, '', fetcher),
+      (fetcher: typeof fetch) =>
+        createAllocationPlanUploadBatch(siteId, requestBody, '', fetcher),
+      (fetcher: typeof fetch) =>
+        finalizeAllocationPlanUpload(siteId, uploadId, '', fetcher),
+    ]) {
+      await expect(
+        operation(
+          vi.fn().mockResolvedValue(new Response(null, { status: 401 })),
+        ),
+      ).rejects.toBeInstanceOf(DashboardAuthenticationRequiredError);
+      await expect(
+        operation(
+          vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
+        ),
+      ).rejects.toThrow();
+    }
+    await expect(
+      uploadAllocationPlan(
+        'https://uploads.example/plan',
+        new File(['x'], 'x.pdf'),
+        {},
+        vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
+      ),
+    ).rejects.toThrow('allocation_plan_upload_failed');
   });
 });
 

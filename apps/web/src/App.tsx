@@ -20,6 +20,10 @@ import {
   resetPassword,
   createSite,
   loadSiteActivity,
+  loadAllocationPlans,
+  createAllocationPlanUploadBatch,
+  uploadAllocationPlan,
+  finalizeAllocationPlanUpload,
   loadSites,
 } from './api.js';
 import { ForgotPassword } from './auth/ForgotPassword.js';
@@ -201,6 +205,24 @@ export function App({
           validSiteId
             ? handleApplicationSession(loadSites(apiUrl))
             : rejectInvalidSitePath()
+        }
+        loadAllocationPlans={() =>
+          validSiteId
+            ? handleApplicationSession(loadAllocationPlans(siteId, apiUrl))
+            : rejectInvalidSitePath()
+        }
+        createAllocationPlanUploadBatch={(input) =>
+          handleApplicationSession(
+            createAllocationPlanUploadBatch(siteId, input, apiUrl),
+          )
+        }
+        uploadAllocationPlan={(url, file, headers) =>
+          uploadAllocationPlan(url, file, headers)
+        }
+        finalizeAllocationPlanUpload={(uploadId) =>
+          handleApplicationSession(
+            finalizeAllocationPlanUpload(siteId, uploadId, apiUrl),
+          ).then(() => undefined)
         }
         logout={logoutAuthenticatedViewer}
         navigate={navigate}

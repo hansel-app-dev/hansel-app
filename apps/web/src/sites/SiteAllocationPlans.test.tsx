@@ -59,6 +59,52 @@ const props = {
 };
 
 describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-023]', () => {
+  it('renders finalized plans and opens the manager upload modal [site-allocation-plans-add AC-001]', async () => {
+    render(
+      <SiteAllocationPlans
+        {...props}
+        loadAllocationPlans={() =>
+          Promise.resolve({
+            canAddPlans: true,
+            plans: [
+              {
+                id: '00000000-0000-4000-8000-000000000006',
+                filename: 'Campus plan.pdf',
+                mediaType: 'application/pdf',
+                byteSize: 1048576,
+                createdAt: '2026-09-06T00:00:00.000Z',
+                modifiedAt: '2026-09-06T00:00:00.000Z',
+                uploadedBy: 'Nabin Singh',
+              },
+              {
+                id: '00000000-0000-4000-8000-000000000007',
+                filename: 'Campus plan.png',
+                mediaType: 'image/png',
+                byteSize: 512,
+                createdAt: '2026-09-06T00:00:00.000Z',
+                modifiedAt: '2026-09-06T00:00:00.000Z',
+                uploadedBy: 'Nabin Singh',
+              },
+            ],
+          })
+        }
+        createAllocationPlanUploadBatch={() =>
+          Promise.reject(new Error('unused'))
+        }
+        uploadAllocationPlan={() => Promise.reject(new Error('unused'))}
+        finalizeAllocationPlanUpload={() => Promise.reject(new Error('unused'))}
+      />,
+    );
+    expect(
+      await screen.findByRole('list', { name: 'Allocation Plans' }),
+    ).toHaveTextContent('Campus plan.pdf');
+    fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
+    expect(screen.getByRole('dialog', { name: 'Add plans' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Add plans' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
   it('renders the exact truthful Figma empty state in the shared Site shell [REQ-001, REQ-004..REQ-013, REQ-015..REQ-018, REQ-023; AC-001, AC-002, AC-005]', async () => {
     const navigate = vi.fn();
     render(<SiteAllocationPlans {...props} navigate={navigate} />);

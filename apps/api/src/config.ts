@@ -4,6 +4,8 @@ interface BaseAppConfig {
   contactSalesDestination: string;
   dashboardEnabled: boolean;
   sitesEnabled: boolean;
+  allocationPlansEnabled: boolean;
+  allocationPlansBucketName: string | null;
   discoveryEnabled: boolean;
   runtimeEnvironment: 'test' | 'production';
   planSelectionEnabled: boolean;
@@ -202,6 +204,9 @@ export function loadConfig(
       environment.SITES_ENABLED === 'true' ||
       (environment.SITES_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
+    allocationPlansEnabled: environment.ALLOCATION_PLANS_ENABLED === 'true',
+    allocationPlansBucketName:
+      environment.ALLOCATION_PLANS_BUCKET_NAME?.trim() ?? null,
     discoveryEnabled:
       environment.DISCOVERY_ENABLED === 'true' ||
       (environment.DISCOVERY_ENABLED === undefined &&
@@ -232,6 +237,10 @@ export function loadConfig(
   };
   if (!base.contactSalesDestination.startsWith('https://'))
     throw new Error('CONTACT_SALES_DESTINATION must use HTTPS');
+  if (base.allocationPlansEnabled && !base.allocationPlansBucketName)
+    throw new Error(
+      'ALLOCATION_PLANS_BUCKET_NAME is required when Allocation Plans are enabled',
+    );
   const emailDeliveryMode = environment.EMAIL_DELIVERY_MODE ?? 'resend';
   if (emailDeliveryMode !== 'console' && emailDeliveryMode !== 'resend') {
     throw new Error('EMAIL_DELIVERY_MODE must be console or resend');

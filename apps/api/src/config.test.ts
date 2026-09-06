@@ -16,6 +16,8 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
       sitesEnabled: true,
+      allocationPlansEnabled: false,
+      allocationPlansBucketName: null,
       loginEnabled: true,
       passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
@@ -47,6 +49,8 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
       sitesEnabled: true,
+      allocationPlansEnabled: false,
+      allocationPlansBucketName: null,
       loginEnabled: true,
       passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
@@ -153,6 +157,8 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       contactSalesDestination: 'https://www.hanselapp.io/contact',
       dashboardEnabled: true,
       sitesEnabled: true,
+      allocationPlansEnabled: false,
+      allocationPlansBucketName: null,
       loginEnabled: true,
       passwordRecoveryEnabled: true,
       externalAuthEnabled: false,
@@ -167,6 +173,22 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       verificationDigestKey: 'verification-digest-key',
       applicationSessionDigestKey: 'verification-digest-key',
       emailDeliveryMode: 'console',
+    });
+  });
+
+  it('requires private storage configuration when Allocation Plans are enabled [site-allocation-plans-add REQ-024]', () => {
+    expect(() =>
+      loadConfig({ ...required, ALLOCATION_PLANS_ENABLED: 'true' }),
+    ).toThrow('ALLOCATION_PLANS_BUCKET_NAME is required');
+    expect(
+      loadConfig({
+        ...required,
+        ALLOCATION_PLANS_ENABLED: 'true',
+        ALLOCATION_PLANS_BUCKET_NAME: 'hansel-allocation-plans',
+      }),
+    ).toMatchObject({
+      allocationPlansEnabled: true,
+      allocationPlansBucketName: 'hansel-allocation-plans',
     });
   });
 

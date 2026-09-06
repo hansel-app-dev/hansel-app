@@ -88,6 +88,9 @@ import {
 import { createPrismaSiteInvitationStore } from './sites/prisma-site-invitation-store.js';
 import { createSiteInvitationDispatcher } from './sites/site-invitation-dispatcher.js';
 import { createSiteInvitationWorker } from './sites/site-invitation-worker.js';
+import { createAllocationPlansFeature } from './sites/allocation-plans.js';
+import { createPrismaAllocationPlanStore } from './sites/prisma-allocation-plan-store.js';
+import { createS3AllocationPlanObjectStore } from './sites/s3-allocation-plan-object-store.js';
 
 configureDatabaseUrl();
 const config = loadConfig();
@@ -419,6 +422,15 @@ const sitesFeature = createSitesFeature({
     ),
   now: () => new Date(),
 });
+const allocationPlansFeature = createAllocationPlansFeature({
+  store: createPrismaAllocationPlanStore(prisma),
+  objects: createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+  createId: randomUUID,
+  digest: (value) => security.digestApplicationCredential(value),
+  now: () => new Date(),
+});
 const resolveSitePrincipal = (credential: string) =>
   sitesStore.resolvePrincipal(
     security.digestApplicationCredential(credential),
@@ -436,6 +448,22 @@ const sites: SitesModule = {
   async activity(credential, siteId) {
     const principal = await resolveSitePrincipal(credential);
     return principal ? sitesFeature.activity(principal, siteId) : null;
+  },
+  async listAllocationPlans(credential, siteId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal ? allocationPlansFeature.list(principal, siteId) : null;
+  },
+  async createAllocationPlanUploadBatch(credential, siteId, input) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? allocationPlansFeature.createBatch(principal, siteId, input)
+      : null;
+  },
+  async finalizeAllocationPlanUpload(credential, siteId, uploadId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? allocationPlansFeature.finalize(principal, siteId, uploadId)
+      : null;
   },
   recordEvent: (name) => {
     logger.info(name, { correlationId: randomUUID() });

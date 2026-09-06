@@ -145,7 +145,7 @@ This section is an index for discovery, not a promise that the current data mode
 | Membership and Organization Role      | Prisma `Membership.roleId`; centralized permission map             | Implemented for current site scope                   |
 | Plan allowances                       | `OnboardingPlanSelection` including `maximumSites`                 | Partial; seat and storage allowances are not modeled |
 | Site and Site Access                  | Prisma `Site`, `SiteGrant`, and `SiteInvitation`                   | Organization, People You Invite, and Private scopes  |
-| Allocation Plan                       | No approved persistent model                                       | Source-only concept                                  |
+| Allocation Plan                       | Prisma `AllocationPlan`, `AllocationPlanUpload`, and `AllocationPlanUploadBatch`; private S3 object storage | Implemented for approved add/list scope              |
 | Sign                                  | No approved persistent model                                       | Source-only concept                                  |
 | Document, Image, Video                | No approved persistent models                                      | Source-only concepts                                 |
 | Sign Comment, Allocation Plan Comment | No approved persistent models                                      | Source-only concepts                                 |

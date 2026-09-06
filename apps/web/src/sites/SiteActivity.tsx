@@ -4,6 +4,9 @@ import type {
   DashboardResponse,
   SiteActivityResponse,
   SitesPageResponse,
+  AllocationPlansResponse,
+  CreateAllocationPlanUploadBatchRequest,
+  CreateAllocationPlanUploadBatchResponse,
 } from '@hansel/contracts';
 import {
   ApplicationShell,
@@ -11,6 +14,7 @@ import {
 } from '../application-shell/ApplicationShell.js';
 import { Button } from '../design-system/index.js';
 import { SiteMemberPreview } from './SiteCollection.js';
+import { AddPlansModal } from './AddPlansModal.js';
 
 interface SiteDetailsRequest {
   attempt: number;
@@ -25,6 +29,7 @@ type SiteDetailsLoadState =
       dashboard: DashboardResponse;
       siteContext: SiteActivityResponse;
       sitesPage: SitesPageResponse;
+      allocationPlans: AllocationPlansResponse;
     })
   | (SiteDetailsRequest & { status: 'failed' });
 
@@ -34,6 +39,16 @@ interface SharedSiteDetailsProps {
   loadSites: () => Promise<SitesPageResponse>;
   logout: () => Promise<void>;
   navigate?: (destination: string) => void;
+  loadAllocationPlans?: () => Promise<AllocationPlansResponse>;
+  createAllocationPlanUploadBatch?: (
+    input: CreateAllocationPlanUploadBatchRequest,
+  ) => Promise<CreateAllocationPlanUploadBatchResponse>;
+  uploadAllocationPlan?: (
+    url: string,
+    file: File,
+    headers: Record<string, string>,
+  ) => Promise<void>;
+  finalizeAllocationPlanUpload?: (uploadId: string) => Promise<void>;
 }
 
 function SiteDetails({
@@ -43,9 +58,14 @@ function SiteDetails({
   loadSites,
   logout,
   navigate,
+  loadAllocationPlans,
+  createAllocationPlanUploadBatch,
+  uploadAllocationPlan,
+  finalizeAllocationPlanUpload,
 }: SharedSiteDetailsProps & { activeSection: 'activity' | 'allocations' }) {
   const [loadState, setLoadState] = useState<SiteDetailsLoadState | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [showAddPlans, setShowAddPlans] = useState(false);
 
   useEffect(() => {
     const lifecycle = { active: true };
@@ -53,9 +73,12 @@ function SiteDetails({
     const load = async () => {
       const dashboard = await loadDashboard();
       if (!isActive()) return;
-      const [siteContext, sitesPage] = await Promise.all([
+      const [siteContext, sitesPage, allocationPlans] = await Promise.all([
         loadSite(),
         loadSites(),
+        activeSection === 'allocations' && loadAllocationPlans
+          ? loadAllocationPlans()
+          : Promise.resolve({ canAddPlans: false, plans: [] }),
       ]);
       if (!isActive()) return;
       const visibleSite = sitesPage.sites.find(
@@ -72,6 +95,7 @@ function SiteDetails({
         dashboard,
         siteContext,
         sitesPage,
+        allocationPlans,
       });
     };
     void load().catch(() => {
@@ -87,7 +111,14 @@ function SiteDetails({
     return () => {
       lifecycle.active = false;
     };
-  }, [attempt, loadDashboard, loadSite, loadSites]);
+  }, [
+    activeSection,
+    attempt,
+    loadAllocationPlans,
+    loadDashboard,
+    loadSite,
+    loadSites,
+  ]);
 
   const currentState =
     loadState?.attempt === attempt &&
@@ -126,7 +157,7 @@ function SiteDetails({
       </main>
     );
 
-  const { dashboard, siteContext, sitesPage } = currentState;
+  const { dashboard, siteContext, sitesPage, allocationPlans } = currentState;
   const selectedSite = sitesPage.sites.find(
     (site) => site.id === siteContext.site.id,
   );
@@ -321,7 +352,7 @@ function SiteDetails({
               </div>
             </section>
           </>
-        ) : (
+        ) : allocationPlans.plans.length === 0 ? (
           <section
             aria-labelledby="no-allocation-plans-heading"
             className="grid min-h-[calc(100vh-220px)] place-items-center py-16 text-center max-md:min-h-[420px]"
@@ -343,7 +374,19 @@ function SiteDetails({
                 </span>
               </p>
               <div className="mt-7 flex flex-wrap justify-center gap-4">
-                <Button className="gap-2" disabled type="button">
+                <Button
+                  className="gap-2"
+                  disabled={
+                    !allocationPlans.canAddPlans ||
+                    !createAllocationPlanUploadBatch ||
+                    !uploadAllocationPlan ||
+                    !finalizeAllocationPlanUpload
+                  }
+                  onClick={() => {
+                    setShowAddPlans(true);
+                  }}
+                  type="button"
+                >
                   <AppSymbol className="!size-4 text-[18px]" weight={100}>
                     add
                   </AppSymbol>
@@ -355,8 +398,79 @@ function SiteDetails({
               </div>
             </div>
           </section>
+        ) : (
+          <section className="mt-8" aria-labelledby="allocation-plans-heading">
+            <div className="flex items-center justify-between gap-4">
+              <h2
+                className="text-lg font-semibold"
+                id="allocation-plans-heading"
+              >
+                Allocation Plans
+              </h2>
+              <Button
+                className="gap-2"
+                disabled={!allocationPlans.canAddPlans}
+                onClick={() => {
+                  setShowAddPlans(true);
+                }}
+                type="button"
+              >
+                <AppSymbol className="!size-4 text-[18px]" weight={100}>
+                  add
+                </AppSymbol>
+                Add plan
+              </Button>
+            </div>
+            <ul
+              aria-label="Allocation Plans"
+              className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            >
+              {allocationPlans.plans.map((plan) => (
+                <li
+                  className="rounded-lg border border-site-card-border bg-surface p-5 shadow-site-card"
+                  key={plan.id}
+                >
+                  <AppSymbol
+                    className="!size-8 text-[32px] text-content-muted"
+                    weight={100}
+                  >
+                    {plan.mediaType === 'application/pdf'
+                      ? 'picture_as_pdf'
+                      : 'image'}
+                  </AppSymbol>
+                  <p
+                    className="mt-3 truncate font-semibold"
+                    title={plan.filename}
+                  >
+                    {plan.filename}
+                  </p>
+                  <p className="mt-1 text-sm text-content-muted">
+                    {(plan.byteSize / 1_048_576).toFixed(1)} MB ·{' '}
+                    {plan.uploadedBy}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
       </section>
+      {showAddPlans &&
+      createAllocationPlanUploadBatch &&
+      uploadAllocationPlan &&
+      finalizeAllocationPlanUpload ? (
+        <AddPlansModal
+          createBatch={createAllocationPlanUploadBatch}
+          upload={uploadAllocationPlan}
+          finalize={finalizeAllocationPlanUpload}
+          onClose={() => {
+            setShowAddPlans(false);
+          }}
+          onComplete={() => {
+            setShowAddPlans(false);
+            setAttempt((value) => value + 1);
+          }}
+        />
+      ) : null}
     </ApplicationShell>
   );
 }

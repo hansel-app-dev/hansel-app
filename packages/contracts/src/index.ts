@@ -654,3 +654,82 @@ export const siteActivityResponseSchema = z
   .object({ site: siteIdentitySchema })
   .strict();
 export type SiteActivityResponse = z.infer<typeof siteActivityResponseSchema>;
+
+export const allocationPlanMediaTypeSchema = z.enum([
+  'image/png',
+  'image/jpeg',
+  'application/pdf',
+]);
+export type AllocationPlanMediaType = z.infer<
+  typeof allocationPlanMediaTypeSchema
+>;
+
+export const allocationPlanSchema = z
+  .object({
+    id: z.uuid(),
+    filename: z.string().min(1).max(255),
+    mediaType: allocationPlanMediaTypeSchema,
+    byteSize: z.number().int().min(1).max(5_242_880),
+    createdAt: z.iso.datetime(),
+    modifiedAt: z.iso.datetime(),
+    uploadedBy: z.string().min(1).max(201),
+  })
+  .strict();
+export type AllocationPlan = z.infer<typeof allocationPlanSchema>;
+
+export const allocationPlansResponseSchema = z
+  .object({
+    canAddPlans: z.boolean(),
+    plans: z.array(allocationPlanSchema).max(10_000),
+  })
+  .strict();
+export type AllocationPlansResponse = z.infer<
+  typeof allocationPlansResponseSchema
+>;
+
+export const allocationPlanUploadFileSchema = z
+  .object({
+    filename: z.string().trim().min(1).max(255),
+    mediaType: allocationPlanMediaTypeSchema,
+    byteSize: z.number().int().min(1).max(5_242_880),
+    checksumSha256: z.string().regex(/^[A-Za-z0-9+/]{43}=$/),
+  })
+  .strict();
+
+export const createAllocationPlanUploadBatchRequestSchema = z
+  .object({
+    idempotencyKey: z.string().min(32).max(200),
+    files: z.array(allocationPlanUploadFileSchema).min(1).max(20),
+  })
+  .strict();
+export type CreateAllocationPlanUploadBatchRequest = z.infer<
+  typeof createAllocationPlanUploadBatchRequestSchema
+>;
+
+export const allocationPlanUploadIntentSchema = z
+  .object({
+    uploadId: z.uuid(),
+    uploadUrl: z.url().refine((value) => value.startsWith('https://')),
+    expiresAt: z.iso.datetime(),
+    headers: z
+      .object({
+        'content-type': allocationPlanMediaTypeSchema,
+        'x-amz-checksum-sha256': z.string().regex(/^[A-Za-z0-9+/]{43}=$/),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const createAllocationPlanUploadBatchResponseSchema = z
+  .object({ uploads: z.array(allocationPlanUploadIntentSchema).min(1).max(20) })
+  .strict();
+export type CreateAllocationPlanUploadBatchResponse = z.infer<
+  typeof createAllocationPlanUploadBatchResponseSchema
+>;
+
+export const finalizeAllocationPlanUploadResponseSchema = z
+  .object({ plan: allocationPlanSchema })
+  .strict();
+export type FinalizeAllocationPlanUploadResponse = z.infer<
+  typeof finalizeAllocationPlanUploadResponseSchema
+>;

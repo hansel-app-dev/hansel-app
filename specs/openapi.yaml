@@ -788,6 +788,78 @@ paths:
         '400': { description: The request does not match the contract }
         '401': { description: The onboarding continuation is unavailable }
         '409': { description: Conflicting replay or rejected transition }
+  /api/sites/{siteId}/allocation-plans:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+    get:
+      operationId: listAllocationPlans
+      responses:
+        '200':
+          description: Finalized Allocation Plans for the authorized Site
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AllocationPlansResponse' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/allocation-plan-upload-batches:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+    post:
+      operationId: createAllocationPlanUploadBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              {
+                $ref: '#/components/schemas/CreateAllocationPlanUploadBatchRequest',
+              }
+      responses:
+        '201':
+          description: Short-lived exact-object upload intents
+          content:
+            application/json:
+              schema:
+                {
+                  $ref: '#/components/schemas/CreateAllocationPlanUploadBatchResponse',
+                }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/allocation-plan-uploads/{uploadId}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+      - name: uploadId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: finalizeAllocationPlanUpload
+      responses:
+        '200':
+          description: Verified and finalized Allocation Plan
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [plan]
+                properties:
+                  plan: { $ref: '#/components/schemas/AllocationPlan' }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+
 components:
   parameters:
     ExternalProvider:
@@ -969,7 +1041,85 @@ components:
               sites_paid_seat_required,
               sites_unavailable,
               sites_upgrade_required,
+              allocation_plans_forbidden,
+              allocation_plans_conflict,
+              allocation_plan_upload_rejected,
+              allocation_plans_unavailable,
             ]
+    AllocationPlan:
+      type: object
+      additionalProperties: false
+      required:
+        [id, filename, mediaType, byteSize, createdAt, modifiedAt, uploadedBy]
+      properties:
+        id: { type: string, format: uuid }
+        filename: { type: string, minLength: 1, maxLength: 255 }
+        mediaType:
+          { type: string, enum: [image/png, image/jpeg, application/pdf] }
+        byteSize: { type: integer, minimum: 1, maximum: 5242880 }
+        createdAt: { type: string, format: date-time }
+        modifiedAt: { type: string, format: date-time }
+        uploadedBy: { type: string, minLength: 1, maxLength: 201 }
+    AllocationPlansResponse:
+      type: object
+      additionalProperties: false
+      required: [canAddPlans, plans]
+      properties:
+        canAddPlans: { type: boolean }
+        plans:
+          type: array
+          maxItems: 10000
+          items: { $ref: '#/components/schemas/AllocationPlan' }
+    AllocationPlanUploadFile:
+      type: object
+      additionalProperties: false
+      required: [filename, mediaType, byteSize, checksumSha256]
+      properties:
+        filename: { type: string, minLength: 1, maxLength: 255 }
+        mediaType:
+          { type: string, enum: [image/png, image/jpeg, application/pdf] }
+        byteSize: { type: integer, minimum: 1, maximum: 5242880 }
+        checksumSha256: { type: string, pattern: '^[A-Za-z0-9+/]{43}=$' }
+    CreateAllocationPlanUploadBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [idempotencyKey, files]
+      properties:
+        idempotencyKey: { type: string, minLength: 32, maxLength: 200 }
+        files:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { $ref: '#/components/schemas/AllocationPlanUploadFile' }
+    CreateAllocationPlanUploadBatchResponse:
+      type: object
+      additionalProperties: false
+      required: [uploads]
+      properties:
+        uploads:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [uploadId, uploadUrl, expiresAt, headers]
+            properties:
+              uploadId: { type: string, format: uuid }
+              uploadUrl: { type: string, format: uri }
+              expiresAt: { type: string, format: date-time }
+              headers:
+                type: object
+                additionalProperties: false
+                required: [content-type, x-amz-checksum-sha256]
+                properties:
+                  content-type:
+                    {
+                      type: string,
+                      enum: [image/png, image/jpeg, application/pdf],
+                    }
+                  x-amz-checksum-sha256:
+                    { type: string, pattern: '^[A-Za-z0-9+/]{43}=$' }
     VerifyOnboardingEmailRequest:
       type: object
       additionalProperties: false

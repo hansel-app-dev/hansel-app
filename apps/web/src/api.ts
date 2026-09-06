@@ -48,6 +48,13 @@ import {
   type CreateSiteResponse,
   type SiteActivityResponse,
   type SitesPageResponse,
+  allocationPlansResponseSchema,
+  createAllocationPlanUploadBatchResponseSchema,
+  finalizeAllocationPlanUploadResponseSchema,
+  type AllocationPlansResponse,
+  type CreateAllocationPlanUploadBatchRequest,
+  type CreateAllocationPlanUploadBatchResponse,
+  type FinalizeAllocationPlanUploadResponse,
 } from '@hansel/contracts';
 
 export class OnboardingSessionExpiredError extends Error {
@@ -131,6 +138,76 @@ export async function loadSiteActivity(
   if (response.status === 401) throw new DashboardAuthenticationRequiredError();
   if (!response.ok) throw new Error('site_activity_load_failed');
   return siteActivityResponseSchema.parse(await response.json());
+}
+
+export async function loadAllocationPlans(
+  siteId: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<AllocationPlansResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${siteId}/allocation-plans`,
+    {
+      credentials: 'include',
+    },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (response.status === 404) return { canAddPlans: false, plans: [] };
+  if (!response.ok) throw new Error('allocation_plans_load_failed');
+  return allocationPlansResponseSchema.parse(await response.json());
+}
+
+export async function createAllocationPlanUploadBatch(
+  siteId: string,
+  input: CreateAllocationPlanUploadBatchRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<CreateAllocationPlanUploadBatchResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${siteId}/allocation-plan-upload-batches`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('allocation_plan_intent_failed');
+  return createAllocationPlanUploadBatchResponseSchema.parse(
+    await response.json(),
+  );
+}
+
+export async function uploadAllocationPlan(
+  uploadUrl: string,
+  file: File,
+  headers: Record<string, string>,
+  fetcher: typeof fetch = fetch,
+): Promise<void> {
+  const response = await fetcher(uploadUrl, {
+    method: 'PUT',
+    headers,
+    body: file,
+  });
+  if (!response.ok) throw new Error('allocation_plan_upload_failed');
+}
+
+export async function finalizeAllocationPlanUpload(
+  siteId: string,
+  uploadId: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<FinalizeAllocationPlanUploadResponse> {
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${siteId}/allocation-plan-uploads/${uploadId}/finalize`,
+    { method: 'POST', credentials: 'include' },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('allocation_plan_finalize_failed');
+  return finalizeAllocationPlanUploadResponseSchema.parse(
+    await response.json(),
+  );
 }
 
 export async function requestPasswordRecovery(

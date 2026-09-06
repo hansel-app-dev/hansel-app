@@ -329,41 +329,73 @@ describe('App [REQ-002]', () => {
       vi.fn((url: string) =>
         Promise.resolve(
           new Response(
-            JSON.stringify(
-              url.endsWith('/api/dashboard')
-                ? {
-                    viewer: {
-                      displayName: 'Nabin Singh',
-                      initials: 'NS',
-                      roleLabel: 'Owner',
-                    },
-                  }
-                : url.endsWith('/api/sites')
-                  ? {
-                      organizationName: 'Hansel',
-                      canCreateSite: true,
-                      canInviteMembers: true,
-                      creator: {
-                        email: 'owner@example.com',
-                        displayName: 'Owner',
-                        initials: 'O',
-                      },
-                      siteLimitReached: false,
-                      maximumSites: null,
-                      members: [],
-                      sites: [
-                        {
-                          id: siteId,
-                          name: 'Direct site',
-                          createdAt: '2026-09-05T10:00:00.000Z',
-                          updatedAt: '2026-09-05T10:00:00.000Z',
-                          memberCount: 0,
-                          memberPreview: [],
+            url.startsWith('https://uploads.example/')
+              ? null
+              : JSON.stringify(
+                  url.endsWith('/api/dashboard')
+                    ? {
+                        viewer: {
+                          displayName: 'Nabin Singh',
+                          initials: 'NS',
+                          roleLabel: 'Owner',
                         },
-                      ],
-                    }
-                  : { site: { id: siteId, name: 'Direct site' } },
-            ),
+                      }
+                    : url.endsWith('/api/sites')
+                      ? {
+                          organizationName: 'Hansel',
+                          canCreateSite: true,
+                          canInviteMembers: true,
+                          creator: {
+                            email: 'owner@example.com',
+                            displayName: 'Owner',
+                            initials: 'O',
+                          },
+                          siteLimitReached: false,
+                          maximumSites: null,
+                          members: [],
+                          sites: [
+                            {
+                              id: siteId,
+                              name: 'Direct site',
+                              createdAt: '2026-09-05T10:00:00.000Z',
+                              updatedAt: '2026-09-05T10:00:00.000Z',
+                              memberCount: 0,
+                              memberPreview: [],
+                            },
+                          ],
+                        }
+                      : url.endsWith('/allocation-plans')
+                        ? { canAddPlans: true, plans: [] }
+                        : url.endsWith('/allocation-plan-upload-batches')
+                          ? {
+                              uploads: [
+                                {
+                                  uploadId:
+                                    '00000000-0000-4000-8000-000000000005',
+                                  uploadUrl: 'https://uploads.example/plan',
+                                  expiresAt: '2026-09-06T00:15:00.000Z',
+                                  headers: {
+                                    'content-type': 'application/pdf',
+                                    'x-amz-checksum-sha256':
+                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                                  },
+                                },
+                              ],
+                            }
+                          : url.endsWith('/finalize')
+                            ? {
+                                plan: {
+                                  id: '00000000-0000-4000-8000-000000000006',
+                                  filename: 'plan.pdf',
+                                  mediaType: 'application/pdf',
+                                  byteSize: 5,
+                                  createdAt: '2026-09-06T00:00:00.000Z',
+                                  modifiedAt: '2026-09-06T00:00:00.000Z',
+                                  uploadedBy: 'Owner',
+                                },
+                              }
+                            : { site: { id: siteId, name: 'Direct site' } },
+                ),
           ),
         ),
       ),
@@ -401,10 +433,13 @@ describe('App [REQ-002]', () => {
 
   it('renders the authorized Allocation Plans empty route [site-allocation-plans-empty-state REQ-001, REQ-002, AC-001]', async () => {
     const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    const uploadId = '8ca72d3f-f711-498e-b9af-7759b4a829f5';
     vi.stubGlobal(
       'fetch',
-      vi.fn((url: string) =>
-        Promise.resolve(
+      vi.fn((url: string) => {
+        if (url.startsWith('https://uploads.example.com/'))
+          return Promise.resolve(new Response(null));
+        return Promise.resolve(
           new Response(
             JSON.stringify(
               url.endsWith('/api/dashboard')
@@ -439,11 +474,40 @@ describe('App [REQ-002]', () => {
                         },
                       ],
                     }
-                  : { site: { id: siteId, name: 'Direct site' } },
+                  : url.endsWith('/allocation-plans')
+                    ? { canAddPlans: true, plans: [] }
+                    : url.endsWith('/allocation-plan-upload-batches')
+                      ? {
+                          uploads: [
+                            {
+                              uploadId,
+                              uploadUrl: `https://uploads.example.com/${uploadId}`,
+                              expiresAt: '2026-09-06T00:15:00.000Z',
+                              headers: {
+                                'content-type': 'application/pdf',
+                                'x-amz-checksum-sha256':
+                                  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                              },
+                            },
+                          ],
+                        }
+                      : url.endsWith('/finalize')
+                        ? {
+                            plan: {
+                              id: 'a87f107e-ac6e-46a7-b46c-11a86dd56c74',
+                              filename: 'plan.pdf',
+                              mediaType: 'application/pdf',
+                              byteSize: 5,
+                              createdAt: '2026-09-06T00:00:00.000Z',
+                              modifiedAt: '2026-09-06T00:00:00.000Z',
+                              uploadedBy: 'Owner',
+                            },
+                          }
+                        : { site: { id: siteId, name: 'Direct site' } },
             ),
           ),
-        ),
-      ),
+        );
+      }),
     );
 
     render(<App path={`/sites/${siteId}/allocations`} />);
@@ -454,6 +518,18 @@ describe('App [REQ-002]', () => {
     expect(
       screen.getByRole('link', { name: 'Allocations', current: 'page' }),
     ).toHaveAttribute('href', `/sites/${siteId}/allocations`);
+    fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
+    const file = new File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
+    });
+    const picker = document.querySelector('input[type="file"]');
+    if (!picker) throw new Error('Expected file picker');
+    fireEvent.change(picker, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 
   it.each(['/sites/allocations', '/sites/not-a-site/allocations'])(

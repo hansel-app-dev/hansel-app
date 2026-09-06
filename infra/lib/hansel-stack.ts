@@ -34,6 +34,8 @@ export class HanselStack extends cdk.Stack {
       string | undefined;
     const sitesEnabled =
       sitesContext === 'true' || (sitesContext === undefined && !production);
+    const allocationPlansEnabled =
+      this.node.tryGetContext('allocationPlansEnabled') === 'true';
     const loginEnabled = this.node.tryGetContext('loginEnabled') === 'true';
     const passwordRecoveryEnabled =
       this.node.tryGetContext('passwordRecoveryEnabled') === 'true' &&
@@ -286,6 +288,64 @@ export class HanselStack extends cdk.Stack {
           },
         },
       },
+    );
+
+    const allocationPlanAccessLogBucket = new s3.Bucket(
+      this,
+      'AllocationPlanAccessLogBucket',
+      {
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        enforceSSL: true,
+        versioned: production,
+        removalPolicy,
+        autoDeleteObjects: !production,
+        lifecycleRules: [{ expiration: cdk.Duration.days(90) }],
+      },
+    );
+    const allocationPlanBucket = new s3.Bucket(this, 'AllocationPlanBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      versioned: production,
+      removalPolicy,
+      autoDeleteObjects: !production,
+      serverAccessLogsBucket: allocationPlanAccessLogBucket,
+      serverAccessLogsPrefix: 'allocation-plans/',
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.PUT],
+          allowedOrigins: [
+            production
+              ? `https://${domainName ?? 'app.hanselapp.io'}`
+              : 'http://localhost:5173',
+          ],
+          allowedHeaders: ['content-type', 'x-amz-checksum-sha256'],
+          maxAge: 900,
+        },
+      ],
+      lifecycleRules: [
+        {
+          prefix: 'quarantine/',
+          expiration: cdk.Duration.days(1),
+          abortIncompleteMultipartUploadAfter: cdk.Duration.days(1),
+          noncurrentVersionExpiration: cdk.Duration.days(30),
+        },
+      ],
+    });
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
+      'quarantine/*',
+    );
+    allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'plans/*');
+    api.taskDefinition.defaultContainer?.addEnvironment(
+      'ALLOCATION_PLANS_ENABLED',
+      allocationPlansEnabled ? 'true' : 'false',
+    );
+    api.taskDefinition.defaultContainer?.addEnvironment(
+      'ALLOCATION_PLANS_BUCKET_NAME',
+      allocationPlanBucket.bucketName,
     );
     if (migrationBootstrap)
       (api.service.node.defaultChild as ecs.CfnService).desiredCount = 0;
