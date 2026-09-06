@@ -1,14 +1,14 @@
 # Feature: Add Site Allocation Plans
 
 - ID: `site-allocation-plans-add`
-- Status: `approved`
+- Status: `draft`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `Approved in the Codex task on 2026-09-06`
+- Product and technical approval: `Fresh approval pending for Figma progress-state amendment`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Sign, Document, Image, and Storage Allowance; docs/domain/figjam-object-catalog.md — Allocation Plan, Site, Organization, Document, and Image objects; Canonical interpretation notes; Nesting map; Current implementation alignment; and Known ambiguities 7, 8, and 10`
-- Design authority: `Figma Hansel App UI frame 2057:3458 (1.2.2 New site > Allocation plan / Add plans)`
-- Design evidence: `The exact frame was browser-inspected at 100% zoom on 2026-09-06; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
+- Design authority: `Figma Hansel App UI frames 2057:3458 (Add plans), 2060:4943 (upload in progress), and 2220:17399 (upload complete)`
+- Design evidence: `All three exact frames were browser-inspected at 100% zoom on 2026-09-06; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
 - Supersedes on implementation: `site-allocation-plans-empty-state REQ-002, REQ-012, REQ-013, and its bounded no-persistence assumptions; all unaffected Site-shell, access, accessibility, and failure requirements remain authoritative`
 
 ## Problem
@@ -53,7 +53,7 @@ Authorized Site managers can reach the Allocation Plans empty state, but `Add pl
 - REQ-016: The Allocation Plans route MUST load its existing authenticated Site shell inputs and the Allocation Plan collection without rendering stale identities. Zero results MUST preserve the approved `No plans` state. One or more results MUST replace the empty state with a semantic `Allocation Plans` list and retain the enabled `Add plan` action for authorized managers; unsupported preview/download actions MUST not be fabricated.
 - REQ-017: The upload flow MUST use the existing application session, exact-origin mutation proof, private/no-store API responses, strict request/response parsing, bounded categorical errors, correlation IDs, and request limits. Logs, metrics, traces, and alarms MUST never contain filenames, presigned URLs, object keys, checksums, Site or Organization names, or other unbounded/personal dimensions.
 - REQ-018: A scheduled cleanup path MUST mark expired `PENDING` intents `EXPIRED` and remove their quarantine objects. A bucket lifecycle rule MUST independently abort incomplete multipart uploads and expire noncurrent versions; unreferenced quarantine objects MUST be deleted within 24 hours. Finalized production objects MUST be retained unless a future approved deletion or Organization-retention specification says otherwise.
-- REQ-019: The browser MUST upload at most three files concurrently, show queued/uploading/verifying/complete/failed state without relying on color, prevent duplicate submissions, retain recoverable failed selections, and announce aggregate and per-file progress to assistive technology without excessive live-region updates.
+- REQ-019: The browser MUST upload at most three files concurrently, show queued/uploading/verifying/complete/failed state without relying on color, prevent duplicate submissions, retain recoverable failed selections, and announce aggregate and per-file progress to assistive technology without excessive live-region updates. During transfer, each active row MUST show the filename followed by `• Uploading…`, a numeric percentage, and a horizontal progress indicator; completed rows MUST retain filename and formatted size with the Figma pale-green completed treatment. Supporting copy MUST append aggregate progress in the form `(2 of 5 uploaded)`. `Upload` MUST remain disabled while work is active. When every file completes, the footer MUST replace `Cancel` and `Upload` with one primary `Done` action that closes the modal and refreshes the Allocation Plan collection.
 - REQ-020: The modal MUST trap focus, focus its heading or first useful control on open, restore focus to `Add plan` on close, support keyboard file selection and removal, expose associated validation messages, maintain visible focus, and meet WCAG 2.2 AA. It MUST reflow without horizontal page scrolling at 320 CSS pixels and 200% zoom.
 - REQ-021: New reusable modal upload-zone, selected-file row, and Allocation Plan list components plus normal, empty, invalid-type, too-large, duplicate, multi-file, pending, partial-failure, complete, narrow-width, and 200%-zoom states MUST be added to Storybook using API-independent fixtures.
 - REQ-022: OpenAPI MUST define the collection, upload-intent, and finalize contracts with strict schemas and categorical failures. Prisma MUST add tenant-safe Allocation Plan and upload-intent models plus forward-only migration, indexes for Site ordering and expiry cleanup, unique idempotency constraints, and referential rules that cannot orphan a finalized record from its Site or Organization.
@@ -115,7 +115,7 @@ Authorized Site managers can reach the Allocation Plans empty state, but `Add pl
 
 The first modal state follows frame `2057:3458`: a centered white dialog over the muted Site Allocation Plans page, compact title/close header, `Add plans here` label, large dashed drop zone, file-upload artwork, centered drag/picker copy, supporting format/size text, and footer actions. After selection, the drop zone remains available for additional files and selected-file rows show truthful state. `Upload` becomes available only when the manifest is valid.
 
-The dialog is labelled by `Add plans`, traps focus, restores it to the invoker, and supports Escape and backdrop dismissal under REQ-005. Drag-and-drop is never the only input method. Validation is associated with the affected file; progress is exposed as bounded text and progress semantics. Completed and failed states use iconography/text in addition to color. Names are escaped and visually truncated with complete accessible text. Responsive states preserve reachable header, scrollable content, and footer actions.
+The dialog is labelled by `Add plans`, traps focus, restores it to the invoker, and supports Escape and backdrop dismissal under REQ-005. Drag-and-drop is never the only input method. Validation is associated with the affected file; progress is exposed as bounded text and native progress semantics. Frame `2060:4943` governs the mixed completed/uploading state: completed rows use pale green, the active row includes `• Uploading…`, percentage, progress bar, and a distinct cancel control, and the support line includes aggregate uploaded count. Frame `2220:17399` governs completion: all rows use the completed treatment and the footer contains only `Done`. Completed and failed states use iconography/text in addition to color. Names are escaped and visually truncated with complete accessible text. Responsive states preserve reachable header, scrollable content, and footer actions.
 
 ## API and integrations
 

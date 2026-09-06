@@ -138,18 +138,18 @@ Use these IDs to return to an exact FigJam note when its wording changes or need
 
 This section is an index for discovery, not a promise that the current data model is complete.
 
-| Domain concept                        | Current repository representation                                  | Alignment                                            |
-| ------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------- |
-| Organization                          | Prisma `Tenant`; product contracts and UI use Organization         | Partial naming mismatch; keep `Tenant` internal only |
-| User                                  | Prisma `User` plus provider and credential records                 | Implemented for current authentication scope         |
-| Membership and Organization Role      | Prisma `Membership.roleId`; centralized permission map             | Implemented for current site scope                   |
-| Plan allowances                       | `OnboardingPlanSelection` including `maximumSites`                 | Partial; seat and storage allowances are not modeled |
-| Site and Site Access                  | Prisma `Site`, `SiteGrant`, and `SiteInvitation`                   | Organization, People You Invite, and Private scopes  |
+| Domain concept                        | Current repository representation                                                                           | Alignment                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Organization                          | Prisma `Tenant`; product contracts and UI use Organization                                                  | Partial naming mismatch; keep `Tenant` internal only |
+| User                                  | Prisma `User` plus provider and credential records                                                          | Implemented for current authentication scope         |
+| Membership and Organization Role      | Prisma `Membership.roleId`; centralized permission map                                                      | Implemented for current site scope                   |
+| Plan allowances                       | `OnboardingPlanSelection` including `maximumSites`                                                          | Partial; seat and storage allowances are not modeled |
+| Site and Site Access                  | Prisma `Site`, `SiteGrant`, and `SiteInvitation`                                                            | Organization, People You Invite, and Private scopes  |
 | Allocation Plan                       | Prisma `AllocationPlan`, `AllocationPlanUpload`, and `AllocationPlanUploadBatch`; private S3 object storage | Implemented for approved add/list scope              |
-| Sign                                  | No approved persistent model                                       | Source-only concept                                  |
-| Document, Image, Video                | No approved persistent models                                      | Source-only concepts                                 |
-| Sign Comment, Allocation Plan Comment | No approved persistent models                                      | Source-only concepts                                 |
-| Activity                              | Activity route placeholder only; no approved activity record model | Partial/source-only concept                          |
+| Sign                                  | No approved persistent model                                                                                | Source-only concept                                  |
+| Document, Image, Video                | No approved persistent models                                                                               | Source-only concepts                                 |
+| Sign Comment, Allocation Plan Comment | No approved persistent models                                                                               | Source-only concepts                                 |
+| Activity                              | Activity route placeholder only; no approved activity record model                                          | Partial/source-only concept                          |
 
 When code and this table diverge, update the table in the same documentation change or explicitly explain why the new specification supersedes it.
 
