@@ -1,11 +1,11 @@
 # Feature: Site Signage Schedule
 
 - ID: `site-signage-schedule`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `Original scope approved in the Codex task on 2026-09-06; exact-table visual amendment awaiting approval`
+- Product and technical approval: `Original scope and exact-table visual amendment approved in the Codex task on 2026-09-06`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Sign, and Sign Comment; docs/domain/figjam-object-catalog.md — Organization, Site, Allocation Plan, and Sign objects; Canonical interpretation notes; Nesting map; Organization roles and permissions; Current implementation alignment; Source node index Sign nodes 24:25, 25:246, 25:437, 25:271, 25:272, and 25:360; and Known ambiguities 7 and 10`
 - Design authority: `User-supplied screenshots 04.png and 05.png`
 - Design evidence: `The supplied 1512×982 screenshots establish the Site shell, current Signage Schedule tab, toolbar, grouped Sign Type tables, editable-looking Sign rows, status colors, group totals, and add actions. Screenshot values are examples only and do not authorize seeded records.`
