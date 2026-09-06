@@ -69,7 +69,7 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
             filename: 'Ground Floor.pdf',
             mediaType: 'application/pdf' as const,
             byteSize: 1048576,
-            createdAt: '2026-06-06T00:00:00.000Z',
+            createdAt: '2026-09-04T00:00:00.000Z',
             modifiedAt: '2026-09-05T00:00:00.000Z',
             uploadedBy: 'Nabin Singh',
           },
@@ -78,7 +78,7 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
             filename: 'First Floor.png',
             mediaType: 'image/png' as const,
             byteSize: 512,
-            createdAt: '2026-06-06T00:00:00.000Z',
+            createdAt: '2026-09-04T00:00:00.000Z',
             modifiedAt: '2026-09-04T00:00:00.000Z',
             uploadedBy: 'Nabin Singh',
           },
@@ -96,24 +96,39 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
         finalizeAllocationPlanUpload={() => Promise.reject(new Error('unused'))}
       />,
     );
-    const table = await screen.findByRole('table', {
+    const grid = await screen.findByRole('list', {
       name: 'Allocation Plans',
     });
+    expect(within(grid).getByText('Ground Floor.pdf')).toBeVisible();
+    expect(within(grid).getByText('First Floor.png')).toBeVisible();
+    expect(within(grid).getByText('Edited 1 day ago')).toBeVisible();
+    expect(within(grid).getByText('Created 2 days ago')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    const search = screen.getByRole('searchbox', { name: 'Search plans' });
+    fireEvent.change(search, { target: { value: 'gRoUnD' } });
+    expect(within(grid).getByText('Ground Floor.pdf')).toBeVisible();
+    expect(within(grid).queryByText('First Floor.png')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'List view' }));
+    const table = screen.getByRole('table', { name: 'Allocation Plans' });
     for (const heading of ['Name', 'Last modified', 'Created'])
       expect(
         within(table).getByRole('columnheader', { name: heading }),
       ).toBeVisible();
     expect(within(table).getByText('Ground Floor.pdf')).toBeVisible();
-    expect(within(table).getByText('First Floor.png')).toBeVisible();
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search plans' }), {
-      target: { value: 'gRoUnD' },
-    });
-    expect(within(table).getByText('Ground Floor.pdf')).toBeVisible();
     expect(within(table).queryByText('First Floor.png')).toBeNull();
     expect(loadAllocationPlans).toHaveBeenCalledOnce();
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search plans' }), {
-      target: { value: 'roof' },
-    });
+    fireEvent.change(search, { target: { value: '' } });
+    expect(within(table).getByText('First Floor.png')).toBeVisible();
+    fireEvent.change(search, { target: { value: 'roof' } });
+    expect(screen.getByText('No plans match your search.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Grid view' }));
     expect(screen.getByText('No plans match your search.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
     expect(screen.getByRole('dialog', { name: 'Add plans' })).toBeVisible();

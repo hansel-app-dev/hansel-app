@@ -1,4 +1,4 @@
-/** @spec site-allocation-plans-empty-state REQ-020 @spec site-allocation-plans-add REQ-021, REQ-025 @figma 2037:1019, 2053:2594 */
+/** @spec site-allocation-plans-empty-state REQ-020 @spec site-allocation-plans-add REQ-021, REQ-025, REQ-026 @figma 2037:1019, 2053:2594, 2056:3131 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import type {
   AllocationPlansResponse,
@@ -105,7 +105,20 @@ const populatedArgs = {
   loadAllocationPlans: () => Promise.resolve(populatedPlans),
 };
 
-export const Populated: Story = { args: populatedArgs };
+export const PopulatedGrid: Story = { args: populatedArgs };
+
+export const PopulatedList: Story = {
+  args: populatedArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'List view' }),
+    );
+    await expect(
+      canvas.getByRole('table', { name: 'Allocation Plans' }),
+    ).toBeVisible();
+  },
+};
 
 export const NoSearchMatches: Story = {
   args: populatedArgs,
@@ -122,6 +135,17 @@ export const NoSearchMatches: Story = {
 export const PopulatedNarrow: Story = {
   args: populatedArgs,
   parameters: { viewport: { defaultViewport: 'mobile1' } },
+};
+
+export const PopulatedZoom200: Story = {
+  args: populatedArgs,
+  decorators: [
+    (Story) => (
+      <div style={{ width: '50%', zoom: 2 }}>
+        <Story />
+      </div>
+    ),
+  ],
 };
 
 export const ZeroMembers: Story = {
