@@ -1,11 +1,11 @@
 # Feature: Preview a Site Allocation Plan
 
 - ID: `site-allocation-plan-preview`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `Pending approval in the Codex task`
+- Product and technical approval: `Approved in the Codex task on 2026-09-06`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Document, and Image; docs/domain/figjam-object-catalog.md — Allocation Plan, Site, Organization, Document, and Image objects; Canonical interpretation notes; Nesting map; Current implementation alignment; and Known ambiguities 7, 8, and 10`
 - Design authority: `User-supplied screenshot 03.png, corresponding to the Hansel App UI Allocation Plan viewer`
 - Design evidence: `The supplied 1512×982 screenshot establishes the existing Site shell, current Allocations tab, and a large centered plan image occupying the remaining content canvas. It shows no approved editing, signage, page-navigation, download, comment, or metadata controls.`
