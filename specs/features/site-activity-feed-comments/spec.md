@@ -1,11 +1,11 @@
 # Feature: Site Activity Feed and Comments
 
 - ID: `site-activity-feed-comments`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `Pending review of this specification; the user approved the scope direction in the Codex task on 2026-09-06`
+- Product and technical approval: `Approved explicitly in the Codex task on 2026-09-06; recorded using the repository's established approval-commit workflow because configured CODEOWNERS teams are placeholders and cannot receive review requests`
 - Domain references: `CONTEXT.md — Organization, User, Membership, Organization Role, Site Access, Site, Allocation Plan, Sign, Activity, Sign Comment, and Allocation Plan Comment; docs/domain/figjam-object-catalog.md — Objects and data points (Organization, Site, Allocation Plan, Sign, Sign Comment, and Allocation Plan Comment); Canonical interpretation notes; Nesting map; Organization roles and permissions; Known ambiguities 7, 9, and 10; Current implementation alignment; Source node index Organization Activities node 30:828 and comment nodes 30:835 and 30:874`
 - Design authority: `User-supplied Site.png (1512×982)`
 - Design evidence: `The supplied design establishes a bounded lower-left Activity timeline, actor treatment, relative timestamps, visually distinct comment cards, and a comment composer with a trailing Comment action. Invoice language, example people, sample timestamps, attachment and emoji controls, and sample comments are reference content only and do not authorize Hansel records or behavior.`
