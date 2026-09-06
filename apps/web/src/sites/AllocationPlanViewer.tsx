@@ -103,13 +103,18 @@ export function AllocationPlanViewer({
             We couldn’t display this plan. Please try again.
           </p>
         ) : (
-          <div className="flex min-h-full min-w-full items-center justify-center">
-            <img
-              alt={plan.filename}
-              className="block h-auto max-h-none object-contain"
-              src={state.src}
+          <div className="flex min-h-full min-w-full items-center">
+            <div
+              className="mx-auto shrink-0"
+              data-testid="plan-zoom-surface"
               style={{ width: `${zoom}%` }}
-            />
+            >
+              <img
+                alt={plan.filename}
+                className="block h-auto w-full object-contain"
+                src={state.src}
+              />
+            </div>
           </div>
         )}
       </div>

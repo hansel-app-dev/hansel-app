@@ -193,6 +193,9 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
     ).not.toHaveAttribute('aria-current');
 
     const sections = screen.getByRole('navigation', { name: 'Site sections' });
+    expect(sections).toHaveClass('overflow-x-auto');
+    expect(sections).toHaveClass('[scrollbar-width:none]');
+    expect(sections).toHaveClass('[&::-webkit-scrollbar]:hidden');
     expect(
       within(sections).getByRole('link', {
         name: 'Allocations',

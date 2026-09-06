@@ -121,6 +121,12 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       name: `${plan.filename} preview`,
     });
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(screen.getByTestId('plan-zoom-surface')).toHaveStyle({
+      width: '125%',
+    });
+    expect(screen.getByRole('img', { name: plan.filename })).toHaveClass(
+      'w-full',
+    );
     expect(
       screen.getByRole('button', { name: 'Reset zoom' }),
     ).toHaveTextContent('125%');

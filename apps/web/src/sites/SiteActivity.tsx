@@ -454,7 +454,7 @@ function SiteDetails({
       <section className="px-8 py-8 max-md:px-5">
         <nav
           aria-label="Site sections"
-          className="flex min-h-[54px] max-w-full items-end gap-8 overflow-x-auto rounded border border-site-card-border bg-surface px-6 shadow-site-card"
+          className="flex min-h-[54px] max-w-full items-end gap-8 overflow-x-auto rounded border border-site-card-border bg-surface px-6 shadow-site-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <span
             className={`flex min-h-[53px] shrink-0 items-center gap-2 px-1 text-[14px] font-medium ${activeSection === 'activity' ? 'border-b-2 border-action-primary' : ''}`}
