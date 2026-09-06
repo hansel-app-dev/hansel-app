@@ -1,11 +1,11 @@
 # Feature: Preview a Site Allocation Plan
 
 - ID: `site-allocation-plan-preview`
-- Status: `approved`
+- Status: `draft`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `Approved in the Codex task on 2026-09-06`
+- Product and technical approval: `Pending approval of Space-drag panning amendment`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Document, and Image; docs/domain/figjam-object-catalog.md — Allocation Plan, Site, Organization, Document, and Image objects; Canonical interpretation notes; Nesting map; Current implementation alignment; and Known ambiguities 7, 8, and 10`
 - Design authority: `User-supplied screenshot 03.png, corresponding to the Hansel App UI Allocation Plan viewer`
 - Design evidence: `The supplied 1512×982 screenshot establishes the existing Site shell, current Allocations tab, and a large centered plan image occupying the remaining content canvas. It shows no approved editing, signage, page-navigation, download, comment, or metadata controls.`
@@ -47,6 +47,7 @@ Authorized Site members can see finalized Allocation Plans but cannot open one. 
 - REQ-013: The preview route, zoom states, loading, PNG/JPEG, PDF-first-page, decode failure, unavailable content, narrow width, and 200%-zoom states MUST be represented in Storybook using API-independent fixtures. Tests MUST prove link navigation, tenant-safe API behavior, strict headers, first-page-only PDF rendering, zoom bounds, reset, keyboard controls, cleanup, responsive behavior, axe results, and absence of storage identifiers without live AWS.
 - REQ-014: The feature MUST be guarded by the existing `allocationPlansEnabled` runtime flag and default off in production. The rollout MUST not change the bucket's public access, CORS, retention, upload permissions, or lifecycle configuration. The API task role MAY receive only the existing exact-prefix read permission needed to fetch finalized plan objects.
 - REQ-015: Telemetry MUST use bounded event names for preview requested, succeeded, failed, PDF decoded, and decode failed. Logs, metrics, and traces MUST NOT contain filenames, content bytes, bucket names, object keys, checksums, Site or Organization names, or other unbounded/personal dimensions.
+- REQ-016: While the pointer is over the viewer, holding the unmodified Space key and dragging with the primary pointer button MUST pan the zoomed plan in both axes by updating only the viewer's native scroll position. The interaction MUST show an open-hand cursor while armed and a closed-hand cursor while dragging, MUST suppress text/image dragging and page scrolling only for the active Space-pan gesture, and MUST end on pointer release, pointer cancellation, Space release, focus loss, or unmount. It MUST NOT replace native wheel, trackpad, touch, scrollbar, or keyboard access, and modified Space shortcuts MUST remain untouched.
 
 ## Acceptance scenarios
 
@@ -78,11 +79,19 @@ Authorized Site members can see finalized Allocation Plans but cannot open one. 
 - Then controls, scale, loading, failure, panning, and focus remain understandable and reachable
 - And obsolete requests, object URLs, PDF tasks, canvases, and buffers are cancelled or released
 
+### AC-005 — Space-drag pans the plan without moving the page [REQ-008, REQ-009, REQ-011, REQ-016]
+
+- Given the plan is zoomed beyond the available viewer canvas
+- When the member holds unmodified Space and drags the plan with the primary pointer button
+- Then the plan follows the gesture by changing the viewer's horizontal and vertical scroll positions
+- And releasing Space or the pointer, cancelling the pointer, losing focus, or leaving the route ends the gesture without leaving a stuck grabbing state
+- And native scrolling, touch interaction, focus, and modified browser or assistive-technology shortcuts continue to work
+
 ## UX and accessibility
 
 The route preserves the existing Site shell and current Allocations tab shown in screenshot 03.png. The content below the Site-section navigation becomes a neutral clipped canvas. The plan is centered and fit fully into the available area on first render. Compact zoom controls overlay the lower-right edge of the canvas without covering the primary plan content; their labels remain available to assistive technology and the current percentage is visible.
 
-The image/canvas has the filename as its accessible name. Loading and failure states occupy the same canvas so layout does not jump. Native scrolling provides panning at large scales. Keyboard zoom applies only while focus is within the viewer, does not override modified browser shortcuts, and announces bounded changes without stealing focus.
+The image/canvas has the filename as its accessible name. Loading and failure states occupy the same canvas so layout does not jump. Native scrolling provides panning at large scales. Holding Space over the viewer arms primary-pointer drag panning with open-hand and closed-hand cursor feedback while preserving native alternatives. Keyboard zoom and Space-pan apply only within the viewer, do not override modified browser shortcuts, and do not steal focus.
 
 ## API and integrations
 
@@ -112,7 +121,7 @@ Shell and content failures are independently retryable and generic. The client c
 - Add contract and route tests for authentication, Site/Organization scoping, finalized-only lookup, identifiers, media types, body bounds, exact security/cache headers, and generic failures.
 - Add store and S3-adapter tests for exact finalized lookup and bounded body reads without exposing internal identifiers.
 - Add client tests with PNG/JPEG fixtures and a deterministic multi-page PDF fixture proving that only page 1 is requested and rendered.
-- Add integration tests for card/row navigation, shell state, initial fit, button and keyboard zoom, bounds, reset, percentage announcement, panning containment, cleanup, retry, and route changes.
+- Add integration tests for card/row navigation, shell state, initial fit, button and keyboard zoom, bounds, reset, percentage announcement, native panning containment, Space-drag movement and cancellation, cleanup, retry, and route changes.
 - Add Storybook visual/axe checks for normal, loading, error, bounds, narrow width, and 200%-zoom states without live API or S3.
 - Run specification validation, formatting, lint, type checks, 100% unit coverage, production builds, Storybook, OpenAPI checks, CDK synthesis, and application E2E.
 
@@ -122,4 +131,4 @@ Deploy the additive API route and frontend behind the existing `allocationPlansE
 
 ## Open questions
 
-- None. Approval accepts first-page-only PDF rendering, same-origin authenticated byte delivery, no direct S3 reads, visible 25%–400% zoom controls, native scroll panning, no persistent derivatives, and no download or document-interaction behavior.
+- None. Approval will accept first-page-only PDF rendering, same-origin authenticated byte delivery, no direct S3 reads, visible 25%–400% zoom controls, native scroll panning plus unmodified Space-primary-pointer drag panning, no persistent derivatives, and no download or document-interaction behavior.
