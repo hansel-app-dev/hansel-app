@@ -71,6 +71,13 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
       'APPROVED',
     );
     expect(screen.getByDisplayValue('1')).toBeVisible();
+    expect(
+      screen.getByRole('columnheader', { name: 'Location' }),
+    ).toHaveAttribute('colspan', '2');
+    expect(
+      screen.getByRole('columnheader', { name: 'Content' }),
+    ).toHaveAttribute('colspan', '2');
+    expect(screen.getByRole('table')).toHaveClass('min-w-[1148px]');
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search signs' }), {
       target: { value: 'missing' },
     });
@@ -244,8 +251,8 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
     fireEvent.change(location, { target: { value: 'G009' } });
     fireEvent.blur(location);
     const add = screen.getAllByRole('button', { name: /Add sign/ })[0];
-    expect(add).toBeDefined();
-    fireEvent.click(add as HTMLElement);
+    if (!add) throw new Error('Expected an Add sign button');
+    fireEvent.click(add);
     const code = screen.getByRole('textbox', {
       name: /New sign code in Regulatory/,
     });

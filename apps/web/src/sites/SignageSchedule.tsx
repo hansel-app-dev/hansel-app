@@ -1,5 +1,11 @@
 /** @spec site-signage-schedule REQ-006..REQ-018 */
-import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type {
   Sign,
   SignType,
@@ -231,12 +237,24 @@ export function SignageSchedule({
             </div>
             {!collapsed.has(type.id) ? (
               <div
-                className={`mt-4 max-w-full overflow-x-auto rounded border border-control-border border-l-[6px] ${colors[type.color].rail}`}
+                className={`mt-4 max-w-full overflow-x-auto rounded-md border border-control-border border-l-[6px] ${colors[type.color].rail}`}
               >
-                <table className="w-full min-w-[900px] table-fixed text-left text-sm">
+                <table className="w-full min-w-[1148px] table-fixed border-collapse text-left text-sm">
+                  <colgroup>
+                    <col className="w-[34px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[80px]" />
+                    <col className="w-[116px]" />
+                    <col className="w-[34px]" />
+                    <col className="w-[136px]" />
+                    <col className="w-[34px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[150px]" />
+                    <col />
+                  </colgroup>
                   <thead>
-                    <tr>
-                      <th className="w-10 border-b border-r p-2">
+                    <tr className="h-[35px]">
+                      <th className="border-b border-r border-control-border p-0 text-center">
                         <input
                           aria-label={`Select all visible signs in ${type.name}`}
                           checked={allSelected}
@@ -252,21 +270,34 @@ export function SignageSchedule({
                           }}
                         />
                       </th>
-                      {[
-                        'Sign code',
-                        'Quantity',
-                        'Location',
-                        'Content',
-                        'Status',
-                        'Comments',
-                      ].map((heading) => (
-                        <th
-                          className="border-b border-r border-control-border px-3 py-2 font-normal"
-                          key={heading}
-                        >
-                          {heading}
-                        </th>
-                      ))}
+                      <th className="border-b border-r border-control-border px-3 font-normal">
+                        Sign code
+                      </th>
+                      <th className="border-b border-r border-control-border px-3 font-normal">
+                        Quantity
+                      </th>
+                      <th
+                        className="border-b border-r border-control-border px-3 font-normal"
+                        colSpan={2}
+                      >
+                        Location
+                      </th>
+                      <th
+                        className="border-b border-r border-control-border px-3 font-normal"
+                        colSpan={2}
+                      >
+                        Content
+                      </th>
+                      <th className="border-b border-r border-control-border px-3 font-normal">
+                        Status
+                      </th>
+                      <th className="border-b border-r border-control-border px-3 font-normal">
+                        Comments
+                      </th>
+                      <th
+                        className="border-b border-control-border"
+                        aria-hidden="true"
+                      />
                     </tr>
                   </thead>
                   <tbody>
@@ -286,8 +317,8 @@ export function SignageSchedule({
                     ))}
                     {initial.canManageSigns ? (
                       <tr>
-                        <td className="border-r" />
-                        <td colSpan={6} className="px-3 py-2">
+                        <td className="h-[35px] border-r border-control-border" />
+                        <td colSpan={9} className="h-[35px] px-3">
                           {Object.hasOwn(signDrafts, type.id) ? (
                             <DraftInput
                               label={`New sign code in ${type.name}`}
@@ -353,16 +384,16 @@ export function SignageSchedule({
                     ) : null}
                   </tbody>
                   <tfoot>
-                    <tr>
+                    <tr className="h-[35px]">
                       <td />
                       <td />
-                      <td className="border-t px-3 py-2">
+                      <td className="border-t border-r border-control-border px-3">
                         {type.signs.reduce(
                           (sum, sign) => sum + sign.quantity,
                           0,
                         )}
                       </td>
-                      <td colSpan={4} />
+                      <td colSpan={7} />
                     </tr>
                   </tfoot>
                 </table>
@@ -530,8 +561,8 @@ function SignRow({
   save: (field: EditableField, value: string | number) => Promise<void>;
 }) {
   return (
-    <tr>
-      <td className="border-b border-r p-2">
+    <tr className="h-[35px]">
+      <td className="border-b border-r border-control-border p-0 text-center">
         <input
           aria-label={`Select sign ${sign.code}`}
           checked={checked}
@@ -549,14 +580,20 @@ function SignRow({
           'comments',
         ] as EditableField[]
       ).map((field) => (
-        <SignCell
-          canEdit={canEdit}
-          field={field}
-          key={field}
-          sign={sign}
-          save={save}
-        />
+        <Fragment key={field}>
+          <SignCell canEdit={canEdit} field={field} sign={sign} save={save} />
+          {field === 'location' ? (
+            <IndicatorCell
+              glyph="map"
+              tone={sign.status === 'APPROVED' ? 'green' : 'orange'}
+            />
+          ) : null}
+          {field === 'content' ? (
+            <IndicatorCell glyph="visibility" tone="grey" />
+          ) : null}
+        </Fragment>
       ))}
+      <td className="border-b border-control-border" aria-hidden="true" />
     </tr>
   );
 }
@@ -602,7 +639,7 @@ function SignCell({
         <select
           aria-label={`${sign.code} status`}
           disabled={!canEdit || saving}
-          className="w-full bg-transparent px-3 py-2 text-center"
+          className="h-[34px] w-full bg-transparent px-3 text-center"
           value={value}
           onChange={(event) => {
             setValue(event.target.value);
@@ -617,7 +654,7 @@ function SignCell({
         <input
           aria-describedby={error ? `${sign.id}-${field}-error` : undefined}
           aria-label={`${sign.code} ${field}`}
-          className="w-full bg-transparent px-3 py-2 outline-none"
+          className="h-[34px] w-full min-w-0 truncate bg-transparent px-3 outline-none"
           disabled={!canEdit || saving}
           value={value}
           type={field === 'quantity' ? 'number' : 'text'}
@@ -645,6 +682,31 @@ function SignCell({
           {error}
         </span>
       ) : null}
+    </td>
+  );
+}
+
+function IndicatorCell({
+  glyph,
+  tone,
+}: {
+  glyph: 'map' | 'visibility';
+  tone: 'green' | 'orange' | 'grey';
+}) {
+  const toneClass =
+    tone === 'green'
+      ? 'text-[#55b800]'
+      : tone === 'orange'
+        ? 'text-[#ff9638]'
+        : 'text-[#a8adb5]';
+  return (
+    <td
+      className={`border-b border-r border-control-border text-center ${toneClass}`}
+      aria-hidden="true"
+    >
+      <AppSymbol className="!size-[18px] text-[18px]" weight={100}>
+        {glyph}
+      </AppSymbol>
     </td>
   );
 }
