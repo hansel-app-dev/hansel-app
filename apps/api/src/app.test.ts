@@ -93,6 +93,10 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       listAllocationPlans: vi
         .fn()
         .mockResolvedValue({ canAddPlans: true, plans: [] }),
+      loadAllocationPlanContent: vi.fn().mockResolvedValue({
+        mediaType: 'image/png',
+        bytes: new Uint8Array([1, 2, 3]),
+      }),
       createAllocationPlanUploadBatch: vi.fn().mockResolvedValue({
         uploads: [
           {
@@ -168,6 +172,69 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       .set('Cookie', cookie)
       .set('Origin', 'https://app.example.com')
       .expect(200);
+  });
+
+  it('serves authorized Allocation Plan bytes with private preview headers [site-allocation-plan-preview AC-001, AC-003]', async () => {
+    const response = await request(create().app)
+      .get(
+        `/api/sites/${siteId}/allocation-plans/00000000-0000-4000-8000-000000000006/content`,
+      )
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(200);
+    expect(response.headers['content-type']).toMatch(/^image\/png/);
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(response.headers['x-content-type-options']).toBe('nosniff');
+    expect(response.body).toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  it('fails closed across disabled, malformed, unauthenticated, missing, and unavailable previews [site-allocation-plan-preview AC-003]', async () => {
+    const planId = '00000000-0000-4000-8000-000000000006';
+    const path = `/api/sites/${siteId}/allocation-plans/${planId}/content`;
+    const disabled = createApp(
+      { allowedOrigin: 'https://app.example.com', sitesEnabled: true },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      create().sites,
+    );
+    await request(disabled).get(path).expect(404);
+    await request(create().app)
+      .get(`/api/sites/not-a-uuid/allocation-plans/${planId}/content`)
+      .expect(400);
+    await request(create().app)
+      .get(`/api/sites/${siteId}/allocation-plans/not-a-uuid/content`)
+      .expect(400);
+    await request(create().app).get(path).expect(401);
+    await request(
+      create({ loadAllocationPlanContent: vi.fn().mockResolvedValue(null) })
+        .app,
+    )
+      .get(path)
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(401);
+    for (const error of [
+      new AllocationPlansNotFoundError(),
+      new AllocationPlanUploadRejectedError(),
+    ])
+      await request(
+        create({
+          loadAllocationPlanContent: vi.fn().mockRejectedValue(error),
+        }).app,
+      )
+        .get(path)
+        .set('Cookie', 'hansel_access=access-token')
+        .expect(404, { error: 'allocation_plan_not_found' });
+    const unavailable = create({
+      loadAllocationPlanContent: vi.fn().mockRejectedValue(new Error('s3')),
+    });
+    await request(unavailable.app)
+      .get(path)
+      .set('Cookie', 'hansel_access=access-token')
+      .expect(503, { error: 'allocation_plan_unavailable' });
+    expect(unavailable.sites.recordEvent).toHaveBeenCalledWith(
+      'allocation_plan_preview_unavailable',
+    );
   });
 
   it.each([

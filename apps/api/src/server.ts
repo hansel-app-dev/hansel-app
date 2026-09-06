@@ -453,6 +453,12 @@ const sites: SitesModule = {
     const principal = await resolveSitePrincipal(credential);
     return principal ? allocationPlansFeature.list(principal, siteId) : null;
   },
+  async loadAllocationPlanContent(credential, siteId, planId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? allocationPlansFeature.content(principal, siteId, planId)
+      : null;
+  },
   async createAllocationPlanUploadBatch(credential, siteId, input) {
     const principal = await resolveSitePrincipal(credential);
     return principal

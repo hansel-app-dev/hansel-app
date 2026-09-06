@@ -157,6 +157,21 @@ export async function loadAllocationPlans(
   return allocationPlansResponseSchema.parse(await response.json());
 }
 
+export async function loadAllocationPlanContent(
+  siteId: string,
+  planId: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<Blob> {
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${siteId}/allocation-plans/${planId}/content`,
+    { credentials: 'include' },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('allocation_plan_preview_failed');
+  return response.blob();
+}
+
 export async function createAllocationPlanUploadBatch(
   siteId: string,
   input: CreateAllocationPlanUploadBatchRequest,

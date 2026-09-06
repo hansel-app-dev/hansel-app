@@ -60,6 +60,7 @@ const props = {
 
 describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-023]', () => {
   it('renders and filters the Figma Allocation Plan collection without refetching [site-allocation-plans-add REQ-025, AC-008]', async () => {
+    const navigate = vi.fn();
     const loadAllocationPlans = vi.fn(() =>
       Promise.resolve({
         canAddPlans: true,
@@ -94,12 +95,25 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
         }
         uploadAllocationPlan={() => Promise.reject(new Error('unused'))}
         finalizeAllocationPlanUpload={() => Promise.reject(new Error('unused'))}
+        navigate={navigate}
       />,
     );
     const grid = await screen.findByRole('list', {
       name: 'Allocation Plans',
     });
     expect(within(grid).getByText('Ground Floor.pdf')).toBeVisible();
+    expect(
+      within(grid).getByRole('link', { name: /Ground Floor\.pdf/ }),
+    ).toHaveAttribute(
+      'href',
+      `/sites/${siteId}/allocations/00000000-0000-4000-8000-000000000006`,
+    );
+    fireEvent.click(
+      within(grid).getByRole('link', { name: /Ground Floor\.pdf/ }),
+    );
+    expect(navigate).toHaveBeenCalledWith(
+      `/sites/${siteId}/allocations/00000000-0000-4000-8000-000000000006`,
+    );
     expect(within(grid).getByText('First Floor.png')).toBeVisible();
     expect(within(grid).getByText('Edited 1 day ago')).toBeVisible();
     expect(within(grid).getByText('Created 2 days ago')).toBeVisible();
@@ -126,6 +140,12 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
     expect(loadAllocationPlans).toHaveBeenCalledOnce();
     fireEvent.change(search, { target: { value: '' } });
     expect(within(table).getByText('First Floor.png')).toBeVisible();
+    fireEvent.click(
+      within(table).getByRole('link', { name: 'First Floor.png' }),
+    );
+    expect(navigate).toHaveBeenLastCalledWith(
+      `/sites/${siteId}/allocations/00000000-0000-4000-8000-000000000007`,
+    );
     fireEvent.change(search, { target: { value: 'roof' } });
     expect(screen.getByText('No plans match your search.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Grid view' }));
@@ -200,6 +220,25 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
     expect(screen.queryByRole('list', { name: 'Allocation Plans' })).toBeNull();
     fireEvent.click(within(sections).getByRole('link', { name: 'Activity' }));
     expect(navigate).toHaveBeenCalledWith(`/sites/${siteId}/activity`);
+  });
+
+  it('shows the generic preview failure when a linked plan no longer exists [site-allocation-plan-preview AC-003]', async () => {
+    render(
+      <SiteAllocationPlans
+        {...props}
+        loadAllocationPlanContent={() => Promise.resolve(new Blob())}
+        loadAllocationPlans={() =>
+          Promise.resolve({ canAddPlans: true, plans: [] })
+        }
+        previewPlanId="00000000-0000-4000-8000-000000000099"
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        'We couldn’t display this plan. Please try again.',
+      ),
+    ).toBeVisible();
   });
 
   it('validates the session before starting both established Site reads together [REQ-002, REQ-014, REQ-021; AC-004]', async () => {

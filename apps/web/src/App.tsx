@@ -21,6 +21,7 @@ import {
   createSite,
   loadSiteActivity,
   loadAllocationPlans,
+  loadAllocationPlanContent,
   createAllocationPlanUploadBatch,
   uploadAllocationPlan,
   finalizeAllocationPlanUpload,
@@ -185,6 +186,34 @@ export function App({
   const siteAllocationsMatch = /^\/sites\/(?:([^/]*)\/)?allocations$/.exec(
     currentPath,
   );
+  const siteAllocationPreviewMatch =
+    /^\/sites\/([0-9a-f-]{36})\/allocations\/([0-9a-f-]{36})$/.exec(
+      currentPath,
+    );
+  if (siteAllocationPreviewMatch?.[1] && siteAllocationPreviewMatch[2]) {
+    const siteId = siteAllocationPreviewMatch[1];
+    const planId = siteAllocationPreviewMatch[2];
+    return (
+      <SiteAllocationPlans
+        loadAllocationPlanContent={() =>
+          handleApplicationSession(
+            loadAllocationPlanContent(siteId, planId, apiUrl),
+          )
+        }
+        loadAllocationPlans={() =>
+          handleApplicationSession(loadAllocationPlans(siteId, apiUrl))
+        }
+        loadDashboard={loadAuthenticatedViewer}
+        loadSite={() =>
+          handleApplicationSession(loadSiteActivity(siteId, apiUrl))
+        }
+        loadSites={() => handleApplicationSession(loadSites(apiUrl))}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+        previewPlanId={planId}
+      />
+    );
+  }
   if (siteAllocationsMatch) {
     const siteId = siteAllocationsMatch[1] ?? '';
     const validSiteId =

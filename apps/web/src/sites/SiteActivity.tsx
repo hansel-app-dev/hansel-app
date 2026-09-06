@@ -16,6 +16,7 @@ import {
 import { Button } from '../design-system/index.js';
 import { relativeTime, SiteMemberPreview } from './SiteCollection.js';
 import { AddPlansModal } from './AddPlansModal.js';
+import { AllocationPlanViewer } from './AllocationPlanViewer.js';
 
 interface SiteDetailsRequest {
   attempt: number;
@@ -39,7 +40,7 @@ interface SharedSiteDetailsProps {
   loadSite: () => Promise<SiteActivityResponse>;
   loadSites: () => Promise<SitesPageResponse>;
   logout: () => Promise<void>;
-  navigate?: (destination: string) => void;
+  navigate?: ((destination: string) => void) | undefined;
   loadAllocationPlans?: () => Promise<AllocationPlansResponse>;
   createAllocationPlanUploadBatch?: (
     input: CreateAllocationPlanUploadBatchRequest,
@@ -51,14 +52,20 @@ interface SharedSiteDetailsProps {
     options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
   ) => Promise<void>;
   finalizeAllocationPlanUpload?: (uploadId: string) => Promise<void>;
+  previewPlanId?: string;
+  loadAllocationPlanContent?: () => Promise<Blob>;
 }
 
 export function AllocationPlanCollection({
   now = new Date(),
   plans,
+  siteId,
+  navigate,
 }: {
   now?: Date;
   plans: readonly AllocationPlan[];
+  siteId: string;
+  navigate?: ((destination: string) => void) | undefined;
 }) {
   const [query, setQuery] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -129,7 +136,16 @@ export function AllocationPlanCollection({
                     layers
                   </AppSymbol>
                 </span>
-                <span className="ml-2 min-w-0 flex-1">
+                <a
+                  className="ml-2 min-w-0 flex-1 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  href={`/sites/${siteId}/allocations/${plan.id}`}
+                  onClick={(event) => {
+                    /* v8 ignore next -- the href is the tested no-JavaScript fallback */
+                    if (!navigate) return;
+                    event.preventDefault();
+                    navigate(event.currentTarget.pathname);
+                  }}
+                >
                   <span
                     className="block truncate text-[14px] font-medium"
                     title={plan.filename}
@@ -140,7 +156,7 @@ export function AllocationPlanCollection({
                     {plan.createdAt === plan.modifiedAt ? 'Created' : 'Edited'}{' '}
                     {relativeTime(plan.modifiedAt, now)}
                   </span>
-                </span>
+                </a>
                 <AppSymbol
                   className="ml-3 !size-4 shrink-0 text-[18px] text-content-muted"
                   weight={100}
@@ -195,12 +211,19 @@ export function AllocationPlanCollection({
                             ? 'picture_as_pdf'
                             : 'image'}
                         </AppSymbol>
-                        <span
+                        <a
                           className="min-w-0 truncate font-medium"
+                          href={`/sites/${siteId}/allocations/${plan.id}`}
+                          onClick={(event) => {
+                            /* v8 ignore next -- the href is the tested no-JavaScript fallback */
+                            if (!navigate) return;
+                            event.preventDefault();
+                            navigate(event.currentTarget.pathname);
+                          }}
                           title={plan.filename}
                         >
                           {plan.filename}
-                        </span>
+                        </a>
                       </div>
                     </td>
                     <td className="px-3 py-1 text-[12px] text-site-row">
@@ -231,6 +254,8 @@ function SiteDetails({
   createAllocationPlanUploadBatch,
   uploadAllocationPlan,
   finalizeAllocationPlanUpload,
+  previewPlanId,
+  loadAllocationPlanContent,
 }: SharedSiteDetailsProps & { activeSection: 'activity' | 'allocations' }) {
   const [loadState, setLoadState] = useState<SiteDetailsLoadState | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -521,6 +546,22 @@ function SiteDetails({
               </div>
             </section>
           </>
+        ) : previewPlanId && loadAllocationPlanContent ? (
+          (() => {
+            const plan = allocationPlans.plans.find(
+              (candidate) => candidate.id === previewPlanId,
+            );
+            return plan ? (
+              <AllocationPlanViewer
+                loadContent={loadAllocationPlanContent}
+                plan={plan}
+              />
+            ) : (
+              <p className="grid min-h-[420px] place-items-center text-sm text-content-muted">
+                We couldn’t display this plan. Please try again.
+              </p>
+            );
+          })()
         ) : allocationPlans.plans.length === 0 ? (
           <section
             aria-labelledby="no-allocation-plans-heading"
@@ -591,7 +632,11 @@ function SiteDetails({
               </Button>
             </div>
             <div className="mt-5">
-              <AllocationPlanCollection plans={allocationPlans.plans} />
+              <AllocationPlanCollection
+                navigate={navigate}
+                plans={allocationPlans.plans}
+                siteId={siteContext.site.id}
+              />
             </div>
           </section>
         )}

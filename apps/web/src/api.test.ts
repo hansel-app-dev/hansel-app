@@ -25,6 +25,7 @@ import {
   loadSiteActivity,
   loadSites,
   loadAllocationPlans,
+  loadAllocationPlanContent,
   createAllocationPlanUploadBatch,
   uploadAllocationPlan,
   finalizeAllocationPlanUpload,
@@ -239,6 +240,29 @@ describe('Allocation Plans API [site-allocation-plans-add REQ-006..REQ-017]', ()
     ).resolves.toEqual({ plan });
   });
 
+  it('loads private Allocation Plan preview bytes [site-allocation-plan-preview AC-001, AC-003]', async () => {
+    const loaded = await loadAllocationPlanContent(
+      siteId,
+      plan.id,
+      '',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response('png', { headers: { 'content-type': 'image/png' } }),
+        ),
+    );
+    expect(loaded.type).toBe('image/png');
+    expect(loaded.size).toBe(3);
+    await expect(
+      loadAllocationPlanContent(
+        siteId,
+        plan.id,
+        '',
+        vi.fn().mockResolvedValue(new Response(null, { status: 503 })),
+      ),
+    ).rejects.toThrow('allocation_plan_preview_failed');
+  });
+
   it('maps disabled, expired, and unavailable operations safely [AC-002, AC-003]', async () => {
     await expect(
       loadAllocationPlans(
@@ -253,6 +277,8 @@ describe('Allocation Plans API [site-allocation-plans-add REQ-006..REQ-017]', ()
         createAllocationPlanUploadBatch(siteId, requestBody, '', fetcher),
       (fetcher: typeof fetch) =>
         finalizeAllocationPlanUpload(siteId, uploadId, '', fetcher),
+      (fetcher: typeof fetch) =>
+        loadAllocationPlanContent(siteId, plan.id, '', fetcher),
     ]) {
       await expect(
         operation(

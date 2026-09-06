@@ -65,6 +65,10 @@ function setup(overrides: Partial<AllocationPlanObjectStore> = {}) {
   const store: AllocationPlanStore = {
     canAccess,
     list: vi.fn().mockResolvedValue([]),
+    findContent: vi.fn().mockResolvedValue({
+      objectKey: 'plans/one',
+      mediaType: 'image/png',
+    }),
     createBatch,
     findUpload,
     complete,
@@ -80,6 +84,7 @@ function setup(overrides: Partial<AllocationPlanObjectStore> = {}) {
     }),
     remove,
     promote,
+    read: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])),
     ...overrides,
   };
   return {
@@ -106,6 +111,40 @@ function setup(overrides: Partial<AllocationPlanObjectStore> = {}) {
 }
 
 describe('Allocation Plans [site-allocation-plans-add REQ-001..REQ-019]', () => {
+  it('returns bounded finalized content without exposing its object key [site-allocation-plan-preview REQ-002..REQ-005]', async () => {
+    const { feature } = setup();
+    await expect(
+      feature.content(
+        principal,
+        siteId,
+        '00000000-0000-4000-8000-000000000006',
+      ),
+    ).resolves.toEqual({
+      mediaType: 'image/png',
+      bytes: new Uint8Array([1, 2, 3]),
+    });
+  });
+
+  it('rejects missing, unsupported, empty, and oversized preview content [site-allocation-plan-preview AC-003]', async () => {
+    const missing = setup();
+    missing.store.findContent = vi.fn().mockResolvedValue(null);
+    await expect(
+      missing.feature.content(principal, siteId, upload.id),
+    ).rejects.toBeInstanceOf(AllocationPlansNotFoundError);
+    const unsupported = setup();
+    unsupported.store.findContent = vi
+      .fn()
+      .mockResolvedValue({ objectKey: 'plans/x', mediaType: 'text/html' });
+    await expect(
+      unsupported.feature.content(principal, siteId, upload.id),
+    ).rejects.toBeInstanceOf(AllocationPlanUploadRejectedError);
+    for (const bytes of [new Uint8Array(), new Uint8Array(5_242_881)]) {
+      const invalid = setup({ read: vi.fn().mockResolvedValue(bytes) });
+      await expect(
+        invalid.feature.content(principal, siteId, upload.id),
+      ).rejects.toBeInstanceOf(AllocationPlanUploadRejectedError);
+    }
+  });
   it('creates a private upload intent and finalizes verified PDF bytes [AC-001]', async () => {
     const { feature, spies } = setup();
     const batch = await feature.createBatch(principal, siteId, {

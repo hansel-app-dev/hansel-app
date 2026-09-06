@@ -63,7 +63,13 @@ function fixture() {
   };
   const prisma = {
     site: { count: vi.fn().mockResolvedValue(1) },
-    allocationPlan: { findMany: vi.fn().mockResolvedValue([plan]) },
+    allocationPlan: {
+      findMany: vi.fn().mockResolvedValue([plan]),
+      findFirst: vi.fn().mockResolvedValue({
+        objectKey: 'plans/p',
+        mediaType: 'application/pdf',
+      }),
+    },
     allocationPlanUpload: {
       findFirst: vi.fn().mockResolvedValue(upload),
       updateMany: vi.fn(),
@@ -97,6 +103,10 @@ describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-0
         uploadedBy: 'Nabin Singh',
       },
     ]);
+    await expect(store.findContent(principal, 's', 'p')).resolves.toEqual({
+      objectKey: 'plans/p',
+      mediaType: 'application/pdf',
+    });
     await expect(store.findUpload(principal, 's', 'u1')).resolves.toMatchObject(
       { id: 'u1' },
     );

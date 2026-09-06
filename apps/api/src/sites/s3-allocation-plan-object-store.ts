@@ -85,5 +85,12 @@ export function createS3AllocationPlanObjectStore(input: {
         }),
       );
     },
+    async read(objectKey) {
+      const object = await client.send(
+        new GetObjectCommand({ Bucket: input.bucketName, Key: objectKey }),
+      );
+      if (!object.Body) throw new Error('allocation_plan_object_empty');
+      return object.Body.transformToByteArray();
+    },
   };
 }

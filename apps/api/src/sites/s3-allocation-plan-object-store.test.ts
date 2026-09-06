@@ -21,7 +21,12 @@ describe('S3 Allocation Plan objects [site-allocation-plans-add REQ-009..REQ-014
         },
       })
       .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({});
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({
+        Body: {
+          transformToByteArray: () => Promise.resolve(new Uint8Array([3])),
+        },
+      });
     const sign = vi.fn().mockResolvedValue('https://uploads.example/one');
     const store = createS3AllocationPlanObjectStore({
       bucketName: 'private',
@@ -52,7 +57,8 @@ describe('S3 Allocation Plan objects [site-allocation-plans-add REQ-009..REQ-014
     });
     await store.remove('quarantine/one');
     await store.promote('quarantine/one', 'plans/one');
-    expect(send).toHaveBeenCalledTimes(4);
+    await expect(store.read('plans/one')).resolves.toEqual(new Uint8Array([3]));
+    expect(send).toHaveBeenCalledTimes(5);
   });
 
   it('returns null only for missing objects [AC-002]', async () => {
@@ -78,6 +84,7 @@ describe('S3 Allocation Plan objects [site-allocation-plans-add REQ-009..REQ-014
         send: vi
           .fn()
           .mockResolvedValueOnce({})
+          .mockResolvedValueOnce({ Body: undefined })
           .mockResolvedValueOnce({ Body: undefined }),
       } as never,
     });
@@ -85,5 +92,8 @@ describe('S3 Allocation Plan objects [site-allocation-plans-add REQ-009..REQ-014
       byteSize: -1,
       leadingBytes: new Uint8Array(),
     });
+    await expect(empty.read('empty')).rejects.toThrow(
+      'allocation_plan_object_empty',
+    );
   });
 });

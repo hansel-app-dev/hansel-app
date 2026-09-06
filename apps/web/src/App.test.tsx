@@ -553,6 +553,79 @@ describe('App [REQ-002]', () => {
     });
   });
 
+  it('opens a finalized Allocation Plan in the private viewer [site-allocation-plan-preview AC-001]', async () => {
+    const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+    const planId = 'a87f107e-ac6e-46a7-b46c-11a86dd56c74';
+    Object.assign(URL, {
+      createObjectURL: vi.fn().mockReturnValue('blob:plan'),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.endsWith(`/${planId}/content`))
+          return Promise.resolve(
+            new Response('png', {
+              headers: { 'content-type': 'image/png' },
+            }),
+          );
+        const value = url.endsWith('/api/dashboard')
+          ? {
+              viewer: {
+                displayName: 'Nabin Singh',
+                initials: 'NS',
+                roleLabel: 'Owner',
+              },
+            }
+          : url.endsWith('/api/sites')
+            ? {
+                organizationName: 'Hansel',
+                canCreateSite: true,
+                canInviteMembers: true,
+                creator: {
+                  email: 'owner@example.com',
+                  displayName: 'Owner',
+                  initials: 'O',
+                },
+                siteLimitReached: false,
+                maximumSites: null,
+                members: [],
+                sites: [
+                  {
+                    id: siteId,
+                    name: 'Direct site',
+                    createdAt: '2026-09-05T10:00:00.000Z',
+                    updatedAt: '2026-09-05T10:00:00.000Z',
+                    memberCount: 0,
+                    memberPreview: [],
+                  },
+                ],
+              }
+            : url.endsWith('/allocation-plans')
+              ? {
+                  canAddPlans: true,
+                  plans: [
+                    {
+                      id: planId,
+                      filename: 'Ground Floor.png',
+                      mediaType: 'image/png',
+                      byteSize: 3,
+                      createdAt: '2026-09-06T00:00:00.000Z',
+                      modifiedAt: '2026-09-06T00:00:00.000Z',
+                      uploadedBy: 'Owner',
+                    },
+                  ],
+                }
+              : { site: { id: siteId, name: 'Direct site' } };
+        return Promise.resolve(new Response(JSON.stringify(value)));
+      }),
+    );
+    render(<App path={`/sites/${siteId}/allocations/${planId}`} />);
+    expect(
+      await screen.findByRole('img', { name: 'Ground Floor.png' }),
+    ).toHaveAttribute('src', 'blob:plan');
+  });
+
   it.each(['/sites/allocations', '/sites/not-a-site/allocations'])(
     'rejects the malformed Allocation Plans route %s through the generic Site boundary [site-allocation-plans-empty-state REQ-001, AC-003]',
     async (path) => {

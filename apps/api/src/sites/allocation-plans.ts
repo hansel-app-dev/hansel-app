@@ -29,6 +29,11 @@ export interface AllocationPlanStore {
     principal: ApplicationPrincipal,
     siteId: string,
   ): Promise<AllocationPlan[]>;
+  findContent(
+    principal: ApplicationPrincipal,
+    siteId: string,
+    planId: string,
+  ): Promise<{ objectKey: string; mediaType: string } | null>;
   createBatch(input: {
     principal: ApplicationPrincipal;
     siteId: string;
@@ -79,6 +84,7 @@ export interface AllocationPlanObjectStore {
   } | null>;
   remove(objectKey: string): Promise<void>;
   promote(sourceKey: string, destinationKey: string): Promise<void>;
+  read(objectKey: string): Promise<Uint8Array>;
 }
 
 export class AllocationPlansForbiddenError extends Error {}
@@ -125,6 +131,27 @@ export function createAllocationPlansFeature(dependencies: {
         canAddPlans: canAdd(principal.roleId),
         plans: await dependencies.store.list(principal, siteId),
       };
+    },
+    async content(
+      principal: ApplicationPrincipal,
+      siteId: string,
+      planId: string,
+    ): Promise<{ mediaType: string; bytes: Uint8Array }> {
+      await authorize(principal, siteId);
+      const plan = await dependencies.store.findContent(
+        principal,
+        siteId,
+        planId,
+      );
+      if (!plan) throw new AllocationPlansNotFoundError();
+      if (
+        !['image/png', 'image/jpeg', 'application/pdf'].includes(plan.mediaType)
+      )
+        throw new AllocationPlanUploadRejectedError();
+      const bytes = await dependencies.objects.read(plan.objectKey);
+      if (bytes.byteLength < 1 || bytes.byteLength > 5_242_880)
+        throw new AllocationPlanUploadRejectedError();
+      return { mediaType: plan.mediaType, bytes };
     },
     async createBatch(
       principal: ApplicationPrincipal,

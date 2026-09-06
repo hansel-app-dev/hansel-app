@@ -100,6 +100,17 @@ export function createPrismaAllocationPlanStore(
       });
       return records.map(toPlan);
     },
+    async findContent(principal, siteId, planId) {
+      return prisma.allocationPlan.findFirst({
+        where: {
+          id: planId,
+          siteId,
+          tenantId: principal.tenantId,
+          site: accessWhere(principal),
+        },
+        select: { objectKey: true, mediaType: true },
+      });
+    },
     async createBatch(input) {
       return prisma.$transaction(async (transaction) => {
         const previous = await transaction.allocationPlanUploadBatch.findUnique(
@@ -153,12 +164,11 @@ export function createPrismaAllocationPlanStore(
             expiresAt: input.expiresAt,
           })),
         });
-        const created = await transaction.allocationPlanUploadBatch.findUniqueOrThrow(
-          {
+        const created =
+          await transaction.allocationPlanUploadBatch.findUniqueOrThrow({
             where: { id: batch.id },
             include: { uploads: { include: uploadInclude } },
-          },
-        );
+          });
         return { status: 'created', uploads: created.uploads.map(toUpload) };
       });
     },

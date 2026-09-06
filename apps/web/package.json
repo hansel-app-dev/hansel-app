@@ -19,6 +19,7 @@
     "@material-symbols/font-100": "0.47.0",
     "@material-symbols/font-200": "0.47.0",
     "@vitejs/plugin-react": "^5.0.2",
+    "pdfjs-dist": "5.4.149",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.86.0",

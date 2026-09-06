@@ -224,6 +224,11 @@ export interface SitesModule {
     accessCredential: string,
     siteId: string,
   ): Promise<AllocationPlansResponse | null>;
+  loadAllocationPlanContent?(
+    accessCredential: string,
+    siteId: string,
+    planId: string,
+  ): Promise<{ mediaType: string; bytes: Uint8Array } | null>;
   createAllocationPlanUploadBatch?(
     accessCredential: string,
     siteId: string,
@@ -1169,6 +1174,62 @@ export function createApp(
           }
           sites.recordEvent?.('allocation_plans_load_unavailable');
           response.status(503).json({ error: 'allocation_plans_unavailable' });
+        }
+      },
+    );
+
+    app.get(
+      '/api/sites/:siteId/allocation-plans/:planId/content',
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        response.setHeader('X-Content-Type-Options', 'nosniff');
+        response.setHeader(
+          'Content-Security-Policy',
+          "default-src 'none'; sandbox",
+        );
+        if (
+          !config.allocationPlansEnabled ||
+          !sites.loadAllocationPlanContent
+        ) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        const siteId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        );
+        const planId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.planId,
+        );
+        const credential = readApplicationCredential(request);
+        if (!siteId.success || !planId.success) {
+          response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        if (!credential) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        try {
+          const result = await sites.loadAllocationPlanContent(
+            credential,
+            siteId.data,
+            planId.data,
+          );
+          if (!result) {
+            response.status(401).json({ error: 'authentication_required' });
+            return;
+          }
+          response.type(result.mediaType).send(Buffer.from(result.bytes));
+        } catch (error) {
+          if (
+            error instanceof AllocationPlansNotFoundError ||
+            error instanceof AllocationPlanUploadRejectedError
+          ) {
+            response.status(404).json({ error: 'allocation_plan_not_found' });
+            return;
+          }
+          sites.recordEvent?.('allocation_plan_preview_unavailable');
+          response.status(503).json({ error: 'allocation_plan_unavailable' });
         }
       },
     );
