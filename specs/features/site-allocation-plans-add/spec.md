@@ -1,11 +1,11 @@
 # Feature: Add Site Allocation Plans
 
 - ID: `site-allocation-plans-add`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `The upload and list scope was approved in the Codex task on 2026-09-06. The grid/list presentation amendment based on supplied screenshots 01.png and 02.png is pending fresh approval.`
+- Product and technical approval: `Approved in the Codex task on 2026-09-06, including the grid/list presentation amendment based on supplied screenshots 01.png and 02.png.`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Sign, Document, Image, and Storage Allowance; docs/domain/figjam-object-catalog.md — Allocation Plan, Site, Organization, Document, and Image objects; Canonical interpretation notes; Nesting map; Current implementation alignment; and Known ambiguities 7, 8, and 10`
 - Design authority: `Figma Hansel App UI frames 2057:3458 (Add plans), 2060:4943 (upload in progress), 2220:17399 (upload complete), 2053:2594 (Allocation Plan grid), and 2056:3131 (Allocation Plan list)`
 - Design evidence: `The three upload frames were browser-inspected at 100% zoom on 2026-09-06. The user supplied full-frame screenshots 01.png and 02.png for frames 2053:2594 and 2056:3131 on 2026-09-06. They establish the grid cards, list/table hierarchy, and adjacent grid/list controls. The structured Figma connector remains blocked by the Professional View-seat MCP call limit, so no unobserved interaction or data field is inferred.`
