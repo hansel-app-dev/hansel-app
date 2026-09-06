@@ -1,10 +1,11 @@
 # Feature: Organization Tray and Settings
 
 - ID: `organization-tray-settings`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-07`
+- Product and technical approval: `Approved explicitly by the user in the Codex task on 2026-09-07; recorded using the repository's established approval-commit workflow because configured CODEOWNERS teams are placeholders and cannot receive review requests`
 - Domain references: `CONTEXT.md — Organization, User, Membership, Organization Role, Owner, Administrator, Editor, Viewer, Plan, Seat Allowance; docs/domain/figjam-object-catalog.md — Objects and data points (Organization and User); Canonical interpretation notes; Organization roles and permissions; Known ambiguities 2, 3, 6, and 10; Current implementation alignment`
 - Design authority: `User-supplied Dashboard_ Open Organization Tray.png (1512×982) and Settings.png (1512×982)`
 - Design evidence: `The Organization-tray design establishes a three-dot trigger beside the Organization name, an anchored menu with Plan, Settings, Invite members, account identity, Organization Role, and Log out. The Settings design establishes a centred modal, dimmed application backdrop, left settings navigation, close control, and an Account overview. “Workspace”, John Smith, john.s@hanselapp.com, Superadmin, Pro Plan, and every sample value are reference content only.`
