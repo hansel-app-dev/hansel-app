@@ -1,14 +1,14 @@
 # Feature: Add Site Allocation Plans
 
 - ID: `site-allocation-plans-add`
-- Status: `approved`
+- Status: `draft`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`
-- Product and technical approval: `Approved in the Codex task on 2026-09-06 for the Figma progress-state amendment`
+- Product and technical approval: `Pending approval for the uploaded-plan collection presentation amendment`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Sign, Document, Image, and Storage Allowance; docs/domain/figjam-object-catalog.md — Allocation Plan, Site, Organization, Document, and Image objects; Canonical interpretation notes; Nesting map; Current implementation alignment; and Known ambiguities 7, 8, and 10`
-- Design authority: `Figma Hansel App UI frames 2057:3458 (Add plans), 2060:4943 (upload in progress), and 2220:17399 (upload complete)`
-- Design evidence: `All three exact frames were browser-inspected at 100% zoom on 2026-09-06; the structured Figma connector was blocked by the Professional View-seat MCP call limit`
+- Design authority: `Figma Hansel App UI frames 2057:3458 (Add plans), 2060:4943 (upload in progress), 2220:17399 (upload complete), and 2053:2594 (uploaded-plan collection)`
+- Design evidence: `The three upload frames were browser-inspected at 100% zoom on 2026-09-06. For frame 2053:2594, the supplied visible text establishes the list/table hierarchy; the structured Figma connector remains blocked by the Professional View-seat MCP call limit, so no unobserved interaction or data field is inferred.`
 - Supersedes on implementation: `site-allocation-plans-empty-state REQ-002, REQ-012, REQ-013, and its bounded no-persistence assumptions; all unaffected Site-shell, access, accessibility, and failure requirements remain authoritative`
 
 ## Problem
@@ -59,6 +59,7 @@ Authorized Site managers can reach the Allocation Plans empty state, but `Add pl
 - REQ-022: OpenAPI MUST define the collection, upload-intent, and finalize contracts with strict schemas and categorical failures. Prisma MUST add tenant-safe Allocation Plan and upload-intent models plus forward-only migration, indexes for Site ordering and expiry cleanup, unique idempotency constraints, and referential rules that cannot orphan a finalized record from its Site or Organization.
 - REQ-023: Frontend and backend unit suites MUST retain 100% statement, branch, function, and line coverage. Tests MUST prove permissions, tenant isolation, exact limits, signatures, checksums, idempotency, finalize races, expiry cleanup, private bucket policy, least privilege, exact UI copy, picker/drop parity, keyboard/focus behavior, concurrency bounds, partial failure, responsive reflow, axe, deterministic visuals, and critical E2E upload/list journeys without using live AWS.
 - REQ-024: Infrastructure and application behavior MUST be guarded by an `allocationPlansEnabled` stage context/runtime flag that defaults off in production. No local `.env` AWS key is copied into source, CloudFormation, the task definition, a browser bundle, logs, or test fixtures. CDK synthesis and tests MUST not require live AWS credentials or create a bucket.
+- REQ-025: When one or more finalized Allocation Plans exist, the route MUST present them using the collection hierarchy shown in Figma frame `2053:2594`: a searchable list/table with visible `Name`, `Last modified`, and `Created` column labels. Each row MUST show the full Allocation Plan filename as its name, use the existing `modifiedAt` and `createdAt` server values for the corresponding date columns, and expose the same values through semantic list/table markup. The presentation MUST retain the existing Site shell, current `Allocations` state, and enabled `Add plan` action for authorized managers. Search MUST match Allocation Plan filenames case-insensitively in the browser, update the visible rows without a network request, and provide an explicit no-matches state. The client MUST preserve the server-provided latest-created-first order and MUST NOT infer folders, campuses, addresses, thumbnails, navigation, preview, download, or other metadata from the frame's example values.
 
 ## Acceptance scenarios
 
@@ -111,11 +112,21 @@ Authorized Site managers can reach the Allocation Plans empty state, but `Add pl
 - Then the stage-scoped bucket, CORS, lifecycle, encryption, public-access block, production retention/versioning, logging, and least-privilege task policy match the specification
 - And no developer AWS credential is embedded or required for synthesis and production behavior remains off until explicitly enabled
 
+### AC-008 — Finalized Allocation Plans use the Figma collection presentation [REQ-015, REQ-016, REQ-021, REQ-023, REQ-025]
+
+- Given an authorized member opens a Site containing finalized Allocation Plans
+- When the Allocation Plans collection loads or the member filters it by filename
+- Then the route shows semantic `Name`, `Last modified`, and `Created` columns with one row per server-returned Allocation Plan
+- And filename search is case-insensitive, preserves server order, makes no additional request, and exposes an explicit no-matches state
+- And the UI fabricates no folder, campus, address, preview, or navigation behavior from Figma example content
+
 ## UX and accessibility
 
 The first modal state follows frame `2057:3458`: a centered white dialog over the muted Site Allocation Plans page, compact title/close header, `Add plans here` label, large dashed drop zone, file-upload artwork, centered drag/picker copy, supporting format/size text, and footer actions. After selection, the drop zone remains available for additional files and selected-file rows show truthful state. `Upload` becomes available only when the manifest is valid.
 
 The dialog is labelled by `Add plans`, traps focus, restores it to the invoker, and supports Escape and backdrop dismissal under REQ-005. Drag-and-drop is never the only input method. Validation is associated with the affected file; progress is exposed as bounded text and native progress semantics. Frame `2060:4943` governs the mixed completed/uploading state: completed rows use pale green, the active row includes `• Uploading…`, percentage, progress bar, and a distinct cancel control, and the support line includes aggregate uploaded count. Frame `2220:17399` governs completion: all rows use the completed treatment and the footer contains only `Done`. Completed and failed states use iconography/text in addition to color. Names are escaped and visually truncated with complete accessible text. Responsive states preserve reachable header, scrollable content, and footer actions.
+
+Frame `2053:2594` governs the non-empty collection hierarchy. Its visible `Name`, `Last modified`, and `Created` columns replace the temporary card grid. The implementation uses the approved Allocation Plan filename and timestamps only. Example labels such as `Ground Floor`, `First Floor`, and `Mawson Lakes Campus` are design samples, not authorization for folder or location fields. At narrow widths the row may reflow into a labelled stacked layout, but all three values and the filename search remain available without horizontal page scrolling.
 
 ## API and integrations
 
@@ -149,7 +160,7 @@ Metrics cover intent accepted/rejected, transfer finalization succeeded/rejected
 - Start with OpenAPI and contract tests for exact limits, normalized manifests, strict responses, categorical errors, and opaque identifiers.
 - Use test doubles for unit suites and an S3-compatible local test seam or AWS SDK request interception for integration; CI and E2E MUST never require live AWS credentials.
 - Exercise authorization, tenant isolation, batch idempotency, presigning constraints, `HeadObject`, signature range reads, checksum/size mismatches, finalize races, transaction rollback, expiry, and cleanup.
-- Add frontend tests for exact Figma copy, picker/drop parity, multiple selection, invalid/duplicate files, removal, cancel/abandon confirmation, three-transfer limit, partial failure, retry, progress announcements, and list transition.
+- Add frontend tests for exact Figma copy, picker/drop parity, multiple selection, invalid/duplicate files, removal, cancel/abandon confirmation, three-transfer limit, partial failure, retry, progress announcements, list transition, collection columns, timestamp presentation, and case-insensitive filename filtering.
 - Add Storybook and deterministic Playwright states from REQ-021, keyboard/focus-return checks, axe, 320-pixel and 200%-zoom checks, and critical upload/list journeys using a controlled S3 seam.
 - Extend CDK assertions for bucket count and configuration, task-role least privilege, no public policy, exact production CORS origins, lifecycle, logging, retention/versioning, feature-flag environment, and credential-free synthesis.
 - Run focused red-green-refactor checks while implementing, then migrations, specification validation, formatting, lint, types, 100% unit coverage, production builds, Storybook, design-system checks, application E2E, and CDK synthesis.
