@@ -184,7 +184,39 @@ export async function uploadAllocationPlan(
   file: File,
   headers: Record<string, string>,
   fetcher: typeof fetch = fetch,
+  options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
 ): Promise<void> {
+  if (options) {
+    await new Promise<void>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('PUT', uploadUrl);
+      for (const [name, value] of Object.entries(headers))
+        request.setRequestHeader(name, value);
+      request.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable)
+          options.onProgress(Math.round((event.loaded / event.total) * 100));
+      });
+      request.addEventListener('load', () => {
+        if (request.status >= 200 && request.status < 300) resolve();
+        else reject(new Error('allocation_plan_upload_failed'));
+      });
+      request.addEventListener('error', () => {
+        reject(new Error('allocation_plan_upload_failed'));
+      });
+      request.addEventListener('abort', () => {
+        reject(new Error('allocation_plan_upload_cancelled'));
+      });
+      options.signal.addEventListener(
+        'abort',
+        () => {
+          request.abort();
+        },
+        { once: true },
+      );
+      request.send(file);
+    });
+    return;
+  }
   const response = await fetcher(uploadUrl, {
     method: 'PUT',
     headers,

@@ -47,6 +47,7 @@ interface SharedSiteDetailsProps {
     url: string,
     file: File,
     headers: Record<string, string>,
+    options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
   ) => Promise<void>;
   finalizeAllocationPlanUpload?: (uploadId: string) => Promise<void>;
 }

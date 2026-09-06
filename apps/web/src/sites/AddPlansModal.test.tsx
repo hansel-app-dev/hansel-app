@@ -100,15 +100,95 @@ describe('AddPlansModal [site-allocation-plans-add REQ-002..REQ-005, REQ-019..RE
     if (!picker) throw new Error('Expected file picker');
     fireEvent.change(picker, { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
-    await waitFor(() => {
-      expect(onComplete).toHaveBeenCalledOnce();
-    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
+    expect(onComplete).toHaveBeenCalledOnce();
     expect(upload).toHaveBeenCalledWith(
       'https://uploads.example/plan',
       file,
       expect.any(Object),
+      expect.objectContaining({
+        onProgress: expect.any(Function),
+        signal: expect.any(AbortSignal),
+      }),
     );
     expect(finalize).toHaveBeenCalledOnce();
+  });
+
+  it('shows the Figma uploading progress and completed Done state [REQ-019]', async () => {
+    let finishUpload: (() => void) | undefined;
+    const upload = vi.fn<
+      (
+        url: string,
+        file: File,
+        headers: Record<string, string>,
+        options?: {
+          onProgress: (percentage: number) => void;
+          signal: AbortSignal;
+        },
+      ) => Promise<void>
+    >(
+      () =>
+        new Promise<void>((resolve) => {
+          finishUpload = resolve;
+        }),
+    );
+    const onComplete = vi.fn();
+    render(
+      <AddPlansModal
+        createBatch={() =>
+          Promise.resolve({
+            uploads: [
+              {
+                uploadId: '00000000-0000-4000-8000-000000000001',
+                uploadUrl: 'https://uploads.example/plan',
+                expiresAt: '2026-09-06T00:15:00.000Z',
+                headers: {
+                  'content-type': 'application/pdf',
+                  'x-amz-checksum-sha256':
+                    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                },
+              },
+            ],
+          })
+        }
+        finalize={() => Promise.resolve()}
+        onClose={vi.fn()}
+        onComplete={onComplete}
+        upload={upload}
+      />,
+    );
+    const picker = document.querySelector('input[type="file"]');
+    if (!picker) throw new Error('Expected file picker');
+    const file = new File(['%PDF-'], 'HANSEL_L1_6054.pdf', {
+      type: 'application/pdf',
+    });
+    Object.defineProperty(file, 'arrayBuffer', {
+      value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
+    });
+    fireEvent.change(picker, { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    await waitFor(() => {
+      expect(upload).toHaveBeenCalledOnce();
+    });
+    const options = upload.mock.calls[0]?.[3];
+    options?.onProgress(45);
+    expect(
+      await screen.findByText(/HANSEL_L1_6054\.pdf • Uploading…/),
+    ).toBeVisible();
+    expect((await screen.findAllByText('45%'))[0]).toBeVisible();
+    expect(screen.getByText('(0 of 1 uploaded)')).toBeVisible();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Cancel upload HANSEL_L1_6054.pdf',
+      }),
+    );
+    expect(options?.signal.aborted).toBe(true);
+    finishUpload?.();
+    expect(await screen.findByRole('button', { name: 'Done' })).toBeVisible();
+    expect(screen.getByText('(1 of 1 uploaded)')).toBeVisible();
+    expect(onComplete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(onComplete).toHaveBeenCalledOnce();
   });
 
   it('supports Escape, drop, and recoverable upload failure [AC-002, AC-006]', async () => {

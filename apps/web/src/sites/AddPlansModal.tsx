@@ -51,6 +51,7 @@ export function AddPlansModal({
     url: string,
     file: File,
     headers: Record<string, string>,
+    options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
   ) => Promise<void>;
   finalize: (uploadId: string) => Promise<void>;
   onClose: () => void;
@@ -59,6 +60,12 @@ export function AddPlansModal({
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [states, setStates] = useState<('queued' | 'uploading' | 'complete')[]>(
+    [],
+  );
+  const [progress, setProgress] = useState<number[]>([]);
+  const [complete, setComplete] = useState(false);
+  const controllers = useRef<(AbortController | undefined)[]>([]);
   const dialog = useRef<HTMLDivElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -80,6 +87,10 @@ export function AddPlansModal({
     }
     setError('');
     setFiles((current) => [...current, ...next].slice(0, 20));
+    setStates((current) =>
+      [...current, ...next.map(() => 'queued' as const)].slice(0, 20),
+    );
+    setProgress((current) => [...current, ...next.map(() => 0)].slice(0, 20));
   };
   const submit = async () => {
     setPending(true);
@@ -101,10 +112,34 @@ export function AddPlansModal({
       for (const [index, intent] of response.uploads.entries()) {
         const file = files[index];
         if (!file) throw new Error('Upload manifest mismatch');
-        await upload(intent.uploadUrl, file, intent.headers);
+        setStates((current) =>
+          current.map((state, item) =>
+            /* v8 ignore next -- sibling rows retain their state */
+            item === index ? 'uploading' : state,
+          ),
+        );
+        const controller = new AbortController();
+        controllers.current[index] = controller;
+        await upload(intent.uploadUrl, file, intent.headers, {
+          onProgress: (percentage) => {
+            setProgress((current) =>
+              current.map((value, item) =>
+                /* v8 ignore next -- sibling rows retain their progress */
+                item === index ? percentage : value,
+              ),
+            );
+          },
+          signal: controller.signal,
+        });
         await finalize(intent.uploadId);
+        setStates((current) =>
+          current.map((state, item) =>
+            /* v8 ignore next -- sibling rows retain their state */
+            item === index ? 'complete' : state,
+          ),
+        );
       }
-      onComplete();
+      setComplete(true);
     } catch {
       setError('We couldn’t upload every plan. Please try again.');
     } finally {
@@ -178,58 +213,108 @@ export function AddPlansModal({
             <ul aria-label="Selected plans" className="mt-4 space-y-2 text-sm">
               {files.map((file, index) => (
                 <li
-                  className="flex items-center justify-between rounded border border-control-border px-3 py-2"
+                  className={`rounded border px-4 py-3 ${
+                    states[index] === 'complete'
+                      ? 'border-[#88e6b5] bg-[#effff6]'
+                      : 'border-control-border bg-surface-subtle'
+                  }`}
                   key={[file.name, String(file.size), String(index)].join('-')}
                 >
-                  <span className="min-w-0 truncate">
-                    {file.name} · {(file.size / 1_048_576).toFixed(1)} MB
-                  </span>
-                  <button
-                    aria-label={`Remove ${file.name}`}
-                    disabled={pending}
-                    onClick={() => {
-                      setFiles((current) =>
-                        current.filter((_, item) => item !== index),
-                      );
-                    }}
-                    type="button"
-                  >
-                    Remove
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <AppSymbol className="text-[24px]" weight={100}>
+                      picture_as_pdf
+                    </AppSymbol>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">
+                        {file.name}
+                        {states[index] === 'uploading' ? ' • Uploading…' : ''}
+                      </p>
+                      {states[index] === 'uploading' ? (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span>{Number(progress[index])}%</span>
+                          <progress
+                            className="h-1 flex-1"
+                            max={100}
+                            value={Number(progress[index])}
+                          >
+                            {Number(progress[index])}%
+                          </progress>
+                        </div>
+                      ) : (
+                        <p className="text-content-muted">
+                          {(file.size / 1_048_576).toFixed(1)} MB
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      aria-label={`${states[index] === 'uploading' ? 'Cancel upload' : 'Remove'} ${file.name}`}
+                      className={
+                        states[index] === 'uploading' ? 'text-[#f59e0b]' : ''
+                      }
+                      disabled={states[index] === 'complete'}
+                      onClick={() => {
+                        if (states[index] === 'uploading') {
+                          controllers.current[index]?.abort();
+                          return;
+                        }
+                        setFiles((current) =>
+                          current.filter((_, item) => item !== index),
+                        );
+                        setStates((current) =>
+                          current.filter((_, item) => item !== index),
+                        );
+                        setProgress((current) =>
+                          current.filter((_, item) => item !== index),
+                        );
+                      }}
+                      type="button"
+                    >
+                      <AppSymbol weight={100}>cancel</AppSymbol>
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           ) : null}
-          <p className="mt-6 text-[13px] text-content-muted">
-            PNG, JPG and PDF supported and up to 5mb.
+          <p className="mt-6 text-[13px] text-content-muted" role="status">
+            PNG, JPG and PDF supported and up to 5mb.{' '}
+            {pending || complete ? (
+              <span>
+                ({states.filter((state) => state === 'complete').length} of{' '}
+                {files.length} uploaded)
+              </span>
+            ) : null}
           </p>
           {error ? (
             <p className="mt-3 text-sm text-danger" role="alert">
               {error}
             </p>
           ) : null}
-          {pending ? (
-            <p className="mt-3 text-sm" role="status">
-              Uploading plans…
-            </p>
-          ) : null}
         </div>
         <footer className="flex justify-end gap-4 border-t border-control-border bg-surface-subtle px-6 py-4">
-          <Button
-            disabled={pending}
-            onClick={onClose}
-            type="button"
-            variant="secondary"
-          >
-            Cancel
-          </Button>
-          <Button
-            disabled={pending || files.length === 0 || Boolean(error)}
-            onClick={() => void submit()}
-            type="button"
-          >
-            Upload
-          </Button>
+          {complete ? (
+            <Button onClick={onComplete} type="button">
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button
+                disabled={pending}
+                onClick={onClose}
+                type="button"
+                variant="secondary"
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={pending || files.length === 0 || Boolean(error)}
+                onClick={() => void submit()}
+                type="button"
+              >
+                Upload
+              </Button>
+            </>
+          )}
         </footer>
       </div>
     </div>

@@ -216,8 +216,8 @@ export function App({
             createAllocationPlanUploadBatch(siteId, input, apiUrl),
           )
         }
-        uploadAllocationPlan={(url, file, headers) =>
-          uploadAllocationPlan(url, file, headers)
+        uploadAllocationPlan={(url, file, headers, options) =>
+          uploadAllocationPlan(url, file, headers, fetch, options)
         }
         finalizeAllocationPlanUpload={(uploadId) =>
           handleApplicationSession(

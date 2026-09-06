@@ -274,6 +274,86 @@ describe('Allocation Plans API [site-allocation-plans-add REQ-006..REQ-017]', ()
       ),
     ).rejects.toThrow('allocation_plan_upload_failed');
   });
+
+  it('reports browser upload progress and maps transport outcomes [site-allocation-plans-add REQ-019]', async () => {
+    type Listener = (event: ProgressEvent) => void;
+    const listeners = new Map<string, Listener>();
+    const uploadListeners = new Map<string, Listener>();
+    const request = {
+      status: 200,
+      open: vi.fn(),
+      setRequestHeader: vi.fn(),
+      send: vi.fn(),
+      abort: vi.fn(() => {
+        listeners.get('abort')?.(new ProgressEvent('abort'));
+      }),
+      addEventListener: (name: string, listener: Listener) => {
+        listeners.set(name, listener);
+      },
+      upload: {
+        addEventListener: (name: string, listener: Listener) => {
+          uploadListeners.set(name, listener);
+        },
+      },
+    };
+    vi.stubGlobal(
+      'XMLHttpRequest',
+      vi.fn(() => request),
+    );
+    const progress = vi.fn();
+    const controller = new AbortController();
+    const file = new File(['plan'], 'plan.pdf');
+    const successful = uploadAllocationPlan(
+      'https://uploads.example/plan',
+      file,
+      { 'content-type': 'application/pdf' },
+      fetch,
+      { onProgress: progress, signal: controller.signal },
+    );
+    uploadListeners.get('progress')?.(
+      new ProgressEvent('progress', { lengthComputable: false }),
+    );
+    uploadListeners.get('progress')?.(
+      new ProgressEvent('progress', {
+        lengthComputable: true,
+        loaded: 45,
+        total: 100,
+      }),
+    );
+    listeners.get('load')?.(new ProgressEvent('load'));
+    await expect(successful).resolves.toBeUndefined();
+    expect(progress).toHaveBeenCalledWith(45);
+    expect(request.setRequestHeader).toHaveBeenCalledWith(
+      'content-type',
+      'application/pdf',
+    );
+    expect(request.send).toHaveBeenCalledWith(file);
+
+    for (const outcome of ['load', 'error'] as const) {
+      request.status = 503;
+      const failed = uploadAllocationPlan(
+        'https://uploads.example/plan',
+        file,
+        {},
+        fetch,
+        { onProgress: progress, signal: new AbortController().signal },
+      );
+      listeners.get(outcome)?.(new ProgressEvent(outcome));
+      await expect(failed).rejects.toThrow('allocation_plan_upload_failed');
+    }
+
+    const cancelController = new AbortController();
+    const cancelled = uploadAllocationPlan(
+      'https://uploads.example/plan',
+      file,
+      {},
+      fetch,
+      { onProgress: progress, signal: cancelController.signal },
+    );
+    cancelController.abort();
+    await expect(cancelled).rejects.toThrow('allocation_plan_upload_cancelled');
+    expect(request.abort).toHaveBeenCalledOnce();
+  });
 });
 
 describe('login API [user-login REQ-003, REQ-004, REQ-008]', () => {

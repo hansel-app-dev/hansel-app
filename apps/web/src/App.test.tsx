@@ -510,6 +510,26 @@ describe('App [REQ-002]', () => {
       }),
     );
 
+    const uploadListeners = new Map<string, EventListener>();
+    vi.stubGlobal(
+      'XMLHttpRequest',
+      vi.fn(() => ({
+        status: 200,
+        upload: { addEventListener: vi.fn() },
+        open: vi.fn(),
+        setRequestHeader: vi.fn(),
+        addEventListener: (name: string, listener: EventListener) => {
+          uploadListeners.set(name, listener);
+        },
+        abort: vi.fn(),
+        send: () => {
+          queueMicrotask(() =>
+            uploadListeners.get('load')?.(new Event('load')),
+          );
+        },
+      })),
+    );
+
     render(<App path={`/sites/${siteId}/allocations`} />);
 
     expect(
@@ -527,6 +547,7 @@ describe('App [REQ-002]', () => {
     if (!picker) throw new Error('Expected file picker');
     fireEvent.change(picker, { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });
