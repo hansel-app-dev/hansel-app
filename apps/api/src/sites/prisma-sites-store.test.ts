@@ -75,6 +75,7 @@ function harness() {
     },
     siteGrant: { createMany: vi.fn().mockResolvedValue({ count: 2 }) },
     siteInvitation: { create: vi.fn().mockResolvedValue({}) },
+    activity: { create: vi.fn().mockResolvedValue({}) },
   };
   const prisma = {
     siteCreationRequest: {
@@ -378,13 +379,26 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
     }
   });
 
-  it('creates a site, creator/internal grants, invitation intent, and idempotency record in one transaction', async () => {
+  it('creates a site, Activity, grants, invitation intent, and idempotency record atomically [site-activity-feed-comments REQ-005]', async () => {
     const h = harness();
-    await expect(h.store.persist(persistInput())).resolves.toEqual({
+    const store = createPrismaSitesStore(
+      h.prisma as never,
+      h.digest,
+      () => siteId,
+      true,
+    );
+    await expect(store.persist(persistInput())).resolves.toEqual({
       status: 'created',
       siteId,
     });
     expect(h.digest).toHaveBeenCalledWith(`site-idempotency:${'a'.repeat(32)}`);
+    expect(h.transaction.activity.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: 'SITE_CREATED',
+        subjectId: siteId,
+        subjectLabel: 'Main site',
+      }),
+    });
     expect(h.transaction.siteGrant.createMany).toHaveBeenCalledWith({
       data: [
         {

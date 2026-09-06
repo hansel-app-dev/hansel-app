@@ -32,6 +32,7 @@ import {
   SignageForbiddenError,
   SignageNotFoundError,
 } from './sites/signage-schedule.js';
+import { SiteActivityNotFoundError } from './sites/site-activity.js';
 import {
   countryOptions,
   discoveryManagementOptions,
@@ -143,6 +144,17 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       updateSignType: vi.fn().mockResolvedValue(null),
       createSign: vi.fn().mockResolvedValue(null),
       updateSign: vi.fn().mockResolvedValue(null),
+      listSiteActivity: vi.fn().mockResolvedValue({
+        items: [],
+        nextCursor: null,
+      }),
+      createSiteComment: vi.fn().mockResolvedValue({
+        id: '00000000-0000-4000-8000-000000000050',
+        kind: 'SITE_COMMENT_ADDED',
+        commentText: 'Hello team',
+        actor: { displayName: 'Owner', initials: 'O' },
+        createdAt: '2026-09-06T00:00:00.000Z',
+      }),
       recordEvent: vi.fn(),
       ...overrides,
     };
@@ -154,6 +166,7 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
           sitesEnabled: true,
           allocationPlansEnabled: true,
           signageScheduleEnabled: true,
+          siteActivityEnabled: true,
         },
         undefined,
         undefined,
@@ -163,6 +176,51 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       ),
     };
   };
+
+  it('lists Activity and lets an authorized Viewer comment [site-activity-feed-comments REQ-007..REQ-010, AC-001, AC-003]', async () => {
+    const fixture = create();
+    const cookie = 'hansel_access=access-token';
+    await request(fixture.app)
+      .get(`/api/sites/${siteId}/activity`)
+      .set('Cookie', cookie)
+      .expect('Cache-Control', /no-store/)
+      .expect(200, { items: [], nextCursor: null });
+    await request(fixture.app)
+      .post(`/api/sites/${siteId}/comments`)
+      .set('Cookie', cookie)
+      .set('Origin', 'https://app.example.com')
+      .send({ text: '  Hello team  ' })
+      .expect(201);
+    expect(fixture.sites.createSiteComment).toHaveBeenCalledWith(
+      'access-token',
+      siteId,
+      'Hello team',
+    );
+  });
+
+  it('validates and hides inaccessible Activity [site-activity-feed-comments REQ-007, REQ-009, REQ-010, AC-004]', async () => {
+    const cookie = 'hansel_access=access-token';
+    await request(create().app).get('/api/sites/no/activity').expect(400);
+    await request(create().app)
+      .get(`/api/sites/${siteId}/activity`)
+      .expect(401);
+    await request(
+      create({
+        listSiteActivity: vi
+          .fn()
+          .mockRejectedValue(new SiteActivityNotFoundError()),
+      }).app,
+    )
+      .get(`/api/sites/${siteId}/activity`)
+      .set('Cookie', cookie)
+      .expect(404);
+    await request(create().app)
+      .post(`/api/sites/${siteId}/comments`)
+      .set('Cookie', cookie)
+      .set('Origin', 'https://app.example.com')
+      .send({ text: ' ' })
+      .expect(400);
+  });
 
   it('reads and creates signage schedule records privately [site-signage-schedule AC-001, AC-002]', async () => {
     const fixture = create();

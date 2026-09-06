@@ -59,6 +59,16 @@ const meta = {
         },
       }),
     loadSites: () => Promise.resolve(sitesPage),
+    loadSiteActivityPage: () =>
+      Promise.resolve({ items: [], nextCursor: null }),
+    createSiteComment: (text) =>
+      Promise.resolve({
+        id: crypto.randomUUID(),
+        kind: 'SITE_COMMENT_ADDED' as const,
+        commentText: text,
+        actor: { displayName: 'Nabin Singh', initials: 'NS' },
+        createdAt: new Date().toISOString(),
+      }),
     logout: () => Promise.resolve(),
   },
   parameters: {

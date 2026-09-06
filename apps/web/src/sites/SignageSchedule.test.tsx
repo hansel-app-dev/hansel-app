@@ -78,6 +78,10 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
       screen.getByRole('columnheader', { name: 'Content' }),
     ).toHaveAttribute('colspan', '2');
     expect(screen.getByRole('table')).toHaveClass('min-w-[1148px]');
+    expect(screen.getByText('map').closest('td')).toHaveClass('align-middle');
+    expect(screen.getByText('visibility').closest('td')).toHaveClass(
+      'align-middle',
+    );
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search signs' }), {
       target: { value: 'missing' },
     });

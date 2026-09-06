@@ -34,6 +34,8 @@ import {
   updateSignType,
   createSign,
   updateSign,
+  loadSiteActivityPage,
+  createSiteComment,
 } from './api.js';
 import {
   countryOptions,
@@ -237,6 +239,43 @@ describe('signage schedule API [site-signage-schedule REQ-016]', () => {
     await expect(
       loadSignageSchedule(siteId, '', fetcher),
     ).rejects.toBeInstanceOf(DashboardAuthenticationRequiredError);
+  });
+});
+
+describe('Site Activity API [site-activity-feed-comments REQ-007..REQ-010]', () => {
+  const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
+  const item = {
+    id: '00000000-0000-4000-8000-000000000050',
+    kind: 'SITE_COMMENT_ADDED' as const,
+    commentText: 'Hello team',
+    actor: { displayName: 'Owner', initials: 'O' },
+    createdAt: '2026-09-06T00:00:00.000Z',
+  };
+
+  it('loads pages and submits strict comment JSON', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ items: [item], nextCursor: null })),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(item), { status: 201 }),
+      );
+    await expect(
+      loadSiteActivityPage(siteId, null, '', fetcher),
+    ).resolves.toMatchObject({
+      items: [item],
+    });
+    await expect(
+      createSiteComment(siteId, 'Hello team', '', fetcher),
+    ).resolves.toEqual(item);
+    expect(fetcher).toHaveBeenLastCalledWith(
+      `/api/sites/${siteId}/comments`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ text: 'Hello team' }),
+      }),
+    );
   });
 });
 

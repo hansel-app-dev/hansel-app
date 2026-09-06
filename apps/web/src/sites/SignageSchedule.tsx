@@ -701,7 +701,7 @@ function IndicatorCell({
         : 'text-[#a8adb5]';
   return (
     <td
-      className={`border-b border-r border-control-border text-center ${toneClass}`}
+      className={`border-b border-r border-control-border text-center align-middle ${toneClass}`}
       aria-hidden="true"
     >
       <AppSymbol className="!size-[18px] text-[18px]" weight={100}>

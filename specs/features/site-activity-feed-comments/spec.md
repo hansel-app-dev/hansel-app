@@ -1,7 +1,7 @@
 # Feature: Site Activity Feed and Comments
 
 - ID: `site-activity-feed-comments`
-- Status: `approved`
+- Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-06`

@@ -39,7 +39,13 @@ const signDto = (record: {
   createdAt: Date;
   updatedAt: Date;
 }): Sign => ({
-  ...record,
+  id: record.id,
+  signTypeId: record.signTypeId,
+  code: record.code,
+  quantity: record.quantity,
+  location: record.location,
+  content: record.content,
+  comments: record.comments,
   status: record.status as Sign['status'],
   createdAt: record.createdAt.toISOString(),
   updatedAt: record.updatedAt.toISOString(),
@@ -61,7 +67,37 @@ const typeDto = (record: {
   quantityTotal: record.signs.reduce((sum, sign) => sum + sign.quantity, 0),
 });
 
-export function createSignageScheduleFeature(prisma: PrismaClient) {
+export function createSignageScheduleFeature(
+  prisma: PrismaClient,
+  activityEnabled = false,
+) {
+  type Db = PrismaClient | Prisma.TransactionClient;
+  const mutate = <T>(operation: (db: Db) => Promise<T>) =>
+    activityEnabled ? prisma.$transaction(operation) : operation(prisma);
+  const record = async (
+    db: Db,
+    principal: ApplicationPrincipal,
+    siteId: string,
+    kind:
+      | 'SIGN_TYPE_CREATED'
+      | 'SIGN_TYPE_RENAMED'
+      | 'SIGN_CREATED'
+      | 'SIGN_UPDATED',
+    subjectId: string,
+    subjectLabel: string,
+  ) => {
+    if (!activityEnabled) return;
+    await db.activity.create({
+      data: {
+        tenantId: principal.tenantId,
+        siteId,
+        actorMembershipId: principal.membershipId,
+        kind,
+        subjectId,
+        subjectLabel,
+      },
+    });
+  };
   const authorize = async (
     principal: ApplicationPrincipal,
     siteId: string,
@@ -79,8 +115,9 @@ export function createSignageScheduleFeature(prisma: PrismaClient) {
     principal: ApplicationPrincipal,
     siteId: string,
     id: string,
+    db: Db = prisma,
   ) => {
-    const record = await prisma.signType.findFirst({
+    const record = await db.signType.findFirst({
       where: { id, tenantId: principal.tenantId, siteId },
       include: {
         signs: { orderBy: [{ normalizedCode: 'asc' }, { id: 'asc' }] },
@@ -93,8 +130,9 @@ export function createSignageScheduleFeature(prisma: PrismaClient) {
     principal: ApplicationPrincipal,
     siteId: string,
     id: string,
+    db: Db = prisma,
   ) => {
-    const record = await prisma.sign.findFirst({
+    const record = await db.sign.findFirst({
       where: { id, tenantId: principal.tenantId, siteId },
     });
     if (!record) throw new SignageNotFoundError();
@@ -130,17 +168,27 @@ export function createSignageScheduleFeature(prisma: PrismaClient) {
       if (count >= 100) throw new SignageConflictError();
       const palette = ['SLATE', 'RED', 'TEAL'] as const;
       try {
-        const created = await prisma.signType.create({
-          data: {
-            tenantId: principal.tenantId,
+        return await mutate(async (db) => {
+          const created = await db.signType.create({
+            data: {
+              tenantId: principal.tenantId,
+              siteId,
+              name,
+              normalizedName: name.toLocaleLowerCase(),
+              color: palette[count % palette.length] ?? 'SLATE',
+            },
+            select: { id: true },
+          });
+          await record(
+            db,
+            principal,
             siteId,
+            'SIGN_TYPE_CREATED',
+            created.id,
             name,
-            normalizedName: name.toLocaleLowerCase(),
-            color: palette[count % palette.length] ?? 'SLATE',
-          },
-          select: { id: true },
+          );
+          return loadType(principal, siteId, created.id, db);
         });
-        return await loadType(principal, siteId, created.id);
       } catch {
         throw new SignageConflictError();
       }
@@ -154,17 +202,20 @@ export function createSignageScheduleFeature(prisma: PrismaClient) {
     ): Promise<SignType> {
       await authorize(principal, siteId, true);
       try {
-        const result = await prisma.signType.updateMany({
-          where: {
-            id,
-            tenantId: principal.tenantId,
-            siteId,
-            updatedAt: new Date(expectedUpdatedAt),
-          },
-          data: { name, normalizedName: name.toLocaleLowerCase() },
+        return await mutate(async (db) => {
+          const result = await db.signType.updateMany({
+            where: {
+              id,
+              tenantId: principal.tenantId,
+              siteId,
+              updatedAt: new Date(expectedUpdatedAt),
+            },
+            data: { name, normalizedName: name.toLocaleLowerCase() },
+          });
+          if (result.count !== 1) throw new SignageConflictError();
+          await record(db, principal, siteId, 'SIGN_TYPE_RENAMED', id, name);
+          return loadType(principal, siteId, id, db);
         });
-        if (result.count !== 1) throw new SignageConflictError();
-        return await loadType(principal, siteId, id);
       } catch (error) {
         if (error instanceof SignageConflictError) throw error;
         throw new SignageConflictError();
@@ -197,16 +248,26 @@ export function createSignageScheduleFeature(prisma: PrismaClient) {
       )
         throw new SignageNotFoundError();
       try {
-        const record = await prisma.sign.create({
-          data: {
-            tenantId: principal.tenantId,
+        return await mutate(async (db) => {
+          const created = await db.sign.create({
+            data: {
+              tenantId: principal.tenantId,
+              siteId,
+              signTypeId: typeId,
+              ...input,
+              normalizedCode: input.code.toLocaleLowerCase(),
+            },
+          });
+          await record(
+            db,
+            principal,
             siteId,
-            signTypeId: typeId,
-            ...input,
-            normalizedCode: input.code.toLocaleLowerCase(),
-          },
+            'SIGN_CREATED',
+            created.id,
+            created.code,
+          );
+          return signDto(created);
         });
-        return signDto(record);
       } catch {
         throw new SignageConflictError();
       }
@@ -228,17 +289,21 @@ export function createSignageScheduleFeature(prisma: PrismaClient) {
       if (input.field === 'code')
         data.normalizedCode = String(input.value).toLocaleLowerCase();
       try {
-        const result = await prisma.sign.updateMany({
-          where: {
-            id,
-            tenantId: principal.tenantId,
-            siteId,
-            updatedAt: new Date(input.expectedUpdatedAt),
-          },
-          data,
+        return await mutate(async (db) => {
+          const result = await db.sign.updateMany({
+            where: {
+              id,
+              tenantId: principal.tenantId,
+              siteId,
+              updatedAt: new Date(input.expectedUpdatedAt),
+            },
+            data,
+          });
+          if (result.count !== 1) throw new SignageConflictError();
+          const updated = await loadSign(principal, siteId, id, db);
+          await record(db, principal, siteId, 'SIGN_UPDATED', id, updated.code);
+          return updated;
         });
-        if (result.count !== 1) throw new SignageConflictError();
-        return await loadSign(principal, siteId, id);
       } catch (error) {
         if (error instanceof SignageConflictError) throw error;
         throw new SignageConflictError();

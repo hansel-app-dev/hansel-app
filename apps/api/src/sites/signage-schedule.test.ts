@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
+import { signageScheduleResponseSchema } from '@hansel/contracts';
 import {
   createSignageScheduleFeature,
   SignageConflictError,
@@ -16,8 +17,8 @@ const principal = {
   email: 'editor@example.com',
 };
 const sign = {
-  id: 'sign',
-  signTypeId: 'type',
+  id: '8c238d45-ad70-48bd-917a-416af6daf310',
+  signTypeId: 'd9816745-5506-457d-aba9-a11626dcb7a8',
   code: 'RS.2',
   normalizedCode: 'rs.2',
   quantity: 2,
@@ -31,7 +32,7 @@ const sign = {
   siteId: 'site',
 };
 const type = {
-  id: 'type',
+  id: 'd9816745-5506-457d-aba9-a11626dcb7a8',
   name: 'Regulatory',
   normalizedName: 'regulatory',
   color: 'RED',
@@ -41,36 +42,47 @@ const type = {
   siteId: 'site',
   signs: [sign],
 };
-const makePrisma = () => ({
-  site: { count: vi.fn().mockResolvedValue(1) },
-  signType: {
-    findMany: vi.fn().mockResolvedValue([type]),
-    findFirst: vi.fn().mockResolvedValue(type),
-    count: vi.fn().mockResolvedValue(1),
-    create: vi.fn().mockResolvedValue({ id: 'type' }),
-    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-  },
-  sign: {
-    findFirst: vi.fn().mockResolvedValue(sign),
-    count: vi.fn().mockResolvedValue(1),
-    create: vi.fn().mockResolvedValue(sign),
-    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-  },
-});
+const makePrisma = () => {
+  const prisma = {
+    site: { count: vi.fn().mockResolvedValue(1) },
+    signType: {
+      findMany: vi.fn().mockResolvedValue([type]),
+      findFirst: vi.fn().mockResolvedValue(type),
+      count: vi.fn().mockResolvedValue(1),
+      create: vi.fn().mockResolvedValue({ id: 'type' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    sign: {
+      findFirst: vi.fn().mockResolvedValue(sign),
+      count: vi.fn().mockResolvedValue(1),
+      create: vi.fn().mockResolvedValue(sign),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    activity: { create: vi.fn().mockResolvedValue({}) },
+    $transaction: vi.fn(),
+  };
+  prisma.$transaction.mockImplementation(
+    (callback: (client: typeof prisma) => Promise<unknown>) => callback(prisma),
+  );
+  return prisma;
+};
 
-describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017]', () => {
+describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017; site-activity-feed-comments REQ-005]', () => {
   it('loads scoped groups, totals, permissions, and canonical records', async () => {
     const prisma = makePrisma();
     const feature = createSignageScheduleFeature(
       prisma as unknown as PrismaClient,
+      true,
     );
-    await expect(feature.load(principal, 'site')).resolves.toMatchObject({
+    const schedule = await feature.load(principal, 'site');
+    expect(() => signageScheduleResponseSchema.parse(schedule)).not.toThrow();
+    expect(schedule).toMatchObject({
       canManageSigns: true,
       signTypes: [{ quantityTotal: 2, signs: [{ code: 'RS.2' }] }],
     });
     await expect(
       feature.createType(principal, 'site', 'Regulatory'),
-    ).resolves.toMatchObject({ id: 'type' });
+    ).resolves.toMatchObject({ id: type.id });
     await expect(
       feature.updateType(
         principal,
@@ -96,12 +108,21 @@ describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017]'
         value: 'RS.3',
         expectedUpdatedAt: now.toISOString(),
       }),
-    ).resolves.toMatchObject({ id: 'sign' });
+    ).resolves.toMatchObject({ id: sign.id });
     expect(prisma.sign.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { code: 'RS.3', normalizedCode: 'rs.3' },
       }),
     );
+    expect(prisma.activity.create).toHaveBeenCalledTimes(4);
+    expect(prisma.activity.create).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        actorMembershipId: 'member',
+        kind: 'SIGN_UPDATED',
+        siteId: 'site',
+        subjectLabel: 'RS.2',
+      }),
+    });
   });
 
   it('enforces access, roles, limits, parent scope, conflicts, and missing results', async () => {

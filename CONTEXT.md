@@ -82,6 +82,10 @@ _Avoid_: Plan Note, Message
 A record of a meaningful action within an Organization.
 _Avoid_: Event when referring to product-facing history
 
+**Site Comment**:
+A text discussion entry attached directly to a Site and represented as Site Activity.
+_Avoid_: Sign Comment, Allocation Plan Comment, Message
+
 ## Plans and allowances
 
 **Plan**:

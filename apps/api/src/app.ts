@@ -42,6 +42,9 @@ import {
   updateSignTypeRequestSchema,
   createSignRequestSchema,
   updateSignRequestSchema,
+  siteActivityPageResponseSchema,
+  siteActivityItemSchema,
+  createSiteCommentRequestSchema,
   resendOnboardingVerificationRequestSchema,
   resendOnboardingVerificationResponseSchema,
   verifyOnboardingEmailRequestSchema,
@@ -81,6 +84,8 @@ import {
   type SignageScheduleResponse,
   type SignType,
   type Sign,
+  type SiteActivityItem,
+  type SiteActivityPageResponse,
 } from '@hansel/contracts';
 import type { PasswordLoginResult } from './auth/password-login.js';
 import { PasswordResetRejectedError } from './auth/password-recovery.js';
@@ -118,6 +123,7 @@ import {
   SignageForbiddenError,
   SignageNotFoundError,
 } from './sites/signage-schedule.js';
+import { SiteActivityNotFoundError } from './sites/site-activity.js';
 import type { AppConfig } from './config.js';
 
 type ConfigureRoutes = (app: express.Express) => void;
@@ -233,6 +239,16 @@ export interface SitesModule {
     accessCredential: string,
     siteId: string,
   ): Promise<SiteActivityResponse | null>;
+  listSiteActivity?(
+    accessCredential: string,
+    siteId: string,
+    cursor?: string,
+  ): Promise<SiteActivityPageResponse | null>;
+  createSiteComment?(
+    accessCredential: string,
+    siteId: string,
+    text: string,
+  ): Promise<SiteActivityItem | null>;
   listAllocationPlans?(
     accessCredential: string,
     siteId: string,
@@ -497,6 +513,7 @@ export function createApp(
     sitesEnabled?: boolean;
     allocationPlansEnabled?: boolean;
     signageScheduleEnabled?: boolean;
+    siteActivityEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
   onboarding?: OnboardingModule,
@@ -1183,6 +1200,76 @@ export function createApp(
         }
         sites.recordEvent?.('site_activity_unavailable');
         response.status(503).json({ error: 'sites_unavailable' });
+      }
+    });
+
+    app.get('/api/sites/:siteId/activity', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (!config.siteActivityEnabled || !sites.listSiteActivity)
+        return response.status(404).json({ error: 'not_found' });
+      const id = createSiteResponseSchema.shape.siteId.safeParse(
+        request.params.siteId,
+      );
+      const cursor = request.query.cursor;
+      if (
+        !id.success ||
+        (cursor !== undefined &&
+          (typeof cursor !== 'string' ||
+            cursor.length < 1 ||
+            cursor.length > 512))
+      )
+        return response.status(400).json({ error: 'invalid_request' });
+      const credential = readApplicationCredential(request);
+      if (!credential)
+        return response.status(401).json({ error: 'authentication_required' });
+      try {
+        const result = await sites.listSiteActivity(
+          credential,
+          id.data,
+          cursor,
+        );
+        return result
+          ? response.json(siteActivityPageResponseSchema.parse(result))
+          : response.status(401).json({ error: 'authentication_required' });
+      } catch (error) {
+        if (error instanceof SiteActivityNotFoundError)
+          return response.status(404).json({ error: 'site_not_found' });
+        sites.recordEvent?.('site_activity_read_unavailable');
+        return response
+          .status(503)
+          .json({ error: 'site_activity_unavailable' });
+      }
+    });
+
+    app.post('/api/sites/:siteId/comments', async (request, response) => {
+      preparePrivateSiteResponse(response);
+      if (!config.siteActivityEnabled || !sites.createSiteComment)
+        return response.status(404).json({ error: 'not_found' });
+      const id = createSiteResponseSchema.shape.siteId.safeParse(
+        request.params.siteId,
+      );
+      const input = createSiteCommentRequestSchema.safeParse(request.body);
+      if (!hasAllowedFormOrigin(request, config.allowedOrigin))
+        return response.status(403).json({ error: 'forbidden_origin' });
+      if (!id.success || !input.success)
+        return response.status(400).json({ error: 'invalid_request' });
+      const credential = readApplicationCredential(request);
+      if (!credential)
+        return response.status(401).json({ error: 'authentication_required' });
+      try {
+        const result = await sites.createSiteComment(
+          credential,
+          id.data,
+          input.data.text,
+        );
+        return result
+          ? response.status(201).json(siteActivityItemSchema.parse(result))
+          : response.status(401).json({ error: 'authentication_required' });
+      } catch (error) {
+        if (error instanceof SiteActivityNotFoundError)
+          return response.status(404).json({ error: 'site_not_found' });
+        sites.recordEvent?.('site_comment_create_unavailable');
+        return response.status(503).json({ error: 'site_comment_unavailable' });
       }
     });
 

@@ -102,6 +102,16 @@ enum SignStatus {
   APPROVED
 }
 
+enum ActivityKind {
+  SITE_CREATED
+  ALLOCATION_PLAN_ADDED
+  SIGN_TYPE_CREATED
+  SIGN_TYPE_RENAMED
+  SIGN_CREATED
+  SIGN_UPDATED
+  SITE_COMMENT_ADDED
+}
+
 model User {
   id                            String                               @id @default(uuid()) @db.Uuid
   email                         String                               @unique
@@ -339,6 +349,7 @@ model Tenant {
   signs                       Sign[]
   allocationPlanUploads       AllocationPlanUpload[]
   allocationPlanUploadBatches AllocationPlanUploadBatch[]
+  activities                  Activity[]
   createdAt                   DateTime                    @default(now())
   updatedAt                   DateTime                    @updatedAt
 }
@@ -413,6 +424,7 @@ model Membership {
   tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdSites Site[]      @relation("SiteCreator")
   siteGrants   SiteGrant[]
+  activities   Activity[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -438,11 +450,30 @@ model Site {
   signs                       Sign[]
   allocationPlanUploads       AllocationPlanUpload[]
   allocationPlanUploadBatches AllocationPlanUploadBatch[]
+  activities                  Activity[]
   createdAt                   DateTime                    @default(now())
   updatedAt                   DateTime                    @updatedAt
 
   @@unique([id, tenantId])
   @@index([tenantId, createdAt])
+}
+
+model Activity {
+  id                String       @id @default(uuid()) @db.Uuid
+  tenantId          String       @db.Uuid
+  siteId            String       @db.Uuid
+  actorMembershipId String       @db.Uuid
+  kind              ActivityKind
+  subjectId         String?      @db.Uuid
+  subjectLabel      String?      @db.VarChar(255)
+  commentText       String?      @db.VarChar(2000)
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site              Site         @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  actor             Membership   @relation(fields: [actorMembershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdAt         DateTime     @default(now())
+
+  @@index([siteId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([actorMembershipId])
 }
 
 model SignType {

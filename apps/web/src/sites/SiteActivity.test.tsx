@@ -261,9 +261,7 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
       'Site activity will appear here.',
     );
     expect(screen.queryByText(/invoice/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Comment' }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Comment' })).toBeDisabled();
   });
 
   it('shows only the authorized bounded member preview and remainder [site-details-activity-shell REQ-008, AC-003]', async () => {

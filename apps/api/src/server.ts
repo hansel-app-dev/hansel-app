@@ -92,6 +92,7 @@ import { createAllocationPlansFeature } from './sites/allocation-plans.js';
 import { createPrismaAllocationPlanStore } from './sites/prisma-allocation-plan-store.js';
 import { createS3AllocationPlanObjectStore } from './sites/s3-allocation-plan-object-store.js';
 import { createSignageScheduleFeature } from './sites/signage-schedule.js';
+import { createSiteActivityFeature } from './sites/site-activity.js';
 
 configureDatabaseUrl();
 const config = loadConfig();
@@ -411,6 +412,7 @@ const sitesStore = createPrismaSitesStore(
   prisma,
   (value) => security.digestApplicationCredential(value),
   randomUUID,
+  config.siteActivityEnabled,
 );
 const sitesFeature = createSitesFeature({
   ...sitesStore,
@@ -424,7 +426,7 @@ const sitesFeature = createSitesFeature({
   now: () => new Date(),
 });
 const allocationPlansFeature = createAllocationPlansFeature({
-  store: createPrismaAllocationPlanStore(prisma),
+  store: createPrismaAllocationPlanStore(prisma, config.siteActivityEnabled),
   objects: createS3AllocationPlanObjectStore({
     bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
   }),
@@ -432,13 +434,29 @@ const allocationPlansFeature = createAllocationPlansFeature({
   digest: (value) => security.digestApplicationCredential(value),
   now: () => new Date(),
 });
-const signageScheduleFeature = createSignageScheduleFeature(prisma);
+const signageScheduleFeature = createSignageScheduleFeature(
+  prisma,
+  config.siteActivityEnabled,
+);
+const siteActivityFeature = createSiteActivityFeature(prisma);
 const resolveSitePrincipal = (credential: string) =>
   sitesStore.resolvePrincipal(
     security.digestApplicationCredential(credential),
     new Date(),
   );
 const sites: SitesModule = {
+  async listSiteActivity(credential, siteId, cursor) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? siteActivityFeature.list(principal, siteId, cursor)
+      : null;
+  },
+  async createSiteComment(credential, siteId, text) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? siteActivityFeature.comment(principal, siteId, text)
+      : null;
+  },
   async loadSignageSchedule(credential, siteId) {
     const principal = await resolveSitePrincipal(credential);
     return principal ? signageScheduleFeature.load(principal, siteId) : null;

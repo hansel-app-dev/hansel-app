@@ -297,6 +297,10 @@ describe('App [REQ-002]', () => {
             }),
           ),
         );
+      if (url.endsWith('/activity'))
+        return Promise.resolve(
+          new Response(JSON.stringify({ items: [], nextCursor: null })),
+        );
       return Promise.resolve(
         new Response(
           JSON.stringify({
@@ -365,37 +369,39 @@ describe('App [REQ-002]', () => {
                             },
                           ],
                         }
-                      : url.endsWith('/allocation-plans')
-                        ? { canAddPlans: true, plans: [] }
-                        : url.endsWith('/allocation-plan-upload-batches')
-                          ? {
-                              uploads: [
-                                {
-                                  uploadId:
-                                    '00000000-0000-4000-8000-000000000005',
-                                  uploadUrl: 'https://uploads.example/plan',
-                                  expiresAt: '2026-09-06T00:15:00.000Z',
-                                  headers: {
-                                    'content-type': 'application/pdf',
-                                    'x-amz-checksum-sha256':
-                                      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-                                  },
-                                },
-                              ],
-                            }
-                          : url.endsWith('/finalize')
+                      : url.endsWith('/activity')
+                        ? { items: [], nextCursor: null }
+                        : url.endsWith('/allocation-plans')
+                          ? { canAddPlans: true, plans: [] }
+                          : url.endsWith('/allocation-plan-upload-batches')
                             ? {
-                                plan: {
-                                  id: '00000000-0000-4000-8000-000000000006',
-                                  filename: 'plan.pdf',
-                                  mediaType: 'application/pdf',
-                                  byteSize: 5,
-                                  createdAt: '2026-09-06T00:00:00.000Z',
-                                  modifiedAt: '2026-09-06T00:00:00.000Z',
-                                  uploadedBy: 'Owner',
-                                },
+                                uploads: [
+                                  {
+                                    uploadId:
+                                      '00000000-0000-4000-8000-000000000005',
+                                    uploadUrl: 'https://uploads.example/plan',
+                                    expiresAt: '2026-09-06T00:15:00.000Z',
+                                    headers: {
+                                      'content-type': 'application/pdf',
+                                      'x-amz-checksum-sha256':
+                                        'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                                    },
+                                  },
+                                ],
                               }
-                            : { site: { id: siteId, name: 'Direct site' } },
+                            : url.endsWith('/finalize')
+                              ? {
+                                  plan: {
+                                    id: '00000000-0000-4000-8000-000000000006',
+                                    filename: 'plan.pdf',
+                                    mediaType: 'application/pdf',
+                                    byteSize: 5,
+                                    createdAt: '2026-09-06T00:00:00.000Z',
+                                    modifiedAt: '2026-09-06T00:00:00.000Z',
+                                    uploadedBy: 'Owner',
+                                  },
+                                }
+                              : { site: { id: siteId, name: 'Direct site' } },
                 ),
           ),
         ),

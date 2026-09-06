@@ -20,6 +20,10 @@ import {
   resetPassword,
   createSite,
   loadSiteActivity,
+  loadSiteActivityPage,
+  createSiteComment,
+  SiteActivityDisabledError,
+  SiteActivityNotFoundError,
   loadAllocationPlans,
   loadAllocationPlanContent,
   createAllocationPlanUploadBatch,
@@ -220,6 +224,20 @@ export function App({
           handleApplicationSession(loadSiteActivity(siteId, apiUrl))
         }
         loadDashboard={loadAuthenticatedViewer}
+        loadSiteActivityPage={(cursor) =>
+          handleApplicationSession(
+            loadSiteActivityPage(siteId, cursor, apiUrl),
+          ).catch((error: unknown) => {
+            if (error instanceof SiteActivityDisabledError) return null;
+            throw error;
+          })
+        }
+        createSiteComment={(text) =>
+          handleApplicationSession(createSiteComment(siteId, text, apiUrl))
+        }
+        isSiteActivityNotFound={(error) =>
+          error instanceof SiteActivityNotFoundError
+        }
         loadSites={() => handleApplicationSession(loadSites(apiUrl))}
         logout={logoutAuthenticatedViewer}
         navigate={navigate}

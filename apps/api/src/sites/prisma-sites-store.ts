@@ -99,6 +99,7 @@ export function createPrismaSitesStore(
   prisma: PrismaClient,
   digest: (value: string) => string,
   createSiteId: () => string = randomUUID,
+  activityEnabled = false,
 ) {
   return {
     async findCreationRequest(
@@ -358,6 +359,17 @@ export function createPrismaSitesStore(
               siteId,
             },
           });
+          if (activityEnabled)
+            await transaction.activity.create({
+              data: {
+                tenantId: input.principal.tenantId,
+                siteId,
+                actorMembershipId: input.principal.membershipId,
+                kind: 'SITE_CREATED',
+                subjectId: siteId,
+                subjectLabel: input.request.name,
+              },
+            });
           return { status: 'created', siteId } as const;
         },
         { isolationLevel: 'Serializable' },

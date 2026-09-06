@@ -60,6 +60,7 @@ function fixture() {
       update: vi.fn(),
     },
     allocationPlan: { create: vi.fn().mockResolvedValue(plan) },
+    activity: { create: vi.fn().mockResolvedValue({}) },
   };
   const prisma = {
     site: { count: vi.fn().mockResolvedValue(1) },
@@ -197,13 +198,21 @@ describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-0
     });
   });
 
-  it('finalizes once and returns the existing result on retry [AC-004]', async () => {
+  it('finalizes with Activity once and returns the existing result on retry [site-activity-feed-comments REQ-005, AC-004]', async () => {
     const first = fixture();
+    first.store = createPrismaAllocationPlanStore(first.prisma as never, true);
     first.tx.allocationPlanUpload.findFirst.mockResolvedValue(upload);
     await expect(
       first.store.complete(principal, upload as never, 'plans/u1'),
     ).resolves.toMatchObject({ id: 'p' });
     expect(first.tx.allocationPlanUpload.update).toHaveBeenCalled();
+    expect(first.tx.activity.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        kind: 'ALLOCATION_PLAN_ADDED',
+        subjectId: 'p',
+        subjectLabel: 'plan.pdf',
+      }),
+    });
     const replay = fixture();
     replay.tx.allocationPlanUpload.findFirst.mockResolvedValue({
       ...upload,

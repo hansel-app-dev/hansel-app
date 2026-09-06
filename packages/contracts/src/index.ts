@@ -655,6 +655,67 @@ export const siteActivityResponseSchema = z
   .strict();
 export type SiteActivityResponse = z.infer<typeof siteActivityResponseSchema>;
 
+export const siteActivityKindSchema = z.enum([
+  'SITE_CREATED',
+  'ALLOCATION_PLAN_ADDED',
+  'SIGN_TYPE_CREATED',
+  'SIGN_TYPE_RENAMED',
+  'SIGN_CREATED',
+  'SIGN_UPDATED',
+  'SITE_COMMENT_ADDED',
+]);
+export type SiteActivityKind = z.infer<typeof siteActivityKindSchema>;
+const siteActivityActorSchema = siteMemberPreviewSchema;
+const siteActivityBase = z.object({
+  id: z.uuid(),
+  actor: siteActivityActorSchema,
+  createdAt: z.iso.datetime(),
+});
+const subjectActivityKinds = siteActivityKindSchema.exclude([
+  'SITE_COMMENT_ADDED',
+]);
+export const siteActivityItemSchema = z.discriminatedUnion('kind', [
+  siteActivityBase
+    .extend({
+      kind: subjectActivityKinds,
+      subjectLabel: z.string().min(1).max(255),
+    })
+    .strict(),
+  siteActivityBase
+    .extend({
+      kind: z.literal('SITE_COMMENT_ADDED'),
+      commentText: z.string().min(1).max(2_000),
+    })
+    .strict(),
+]);
+export type SiteActivityItem = z.infer<typeof siteActivityItemSchema>;
+export const siteActivityPageResponseSchema = z
+  .object({
+    items: z.array(siteActivityItemSchema).max(50),
+    nextCursor: z.string().min(1).max(512).nullable(),
+  })
+  .strict();
+export type SiteActivityPageResponse = z.infer<
+  typeof siteActivityPageResponseSchema
+>;
+export const createSiteCommentRequestSchema = z
+  .object({
+    text: z
+      .string()
+      .trim()
+      .transform((value) => value.normalize('NFC'))
+      .pipe(
+        z
+          .string()
+          .min(1)
+          .refine((value) => Array.from(value).length <= 2_000),
+      ),
+  })
+  .strict();
+export type CreateSiteCommentRequest = z.infer<
+  typeof createSiteCommentRequestSchema
+>;
+
 export const allocationPlanMediaTypeSchema = z.enum([
   'image/png',
   'image/jpeg',

@@ -61,6 +61,10 @@ import {
   type SignageScheduleResponse,
   type SignType,
   type Sign,
+  siteActivityPageResponseSchema,
+  siteActivityItemSchema,
+  type SiteActivityPageResponse,
+  type SiteActivityItem,
 } from '@hansel/contracts';
 
 async function signageRequest(
@@ -259,6 +263,44 @@ export async function loadSiteActivity(
   if (response.status === 401) throw new DashboardAuthenticationRequiredError();
   if (!response.ok) throw new Error('site_activity_load_failed');
   return siteActivityResponseSchema.parse(await response.json());
+}
+
+export async function loadSiteActivityPage(
+  siteId: string,
+  cursor: string | null,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SiteActivityPageResponse> {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${siteId}/activity${query}`,
+    { credentials: 'include' },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (response.status === 404) throw new SiteActivityDisabledError();
+  if (!response.ok) throw new Error('site_activity_feed_load_failed');
+  return siteActivityPageResponseSchema.parse(await response.json());
+}
+
+export class SiteActivityDisabledError extends Error {}
+export class SiteActivityNotFoundError extends Error {}
+
+export async function createSiteComment(
+  siteId: string,
+  text: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+): Promise<SiteActivityItem> {
+  const response = await fetcher(`${baseUrl}/api/sites/${siteId}/comments`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (response.status === 404) throw new SiteActivityNotFoundError();
+  if (!response.ok) throw new Error('site_comment_create_failed');
+  return siteActivityItemSchema.parse(await response.json());
 }
 
 export async function loadAllocationPlans(

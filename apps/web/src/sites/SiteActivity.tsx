@@ -11,6 +11,8 @@ import type {
   SignageScheduleResponse,
   SignType,
   Sign,
+  SiteActivityPageResponse,
+  SiteActivityItem,
 } from '@hansel/contracts';
 import {
   ApplicationShell,
@@ -21,6 +23,7 @@ import { relativeTime, SiteMemberPreview } from './SiteCollection.js';
 import { AddPlansModal } from './AddPlansModal.js';
 import { AllocationPlanViewer } from './AllocationPlanViewer.js';
 import { SignageSchedule } from './SignageSchedule.js';
+import { SiteActivityFeed } from './SiteActivityFeed.js';
 
 interface SiteDetailsRequest {
   attempt: number;
@@ -37,6 +40,7 @@ type SiteDetailsLoadState =
       sitesPage: SitesPageResponse;
       allocationPlans: AllocationPlansResponse;
       signageSchedule: SignageScheduleResponse;
+      activityPage: SiteActivityPageResponse | null;
     })
   | (SiteDetailsRequest & { status: 'failed' });
 
@@ -68,6 +72,11 @@ interface SharedSiteDetailsProps {
     field: 'code' | 'quantity' | 'location' | 'content' | 'comments' | 'status',
     value: string | number,
   ) => Promise<Sign>;
+  loadSiteActivityPage?: (
+    cursor: string | null,
+  ) => Promise<SiteActivityPageResponse | null>;
+  createSiteComment?: (text: string) => Promise<SiteActivityItem>;
+  isSiteActivityNotFound?: (error: unknown) => boolean;
 }
 
 export function AllocationPlanCollection({
@@ -120,7 +129,9 @@ export function AllocationPlanCollection({
               aria-pressed={view === candidate}
               className="grid size-9 place-items-center rounded text-content-muted hover:bg-[#f7f7f7] aria-pressed:text-content focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               key={candidate}
-              onClick={() => { setView(candidate); }}
+              onClick={() => {
+                setView(candidate);
+              }}
               type="button"
             >
               <AppSymbol className="!size-5 text-[21px]" weight={100}>
@@ -275,12 +286,16 @@ function SiteDetails({
   updateSignType,
   createSign,
   updateSign,
+  loadSiteActivityPage,
+  createSiteComment,
+  isSiteActivityNotFound,
 }: SharedSiteDetailsProps & {
   activeSection: 'activity' | 'allocations' | 'signage';
 }) {
   const [loadState, setLoadState] = useState<SiteDetailsLoadState | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [showAddPlans, setShowAddPlans] = useState(false);
+  const [activityAccessFailed, setActivityAccessFailed] = useState(false);
 
   useEffect(() => {
     const lifecycle = { active: true };
@@ -288,17 +303,25 @@ function SiteDetails({
     const load = async () => {
       const dashboard = await loadDashboard();
       if (!isActive()) return;
-      const [siteContext, sitesPage, allocationPlans, signageSchedule] =
-        await Promise.all([
-          loadSite(),
-          loadSites(),
-          activeSection === 'allocations' && loadAllocationPlans
-            ? loadAllocationPlans()
-            : Promise.resolve({ canAddPlans: false, plans: [] }),
-          activeSection === 'signage' && loadSignageSchedule
-            ? loadSignageSchedule()
-            : Promise.resolve({ canManageSigns: false, signTypes: [] }),
-        ]);
+      const [
+        siteContext,
+        sitesPage,
+        allocationPlans,
+        signageSchedule,
+        activityPage,
+      ] = await Promise.all([
+        loadSite(),
+        loadSites(),
+        activeSection === 'allocations' && loadAllocationPlans
+          ? loadAllocationPlans()
+          : Promise.resolve({ canAddPlans: false, plans: [] }),
+        activeSection === 'signage' && loadSignageSchedule
+          ? loadSignageSchedule()
+          : Promise.resolve({ canManageSigns: false, signTypes: [] }),
+        activeSection === 'activity' && loadSiteActivityPage
+          ? loadSiteActivityPage(null)
+          : Promise.resolve({ items: [], nextCursor: null }),
+      ]);
       if (!isActive()) return;
       const visibleSite = sitesPage.sites.find(
         (site) => site.id === siteContext.site.id,
@@ -316,6 +339,7 @@ function SiteDetails({
         sitesPage,
         allocationPlans,
         signageSchedule,
+        activityPage,
       });
     };
     void load().catch(() => {
@@ -336,6 +360,7 @@ function SiteDetails({
     attempt,
     loadAllocationPlans,
     loadSignageSchedule,
+    loadSiteActivityPage,
     loadDashboard,
     loadSite,
     loadSites,
@@ -378,12 +403,34 @@ function SiteDetails({
       </main>
     );
 
+  if (activityAccessFailed)
+    return (
+      <main className="grid min-h-screen place-items-center bg-surface p-5 text-content">
+        <div className="flex items-center gap-4 max-md:flex-col max-md:items-start">
+          <p className="text-sm text-danger" role="alert">
+            We couldn't load this site.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setActivityAccessFailed(false);
+              setAttempt((value) => value + 1);
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      </main>
+    );
+
   const {
     dashboard,
     siteContext,
     sitesPage,
     allocationPlans,
     signageSchedule,
+    activityPage,
   } = currentState;
   const selectedSite = sitesPage.sites.find(
     (site) => site.id === siteContext.site.id,
@@ -583,9 +630,34 @@ function SiteDetails({
               >
                 Activity
               </h2>
-              <div className="grid min-h-[320px] place-items-center px-6 text-center text-sm text-content-muted">
-                Site activity will appear here.
-              </div>
+              {activityPage ? (
+                <SiteActivityFeed
+                  initial={activityPage}
+                  loadOlder={async (cursor) => {
+                    const page = loadSiteActivityPage
+                      ? await loadSiteActivityPage(cursor)
+                      : null;
+                    if (!page) throw new Error('Site activity is unavailable');
+                    return page;
+                  }}
+                  submitComment={(text) => {
+                    if (!createSiteComment)
+                      return Promise.reject(
+                        new Error('Site comments are unavailable'),
+                      );
+                    return createSiteComment(text);
+                  }}
+                  onUnavailable={(error) => {
+                    if (!isSiteActivityNotFound?.(error)) return false;
+                    setActivityAccessFailed(true);
+                    return true;
+                  }}
+                />
+              ) : (
+                <div className="grid min-h-[320px] place-items-center px-6 text-center text-sm text-content-muted">
+                  Site activity will appear here.
+                </div>
+              )}
             </section>
           </>
         ) : activeSection === 'signage' &&

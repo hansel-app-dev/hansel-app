@@ -83,6 +83,7 @@ function toUpload(
 
 export function createPrismaAllocationPlanStore(
   prisma: PrismaClient,
+  activityEnabled = false,
 ): AllocationPlanStore {
   return {
     async canAccess(principal, siteId) {
@@ -214,6 +215,17 @@ export function createPrismaAllocationPlanStore(
           where: { id: upload.id },
           data: { status: 'COMPLETED', allocationPlanId: plan.id },
         });
+        if (activityEnabled)
+          await transaction.activity.create({
+            data: {
+              tenantId: principal.tenantId,
+              siteId: upload.siteId,
+              actorMembershipId: principal.membershipId,
+              kind: 'ALLOCATION_PLAN_ADDED',
+              subjectId: plan.id,
+              subjectLabel: plan.filename,
+            },
+          });
         return toPlan(plan);
       });
     },

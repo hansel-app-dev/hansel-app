@@ -37,7 +37,48 @@ import {
   legacyCreateSiteRequestSchema,
   createSiteResponseSchema,
   sitesPageResponseSchema,
+  siteActivityPageResponseSchema,
+  createSiteCommentRequestSchema,
 } from './index.js';
+
+describe('Site Activity contract [site-activity-feed-comments REQ-003, REQ-007..REQ-009]', () => {
+  const actor = { displayName: 'Nabin Singh', initials: 'NS' };
+  const base = {
+    id: '00000000-0000-4000-8000-000000000050',
+    actor,
+    createdAt: '2026-09-06T00:00:00.000Z',
+  };
+
+  it('accepts strict action and comment items plus an opaque cursor', () => {
+    expect(
+      siteActivityPageResponseSchema.parse({
+        items: [
+          { ...base, kind: 'SIGN_CREATED', subjectLabel: 'RS.101' },
+          { ...base, kind: 'SITE_COMMENT_ADDED', commentText: 'Looks good.' },
+        ],
+        nextCursor: 'opaque-cursor',
+      }),
+    ).toBeTruthy();
+    expect(createSiteCommentRequestSchema.parse({ text: '  Hello  ' })).toEqual(
+      { text: 'Hello' },
+    );
+  });
+
+  it('rejects invalid kind shapes, unknown fields, and comment bounds', () => {
+    expect(() =>
+      siteActivityPageResponseSchema.parse({
+        items: [{ ...base, kind: 'SITE_COMMENT_ADDED', subjectLabel: 'Site' }],
+        nextCursor: null,
+      }),
+    ).toThrow();
+    expect(() =>
+      createSiteCommentRequestSchema.parse({ text: 'x', extra: true }),
+    ).toThrow();
+    expect(() =>
+      createSiteCommentRequestSchema.parse({ text: '😀'.repeat(2_001) }),
+    ).toThrow();
+  });
+});
 
 describe('site creation contract [sites-add-new REQ-003, REQ-006..REQ-013]', () => {
   it('normalizes a strict Organization-scoped request and closed destination [sites-access-scope REQ-015]', () => {

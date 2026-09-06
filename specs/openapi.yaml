@@ -883,6 +883,45 @@ paths:
         '404': { $ref: '#/components/responses/SitesError' }
         '409': { $ref: '#/components/responses/SitesError' }
         '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/activity:
+    parameters: [{ $ref: '#/components/parameters/SiteId' }]
+    get:
+      operationId: listSiteActivity
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 512 }
+      security: [{ applicationAccess: [] }]
+      responses:
+        '200':
+          description: Newest-first Site Activity page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SiteActivityPageResponse' }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/comments:
+    parameters: [{ $ref: '#/components/parameters/SiteId' }]
+    post:
+      operationId: createSiteComment
+      security: [{ applicationAccess: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateSiteCommentRequest' }
+      responses:
+        '201':
+          description: Canonical Site comment Activity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SiteActivityItem' }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
   /api/sites/{siteId}/signage-schedule:
     parameters: [{ $ref: '#/components/parameters/SiteId' }]
     get:
@@ -1889,6 +1928,58 @@ components:
           properties:
             id: { type: string, format: uuid }
             name: { type: string, minLength: 1, maxLength: 100 }
+    SiteActivityActor:
+      type: object
+      additionalProperties: false
+      required: [displayName, initials]
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 201 }
+        initials: { type: string, minLength: 1, maxLength: 2 }
+    SiteActivityItem:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [id, kind, actor, createdAt, subjectLabel]
+          properties:
+            id: { type: string, format: uuid }
+            kind:
+              enum:
+                [
+                  SITE_CREATED,
+                  ALLOCATION_PLAN_ADDED,
+                  SIGN_TYPE_CREATED,
+                  SIGN_TYPE_RENAMED,
+                  SIGN_CREATED,
+                  SIGN_UPDATED,
+                ]
+            actor: { $ref: '#/components/schemas/SiteActivityActor' }
+            subjectLabel: { type: string, minLength: 1, maxLength: 255 }
+            createdAt: { type: string, format: date-time }
+        - type: object
+          additionalProperties: false
+          required: [id, kind, actor, createdAt, commentText]
+          properties:
+            id: { type: string, format: uuid }
+            kind: { const: SITE_COMMENT_ADDED }
+            actor: { $ref: '#/components/schemas/SiteActivityActor' }
+            commentText: { type: string, minLength: 1, maxLength: 2000 }
+            createdAt: { type: string, format: date-time }
+    SiteActivityPageResponse:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/SiteActivityItem' }
+        nextCursor: { type: [string, 'null'] }
+    CreateSiteCommentRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 1, maxLength: 2000 }
     Sign:
       type: object
       additionalProperties: false
