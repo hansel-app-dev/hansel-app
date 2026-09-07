@@ -1,11 +1,11 @@
 # Feature: Add Site Cover Image
 
 - ID: `site-cover-image-add`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-07`
-- Product approval: `Pending explicit user approval`
+- Product approval: `Approved explicitly by the user in the Codex task on 2026-09-07`
 - Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Image; docs/domain/figjam-object-catalog.md — Objects and data points (Site “Photo / Cover”, Image filename/link/upload metadata); Canonical interpretation notes; Known ambiguities 8 and 10; Current implementation alignment`
 - Design authority: `User-supplied Add new site – Step 3_ Add cover image.png (1512×982)`
 - Design evidence: `The design establishes a centred optional cover-image upload step with a dashed drop zone, file icon, drag/browse affordances, PNG/JPG and 3 MB guidance, Skip for now, and a disabled-until-valid Add cover image action. The visible “Step 2 of 3” conflicts with the filename and existing two-step flow; this specification resolves it as Step 3 of 3.`
