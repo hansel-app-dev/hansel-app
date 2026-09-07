@@ -44,6 +44,7 @@ export interface SitesProps {
   logout: () => Promise<void>;
   navigate?: (destination: string) => void;
   now?: Date;
+  preloadedDashboard?: DashboardResponse;
 }
 
 export function Sites({
@@ -54,6 +55,7 @@ export function Sites({
   logout,
   navigate,
   now,
+  preloadedDashboard,
 }: SitesProps) {
   const [page, setPage] = useState<SitesPageResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +88,7 @@ export function Sites({
       loadErrorMessage="We couldn't load your account. Please try again."
       logout={logout}
       navigate={navigate}
+      preloadedDashboard={preloadedDashboard}
       siteNavigation={page?.sites}
       workspaceName={page?.sites.length ? page.organizationName : undefined}
       headerActions={

@@ -17,6 +17,7 @@ import type {
 import {
   ApplicationShell,
   AppSymbol,
+  NotificationSymbol,
 } from '../application-shell/ApplicationShell.js';
 import { Button } from '../design-system/index.js';
 import { relativeTime, SiteMemberPreview } from './SiteCollection.js';
@@ -77,6 +78,7 @@ interface SharedSiteDetailsProps {
   ) => Promise<SiteActivityPageResponse | null>;
   createSiteComment?: (text: string) => Promise<SiteActivityItem>;
   isSiteActivityNotFound?: (error: unknown) => boolean;
+  preloadedDashboard?: DashboardResponse;
 }
 
 export function AllocationPlanCollection({
@@ -289,6 +291,7 @@ function SiteDetails({
   loadSiteActivityPage,
   createSiteComment,
   isSiteActivityNotFound,
+  preloadedDashboard,
 }: SharedSiteDetailsProps & {
   activeSection: 'activity' | 'allocations' | 'signage';
 }) {
@@ -374,7 +377,7 @@ function SiteDetails({
       ? loadState
       : null;
 
-  if (!currentState)
+  if (!currentState && !preloadedDashboard)
     return (
       <main className="grid min-h-screen place-items-center bg-surface p-5 text-content">
         <p className="text-sm text-content-muted" role="status">
@@ -383,7 +386,26 @@ function SiteDetails({
       </main>
     );
 
-  if (currentState.status === 'failed')
+  if (!currentState)
+    return (
+      <ApplicationShell
+        activePage="Sites"
+        headerActions={<NotificationSymbol />}
+        loadDashboard={loadDashboard}
+        loadErrorMessage="We couldn't load your account. Please try again."
+        logout={logout}
+        navigate={navigate}
+        preloadedDashboard={preloadedDashboard}
+      >
+        <section className="grid min-h-[calc(100vh-68px)] place-items-center p-5">
+          <p className="text-sm text-content-muted" role="status">
+            Loading site…
+          </p>
+        </section>
+      </ApplicationShell>
+    );
+
+  if (currentState.status === 'failed' && !preloadedDashboard)
     return (
       <main className="grid min-h-screen place-items-center bg-surface p-5 text-content">
         <div className="flex items-center gap-4 max-md:flex-col max-md:items-start">
@@ -401,6 +423,36 @@ function SiteDetails({
           </Button>
         </div>
       </main>
+    );
+
+  if (currentState.status === 'failed')
+    return (
+      <ApplicationShell
+        activePage="Sites"
+        headerActions={<NotificationSymbol />}
+        loadDashboard={loadDashboard}
+        loadErrorMessage="We couldn't load your account. Please try again."
+        logout={logout}
+        navigate={navigate}
+        preloadedDashboard={preloadedDashboard}
+      >
+        <section className="grid min-h-[calc(100vh-68px)] place-items-center p-5">
+          <div className="flex items-center gap-4 max-md:flex-col max-md:items-start">
+            <p className="text-sm text-danger" role="alert">
+              We couldn't load this site.
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setAttempt((value) => value + 1);
+              }}
+            >
+              Retry
+            </Button>
+          </div>
+        </section>
+      </ApplicationShell>
     );
 
   if (activityAccessFailed)
@@ -530,7 +582,7 @@ function SiteDetails({
             ? `${siteContext.site.name} Signage Schedule`
             : siteContext.site.name
       }
-      preloadedViewer={dashboard.viewer}
+      preloadedDashboard={dashboard}
       siteNavigation={sitesPage.sites}
       workspaceName={sitesPage.organizationName}
     >

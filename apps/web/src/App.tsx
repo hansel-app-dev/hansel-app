@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { DashboardResponse } from '@hansel/contracts';
 import {
   createOnboardingAccount,
   resendOnboardingVerification,
@@ -82,6 +83,10 @@ export function App({
   );
   const [currentPath, setCurrentPath] = useState(path);
   const [loginReady, setLoginReady] = useState(path !== '/login');
+  const [dashboardCache, setDashboardCache] =
+    useState<DashboardResponse | null>(null);
+  const dashboardCacheRef = useRef<DashboardResponse | null>(null);
+  const dashboardRequestRef = useRef<Promise<DashboardResponse> | null>(null);
   useEffect(() => {
     if (path !== '/onboarding' && path !== '/onboarding/verify-email') return;
     const hasSessionHint = document.cookie
@@ -118,6 +123,15 @@ export function App({
       active = false;
     };
   }, [apiUrl, currentPath]);
+  useEffect(() => {
+    const followBrowserHistory = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', followBrowserHistory);
+    return () => {
+      window.removeEventListener('popstate', followBrowserHistory);
+    };
+  }, []);
   const navigate = (destination: string) => {
     window.history.pushState({}, '', destination);
     setCurrentPath(destination);
@@ -127,6 +141,8 @@ export function App({
     setCurrentPath('/onboarding');
   };
   const returnToLogin = () => {
+    dashboardCacheRef.current = null;
+    setDashboardCache(null);
     window.history.replaceState({}, '', '/login');
     setCurrentPath('/login');
   };
@@ -134,17 +150,28 @@ export function App({
     if (error instanceof OnboardingSessionExpiredError) returnToOnboarding();
     throw error;
   };
-  const loadAuthenticatedViewer = async () => {
+  const loadAuthenticatedViewer = useCallback(async () => {
+    if (dashboardCacheRef.current) return dashboardCacheRef.current;
+    if (dashboardRequestRef.current) return dashboardRequestRef.current;
+    const request = loadDashboard(apiUrl);
+    dashboardRequestRef.current = request;
     try {
-      return await loadDashboard(apiUrl);
+      const response = await request;
+      dashboardCacheRef.current = response;
+      setDashboardCache(response);
+      return response;
     } catch (error) {
       if (error instanceof DashboardAuthenticationRequiredError)
         returnToLogin();
       throw error;
+    } finally {
+      dashboardRequestRef.current = null;
     }
-  };
+  }, [apiUrl]);
   const logoutAuthenticatedViewer = async () => {
     await logoutDashboard(apiUrl);
+    dashboardCacheRef.current = null;
+    setDashboardCache(null);
     window.sessionStorage.removeItem(verificationEmailKey);
     returnToLogin();
   };
@@ -160,6 +187,7 @@ export function App({
         loadDashboard={loadAuthenticatedViewer}
         logout={logoutAuthenticatedViewer}
         navigate={navigate}
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
       />
     );
   }
@@ -177,6 +205,7 @@ export function App({
         }}
         logout={logoutAuthenticatedViewer}
         navigate={navigate}
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
       />
     );
   }
@@ -190,6 +219,7 @@ export function App({
     const siteId = signageMatch[1];
     return (
       <SiteSignageSchedule
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
         loadDashboard={loadAuthenticatedViewer}
         loadSite={() =>
           handleApplicationSession(loadSiteActivity(siteId, apiUrl))
@@ -221,6 +251,7 @@ export function App({
     const siteId = siteActivityMatch[1];
     return (
       <SiteActivity
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
         loadActivity={() =>
           handleApplicationSession(loadSiteActivity(siteId, apiUrl))
         }
@@ -257,6 +288,7 @@ export function App({
     const planId = siteAllocationPreviewMatch[2];
     return (
       <SiteAllocationPlans
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
         loadAllocationPlanContent={() =>
           handleApplicationSession(
             loadAllocationPlanContent(siteId, planId, apiUrl),
@@ -286,6 +318,7 @@ export function App({
       Promise.reject(new Error('Invalid Site route'));
     return (
       <SiteAllocationPlans
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
         loadDashboard={loadAuthenticatedViewer}
         loadSite={() =>
           validSiteId

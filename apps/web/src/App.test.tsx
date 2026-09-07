@@ -232,11 +232,21 @@ describe('App [REQ-002]', () => {
       await screen.findByRole('heading', { name: 'No sites', level: 2 }),
     ).toBeVisible();
     expect(await screen.findByText('Nabin Singh')).toBeVisible();
+    const dashboardRequestsBeforeNavigation = vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) =>
+        String(url).endsWith('/api/dashboard'),
+      ).length;
     fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
     expect(
       screen.getAllByRole('heading', { name: 'Widget title' }),
     ).toHaveLength(4);
     expect(window.location.pathname).toBe('/dashboard');
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).endsWith('/api/dashboard')),
+    ).toHaveLength(dashboardRequestsBeforeNavigation);
   });
 
   it('creates a site through the modal and opens its authenticated Activity route [sites-add-new REQ-001..REQ-019]', async () => {
@@ -421,7 +431,7 @@ describe('App [REQ-002]', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
-        if (url.endsWith('/api/dashboard') && dashboardCalls++ < 2)
+        if (url.endsWith('/api/dashboard') && dashboardCalls++ < 1)
           return Promise.resolve(
             new Response(
               JSON.stringify({

@@ -10,10 +10,12 @@ export function Dashboard({
   loadDashboard,
   logout,
   navigate,
+  preloadedDashboard,
 }: {
   loadDashboard: () => Promise<DashboardResponse>;
   logout: () => Promise<void>;
   navigate?: (destination: string) => void;
+  preloadedDashboard?: DashboardResponse;
 }) {
   return (
     <ApplicationShell
@@ -22,6 +24,7 @@ export function Dashboard({
       loadErrorMessage="We couldn't load your dashboard. Please try again."
       logout={logout}
       navigate={navigate}
+      preloadedDashboard={preloadedDashboard}
       headerActions={
         <>
           <NotificationSymbol />
