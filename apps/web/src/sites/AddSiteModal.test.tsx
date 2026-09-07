@@ -40,6 +40,35 @@ function selectAccess(name: 'People you invite' | 'Private') {
 }
 
 describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () => {
+  it('keeps the created Site in the modal for optional cover Image Step 3 [site-cover-image-add REQ-001, AC-001]', async () => {
+    const onCreated = vi.fn();
+    const createSite = vi.fn(baseProps.createSite);
+    render(
+      <AddSiteModal
+        {...baseProps}
+        coverImageEnabled
+        createSite={createSite}
+        onCreated={onCreated}
+        uploadCoverImage={() => Promise.resolve()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add new site' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Add a cover image' }),
+    ).toBeVisible();
+    expect(screen.getByText('Step 3 of 3')).toBeVisible();
+    expect(createSite).toHaveBeenCalledOnce();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole('button', { name: 'Add cover image' }),
+    ).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+    expect(onCreated).toHaveBeenCalledWith(
+      '/sites/ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9/activity',
+    );
+  });
+
   it('selects and creates a Private site from the Figma access dropdown [sites-access-scope REQ-001..REQ-005, REQ-010, REQ-013, REQ-015]', async () => {
     const createSite = vi.fn(baseProps.createSite);
     render(<AddSiteModal {...baseProps} createSite={createSite} />);

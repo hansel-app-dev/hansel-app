@@ -166,6 +166,7 @@ export function App({
   if (currentPath === '/sites') {
     return (
       <Sites
+        coverImageEnabled={!import.meta.env.PROD}
         createSite={(input) =>
           handleApplicationSession(createSite(input, apiUrl))
         }

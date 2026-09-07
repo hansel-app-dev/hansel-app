@@ -20,6 +20,7 @@ import {
 } from '../design-system/index.js';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
 import { SiteCreateError } from '../api.js';
+import { SiteCoverImageStep } from './SiteCoverImageStep.js';
 
 interface StepOneValues {
   name: string;
@@ -140,24 +141,31 @@ function MemberIdentity({
 
 export interface AddSiteModalProps {
   canInviteMembers: boolean;
+  coverImageEnabled?: boolean;
   createSite: (input: CreateSiteRequest) => Promise<CreateSiteResponse>;
   creator: SiteMemberChoice;
   members: SiteMemberChoice[];
   onClose: () => void;
   onCreated: (destination: string) => void;
   organizationName: string;
+  uploadCoverImage?: (siteId: string, file: File) => Promise<void>;
 }
 
 export function AddSiteModal({
   canInviteMembers,
+  coverImageEnabled = false,
   createSite,
   creator,
   members,
   onClose,
   onCreated,
   organizationName,
+  uploadCoverImage,
 }: AddSiteModalProps) {
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [createdSite, setCreatedSite] = useState<CreateSiteResponse | null>(
+    null,
+  );
   const [accessScope, setAccessScope] =
     useState<SiteAccessScope>('ORGANIZATION');
   const [accessOpen, setAccessOpen] = useState(false);
@@ -197,6 +205,10 @@ export function AddSiteModal({
   const isDirty =
     stepOneDirty || accessScope !== 'ORGANIZATION' || assignments.length > 0;
   const requestClose = () => {
+    if (step === 3 && createdSite) {
+      onCreated(createdSite.destination);
+      return;
+    }
     if (
       isDirty &&
       !window.confirm('Discard your site details and close this dialog?')
@@ -254,7 +266,12 @@ export function AddSiteModal({
             ? { ...common, accessScope, assignments }
             : { ...common, accessScope };
       const result = await createSite(request);
-      onCreated(result.destination);
+      if (coverImageEnabled) {
+        setCreatedSite(result);
+        setStep(3);
+      } else {
+        onCreated(result.destination);
+      }
     } catch (error) {
       setSubmissionError(
         error instanceof SiteCreateError
@@ -268,9 +285,22 @@ export function AddSiteModal({
   };
 
   return (
-    <Modal onClose={requestClose} title="Add new site">
-      <header className="flex items-center justify-between border-b border-control-border px-6 py-5">
-        <h2 className="text-xl font-semibold">Add new site</h2>
+    <Modal
+      backdrop={step === 3 ? 'blurred' : 'default'}
+      onClose={requestClose}
+      title="Add new site"
+      size={step === 3 ? 'compact' : 'default'}
+    >
+      <header
+        className={`flex items-center justify-between border-b border-control-border px-6 ${step === 3 ? 'h-[51px]' : 'py-5'}`}
+      >
+        <h2
+          className={
+            step === 3 ? 'text-lg font-semibold' : 'text-xl font-semibold'
+          }
+        >
+          {step === 3 ? 'Add a cover image' : 'Add new site'}
+        </h2>
         <button
           aria-label="Close"
           className="grid size-9 place-items-center rounded-control hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-focus"
@@ -464,7 +494,7 @@ export function AddSiteModal({
             </p>
           ) : null}
         </div>
-      ) : (
+      ) : step === 2 ? (
         <div className="grid gap-6 px-6 py-6">
           <section
             aria-labelledby="invite-members-heading"
@@ -602,74 +632,83 @@ export function AddSiteModal({
             </p>
           ) : null}
         </div>
-      )}
+      ) : createdSite ? (
+        <SiteCoverImageStep
+          destination={createdSite.destination}
+          onComplete={onCreated}
+          siteId={createdSite.siteId}
+          {...(uploadCoverImage ? { uploadCoverImage } : {})}
+        />
+      ) : null}
 
-      <footer className="flex items-center justify-between gap-4 border-t border-control-border px-6 py-4">
-        <p className="text-sm text-content-muted">
-          Step {step} of {accessScope === 'PEOPLE_INVITED' ? 2 : 1}
-        </p>
-        <div className="flex gap-2">
-          {step === 1 ? (
-            <>
-              <Button onClick={requestClose} variant="secondary">
-                Cancel
-              </Button>
-              {accessScope === 'PEOPLE_INVITED' ? (
+      {step !== 3 ? (
+        <footer className="flex items-center justify-between gap-4 border-t border-control-border px-6 py-4">
+          <p className="text-sm text-content-muted">
+            Step {step} of {accessScope === 'PEOPLE_INVITED' ? 2 : 1}
+          </p>
+          <div className="flex gap-2">
+            {step === 1 ? (
+              <>
+                <Button onClick={requestClose} variant="secondary">
+                  Cancel
+                </Button>
+                {accessScope === 'PEOPLE_INVITED' ? (
+                  <Button
+                    onClick={() => {
+                      void trigger('name').then((valid) => {
+                        if (valid) setStep(2);
+                      });
+                    }}
+                  >
+                    Next
+                  </Button>
+                ) : (
+                  <Button
+                    disabled={isCreating}
+                    onClick={() => {
+                      const fields: (keyof StepOneValues)[] =
+                        accessScope === 'ORGANIZATION'
+                          ? ['name', 'organizationAccess']
+                          : ['name'];
+                      void trigger(fields).then((valid) => {
+                        if (valid) void submit();
+                      });
+                    }}
+                  >
+                    {isCreating ? 'Creating…' : 'Add new site'}
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
                 <Button
                   onClick={() => {
-                    void trigger('name').then((valid) => {
-                      if (valid) setStep(2);
-                    });
+                    setStep(1);
                   }}
+                  variant="secondary"
                 >
-                  Next
+                  Back
                 </Button>
-              ) : (
                 <Button
-                  disabled={isCreating}
-                  onClick={() => {
-                    const fields: (keyof StepOneValues)[] =
-                      accessScope === 'ORGANIZATION'
-                        ? ['name', 'organizationAccess']
-                        : ['name'];
-                    void trigger(fields).then((valid) => {
-                      if (valid) void submit();
-                    });
-                  }}
-                >
-                  {isCreating ? 'Creating…' : 'Add new site'}
-                </Button>
-              )}
-            </>
-          ) : (
-            <>
-              <Button
-                onClick={() => {
-                  setStep(1);
-                }}
-                variant="secondary"
-              >
-                Back
-              </Button>
-              <Button
-                aria-describedby={
-                  submissionError ? 'site-create-error' : undefined
-                }
-                disabled={hasPaidSeatWarning || isCreating}
-                onClick={() => {
-                  if (assignments.length === 0) {
-                    setSubmissionError('Invite at least one person.');
-                    return;
+                  aria-describedby={
+                    submissionError ? 'site-create-error' : undefined
                   }
-                  void submit();
-                }}
-              >
-                {isCreating ? 'Creating…' : 'Create site'}
-              </Button>
-            </>
-          )}
-        </div>
-      </footer>
+                  disabled={hasPaidSeatWarning || isCreating}
+                  onClick={() => {
+                    if (assignments.length === 0) {
+                      setSubmissionError('Invite at least one person.');
+                      return;
+                    }
+                    void submit();
+                  }}
+                >
+                  {isCreating ? 'Creating…' : 'Create site'}
+                </Button>
+              </>
+            )}
+          </div>
+        </footer>
+      ) : null}
     </Modal>
   );
 }

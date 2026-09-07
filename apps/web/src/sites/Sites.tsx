@@ -37,6 +37,7 @@ function NewSiteButton({
 }
 
 export interface SitesProps {
+  coverImageEnabled?: boolean;
   createSite: (input: CreateSiteRequest) => Promise<CreateSiteResponse>;
   loadDashboard: () => Promise<DashboardResponse>;
   loadSites: () => Promise<SitesPageResponse>;
@@ -46,6 +47,7 @@ export interface SitesProps {
 }
 
 export function Sites({
+  coverImageEnabled = false,
   createSite,
   loadDashboard,
   loadSites,
@@ -179,6 +181,7 @@ export function Sites({
       {modalOpen && page ? (
         <AddSiteModal
           canInviteMembers={page.canInviteMembers}
+          coverImageEnabled={coverImageEnabled}
           createSite={createSite}
           creator={page.creator}
           members={page.members}

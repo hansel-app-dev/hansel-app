@@ -88,6 +88,24 @@ export const StepTwo: Story = {
   },
 };
 
+export const StepThree: Story = {
+  args: {
+    coverImageEnabled: true,
+    uploadCoverImage: () => Promise.resolve(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Add new site' }));
+    await expect(
+      await canvas.findByRole('heading', { name: 'Add a cover image' }),
+    ).toBeVisible();
+    await expect(canvas.getByText('Step 3 of 3')).toBeVisible();
+    await expect(
+      canvas.getByRole('button', { name: 'Add cover image' }),
+    ).toBeDisabled();
+  },
+};
+
 export const FreePlan: Story = {
   args: { canInviteMembers: false },
   play: async ({ canvasElement }) => {

@@ -2,15 +2,25 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 export interface ModalProps {
+  backdrop?: 'default' | 'blurred';
   children: ReactNode;
+  initialFocus?: 'first-control' | 'dialog';
   onClose: () => void;
+  size?: 'compact' | 'default' | 'wide';
   title: string;
 }
 
 const focusableSelector =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function Modal({ children, onClose, title }: ModalProps) {
+export function Modal({
+  backdrop = 'default',
+  children,
+  initialFocus = 'first-control',
+  onClose,
+  size = 'default',
+  title,
+}: ModalProps) {
   const [dialog, setDialog] = useState<HTMLDivElement | null>(null);
   const onCloseRef = useRef(onClose);
 
@@ -22,7 +32,7 @@ export function Modal({ children, onClose, title }: ModalProps) {
     const previousFocus = document.activeElement as HTMLElement | null;
     if (!dialog) return;
     const firstFocusable = dialog.querySelector<HTMLElement>(focusableSelector);
-    (firstFocusable ?? dialog).focus();
+    (initialFocus === 'dialog' ? dialog : (firstFocusable ?? dialog)).focus();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -55,11 +65,11 @@ export function Modal({ children, onClose, title }: ModalProps) {
       document.removeEventListener('keydown', handleKeyDown);
       previousFocus?.focus();
     };
-  }, [dialog]);
+  }, [dialog, initialFocus]);
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#171717]/45 p-4"
+      className={`fixed inset-0 z-50 grid place-items-center overflow-y-auto p-4 ${backdrop === 'blurred' ? 'bg-[#171717]/30 backdrop-blur-[3px]' : 'bg-[#171717]/45'}`}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -67,7 +77,7 @@ export function Modal({ children, onClose, title }: ModalProps) {
       <div
         aria-labelledby="modal-title"
         aria-modal="true"
-        className="my-auto max-h-[calc(100vh-2rem)] w-full max-w-[600px] overflow-y-auto rounded-lg bg-surface text-content shadow-2xl"
+        className={`my-auto max-h-[calc(100vh-2rem)] w-full overflow-y-auto rounded-lg bg-surface text-content shadow-2xl outline-none ${size === 'wide' ? 'max-w-[900px]' : size === 'compact' ? 'max-w-[500px]' : 'max-w-[600px]'}`}
         ref={setDialog}
         role="dialog"
         tabIndex={-1}

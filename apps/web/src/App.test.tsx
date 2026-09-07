@@ -321,6 +321,10 @@ describe('App [REQ-002]', () => {
     fireEvent.click(newSite);
     fireEvent.click(screen.getByRole('button', { name: 'Add new site' }));
     expect(
+      await screen.findByRole('heading', { name: 'Add a cover image' }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
+    expect(
       await screen.findByRole('heading', { name: 'New site' }),
     ).toBeVisible();
     expect(window.location.pathname).toBe(`/sites/${siteId}/activity`);
