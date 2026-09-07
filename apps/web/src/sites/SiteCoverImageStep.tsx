@@ -79,7 +79,11 @@ export function SiteCoverImageStep({
     void select(event.dataTransfer.files[0]);
   };
   const upload = () => {
-    if (!file || uploading || !uploadCoverImage) return;
+    if (!file || uploading) return;
+    if (!uploadCoverImage) {
+      setError("We couldn't add the cover image. Please try again.");
+      return;
+    }
     setUploading(true);
     setError('');
     void uploadCoverImage(siteId, file)
@@ -194,7 +198,7 @@ export function SiteCoverImageStep({
             Skip for now
           </Button>
           <Button
-            disabled={!file || uploading || !uploadCoverImage}
+            disabled={!file || uploading}
             onClick={upload}
           >
             {uploading ? 'Adding cover image…' : 'Add cover image'}

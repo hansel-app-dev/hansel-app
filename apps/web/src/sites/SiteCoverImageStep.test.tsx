@@ -38,6 +38,27 @@ function renderStep(
 }
 
 describe('SiteCoverImageStep', () => {
+  it('enables Add cover image after a valid selection even when upload wiring is unavailable', async () => {
+    render(
+      <SiteCoverImageStep
+        destination={destination}
+        onComplete={vi.fn()}
+        siteId="00000000-0000-4000-8000-000000000001"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('Choose cover image'), {
+      target: { files: [png()] },
+    });
+    const add = screen.getByRole('button', { name: 'Add cover image' });
+    await waitFor(() => {
+      expect(add).toBeEnabled();
+    });
+    fireEvent.click(add);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "We couldn't add the cover image",
+    );
+  });
+
   it('skips without uploading [site-cover-image-add AC-003]', () => {
     const { onComplete, uploadCoverImage } = renderStep();
     fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }));
