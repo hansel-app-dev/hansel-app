@@ -1,7 +1,8 @@
 # Feature: Display Site cover Images
 
 - ID: `site-cover-image-display`
-- Status: `draft`
+- Status: `approved`
+- Product approval: `Approved explicitly by the user in the Codex task on 2026-09-07`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-07`
