@@ -1,7 +1,7 @@
 # Feature: Add new Site design refresh
 
 - ID: `add-site-design-refresh`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-10`
@@ -83,6 +83,8 @@ After approval, write failing tests for Organization/Private Next, People You In
 Use the existing Site and cover flags; no migration or backend rollout. Revert the presentation/progress amendment to roll back without changing created Sites or stored covers.
 
 ## Compatibility and approval
+
+Approved by the user in conversation on 2026-09-10. The user explicitly directed direct pushes to main without a separate branch or PR for this change, waiving the GitHub review step.
 
 On approval, REQ-005..REQ-007 supersede `sites-access-scope` REQ-013 action labels only when covers are enabled and the unconditional third-step wording in `site-cover-image-add` REQ-001. All other behavior remains unchanged. Await specification approval before application edits.
 
