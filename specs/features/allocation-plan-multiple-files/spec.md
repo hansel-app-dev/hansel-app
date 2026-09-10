@@ -1,7 +1,8 @@
 # Feature: Named Allocation Plans with Multiple Files
 
 - ID: `allocation-plan-multiple-files`
-- Status: `draft`
+- Status: `approved`
+- Product and technical approval: `Approved in the Codex task on 2026-09-10, including the interaction sequence and name validation rules.`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-10`
@@ -102,4 +103,4 @@ Commit/push this specification separately and obtain explicit approval before te
 
 ## Open questions
 
-- Approval is requested for the proposed interaction sequence and name validation rules. The user has confirmed the multiple-files-per-plan domain decision and the supplied visual states; application implementation is pending approval of this complete amendment.
+- None. The complete amendment, including the interaction sequence and name validation rules, was approved on 2026-09-10.
