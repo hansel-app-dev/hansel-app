@@ -1,7 +1,8 @@
 # Feature: Allocation details viewer and file selector
 
 - ID: `allocation-details-design`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved this specification in the Codex task on 2026-09-10.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-10`
@@ -95,7 +96,7 @@ Use the existing allocationPlansEnabled flag, retaining its production default. 
 
 ## Compatibility and approval
 
-On approval, this specification supersedes preview REQ-001 filename-only links, REQ-006 canvas styling, and lower-right zoom-control placement in the earlier preview UX section. It extends content delivery to ordered files from the approved multiple-file model. All other privacy, PDF, zoom, and Sign exclusions remain in force. No application changes may begin until this draft is approved.
+This approved specification supersedes preview REQ-001 filename-only links, REQ-006 canvas styling, and lower-right zoom-control placement in the earlier preview UX section. It extends content delivery to ordered files from the approved multiple-file model. All other privacy, PDF, zoom, and Sign exclusions remain in force.
 
 ## Open questions
 
