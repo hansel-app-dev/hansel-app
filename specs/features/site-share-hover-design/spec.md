@@ -1,7 +1,8 @@
 # Feature: Site header Share and member hover design
 
 - ID: `site-share-hover-design`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved this specification in the Codex task on 2026-09-10.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-10`
