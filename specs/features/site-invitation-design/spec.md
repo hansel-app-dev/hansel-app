@@ -1,7 +1,8 @@
 # Feature: Site invitation design refresh
 
 - ID: `site-invitation-design`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved in conversation on 2026-09-12; direct-main workflow without a PR as requested.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-12`
