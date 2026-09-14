@@ -1,7 +1,8 @@
 # Feature: Allocation Plan Signs and drawer
 
 - ID: `allocation-plan-signs`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved this specification and its proposed defaults in conversation on 2026-09-14.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-14`
