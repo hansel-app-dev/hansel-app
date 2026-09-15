@@ -324,13 +324,16 @@ export function ApplicationShell({
           className={`flex flex-1 flex-col max-md:mt-7 ${organizationName ? 'mt-[34px]' : 'mt-[66px] max-md:grid max-md:grid-cols-2 max-md:gap-2'}`}
           aria-label="Application"
         >
-          <div className="grid gap-[18px]">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-[18px]">
             {destinations.map((item) => {
               const current = item.label === activePage;
               const hasSiteNavigation =
                 item.label === 'Sites' && Boolean(siteNavigation?.length);
               return (
-                <div className="grid" key={item.label}>
+                <div
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
+                  key={item.label}
+                >
                   <div
                     className={`flex min-h-10 items-center rounded-md ${current ? 'bg-[#f1f5f9] font-semibold' : 'text-[#303238] hover:bg-[#f7f7f7]'}`}
                   >
@@ -376,9 +379,12 @@ export function ApplicationShell({
                     ) : null}
                   </div>
                   {hasSiteNavigation && sitesExpanded ? (
-                    <ul className="mt-1 grid gap-1" aria-label="Sites">
+                    <ul
+                      className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1"
+                      aria-label="Sites"
+                    >
                       {siteNavigation?.map((site) => (
-                        <li key={site.id}>
+                        <li className="min-w-0" key={site.id}>
                           <a
                             aria-current={
                               site.id === currentSiteId ? 'page' : undefined
@@ -396,7 +402,10 @@ export function ApplicationShell({
                             <span className="grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-on-action">
                               <SidebarSiteSymbol compact />
                             </span>
-                            <span className="truncate" title={site.name}>
+                            <span
+                              className="min-w-0 flex-1 truncate"
+                              title={site.name}
+                            >
                               {site.name}
                             </span>
                           </a>
