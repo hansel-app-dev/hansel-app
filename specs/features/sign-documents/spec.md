@@ -1,7 +1,8 @@
 # Feature: Sign drawer Docs
 
 - ID: `sign-documents`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved in conversation on 2026-09-15.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-15`
@@ -55,4 +56,4 @@ Gate behind a new sign-documents flag, default off in production, alongside allo
 
 ## Open questions
 
-- None. Awaiting approval of this specification before application changes.
+- None.
