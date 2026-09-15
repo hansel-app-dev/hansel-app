@@ -8,7 +8,7 @@ for (const width of [1512, 600]) {
     await page.setViewportSize({ width, height: 982 });
     let reference: Awaited<
       ReturnType<ReturnType<typeof page.locator>['boundingBox']>
-    >;
+    > = null;
     for (const story of [
       'sites-site-activity--loaded',
       'sites-site-allocation-plans--populated-grid',

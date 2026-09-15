@@ -123,6 +123,30 @@ const populatedArgs = {
 
 export const PopulatedGrid: Story = { args: populatedArgs };
 
+/** @spec allocation-card-hover REQ-001..REQ-003 */
+export const CardKeyboardFocus: Story = {
+  args: populatedArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const link = await canvas.findByRole('link', { name: 'First Floor.png' });
+    link.focus();
+    await expect(link).toHaveFocus();
+  },
+};
+
+export const LongCardName: Story = {
+  args: {
+    loadAllocationPlans: () =>
+      Promise.resolve({
+        ...populatedPlans,
+        plans: populatedPlans.plans.map((plan) => ({
+          ...plan,
+          name: 'Ground Floor – General Teaching Space and Administration',
+        })),
+      }),
+  },
+};
+
 export const PopulatedList: Story = {
   args: populatedArgs,
   play: async ({ canvasElement }) => {

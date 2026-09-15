@@ -163,21 +163,16 @@ export function AllocationPlanCollection({
         ) : (
           <ul
             aria-label="Allocation Plans"
-            className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,276px),276px))] gap-4"
+            className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,275px),275px))] gap-4"
           >
             {visiblePlans.map((plan) => (
               <li
-                className="flex min-h-[74px] min-w-0 items-center rounded border border-control-border bg-surface px-4 py-3 shadow-sm"
+                className="group relative min-h-[73px] min-w-0 rounded border border-control-border bg-surface hover:shadow-[0_3px_3px_rgba(0,0,0,0.16)] focus-within:shadow-[0_3px_3px_rgba(0,0,0,0.16)]"
                 key={plan.id}
               >
-                <span className="grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-on-action">
-                  <AppSymbol className="!size-4 text-[15px]" weight={100}>
-                    layers
-                  </AppSymbol>
-                </span>
                 <a
                   aria-label={plan.name ?? plan.filename}
-                  className="ml-2 min-w-0 flex-1 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  className="block min-w-0 rounded px-[15px] py-[15px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                   href={`/sites/${siteId}/allocations/${plan.id}`}
                   onClick={(event) => {
                     /* v8 ignore next -- the href is the tested no-JavaScript fallback */
@@ -186,19 +181,26 @@ export function AllocationPlanCollection({
                     navigate(event.currentTarget.pathname);
                   }}
                 >
-                  <span
-                    className="block truncate text-[14px] font-medium"
-                    title={plan.name ?? plan.filename}
-                  >
-                    {plan.name ?? plan.filename}
+                  <span className="flex min-w-0 items-center gap-2 pr-5">
+                    <span className="grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-on-action">
+                      <AppSymbol className="!size-4 text-[15px]" weight={100}>
+                        layers
+                      </AppSymbol>
+                    </span>
+                    <span
+                      className="truncate text-[14px] font-normal leading-5"
+                      title={plan.name ?? plan.filename}
+                    >
+                      {plan.name ?? plan.filename}
+                    </span>
                   </span>
-                  <span className="mt-1 block text-[12px] text-site-meta">
+                  <span className="mt-1 block text-[12px] leading-[17px] text-site-meta">
                     {plan.createdAt === plan.modifiedAt ? 'Created' : 'Edited'}{' '}
                     {relativeTime(plan.modifiedAt, now)}
                   </span>
                 </a>
                 <AppSymbol
-                  className="ml-3 !size-4 shrink-0 text-[18px] text-content-muted"
+                  className="pointer-events-none absolute right-2 top-[17px] !size-4 text-[18px] text-content-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
                   weight={100}
                 >
                   more_vert
