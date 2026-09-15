@@ -1,7 +1,8 @@
 # Feature: Allocation Plan card hover
 
 - ID: `allocation-card-hover`
-- Status: draft
+- Status: approved
+- Approval: User approved implementation on 2026-09-15.
 - Owner: Hansel product
 - Technical owner: Hansel engineering
 - Last updated: 2026-09-15
