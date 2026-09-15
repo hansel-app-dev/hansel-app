@@ -1,7 +1,8 @@
 # Feature: Sign drawer Comments
 
 - ID: `sign-comments`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved in conversation on 2026-09-15, including the proposed defaults below.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-15`
