@@ -3,6 +3,7 @@
 - ID: `allocation-card-hover`
 - Status: approved
 - Approval: User approved implementation on 2026-09-15.
+- Follow-up: User requested a slight hover animation; use a 150ms ease-out shadow/opacity transition, disabled for reduced-motion preferences. No movement or new behavior.
 - Owner: Hansel product
 - Technical owner: Hansel engineering
 - Last updated: 2026-09-15
