@@ -11,7 +11,11 @@ import type {
   SiteActivityResponse,
   SitesPageResponse,
 } from '@hansel/contracts';
-import { SiteActivity } from './SiteActivity.js';
+import {
+  SiteActivity,
+  SiteAllocationPlans,
+  SiteSignageSchedule,
+} from './SiteActivity.js';
 
 afterEach(cleanup);
 
@@ -48,6 +52,46 @@ const props = {
 };
 
 describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
+  it.each(['listing', 'details', 'schedule'])(
+    'shares flat navigation in %s [site-section-tabs-consistency REQ-001..REQ-003]',
+    async (view) => {
+      const Component =
+        view === 'schedule' ? SiteSignageSchedule : SiteAllocationPlans;
+      const navigate = vi.fn();
+      render(
+        <Component
+          {...props}
+          loadSite={() => Promise.resolve({ site })}
+          navigate={navigate}
+          {...(view === 'details' ? { previewPlanId: 'example-plan' } : {})}
+        />,
+      );
+      const navigation = await screen.findByRole('navigation', {
+        name: 'Site sections',
+      });
+      expect(navigation).toHaveClass(
+        '-mx-8',
+        'max-md:-mx-5',
+        'border-b',
+        'overflow-x-auto',
+      );
+      expect(navigation).not.toHaveClass(
+        'rounded',
+        'border',
+        'shadow-site-card',
+      );
+      expect(navigation.parentElement).not.toHaveClass('py-8');
+      expect(
+        within(navigation).getByRole('link', {
+          name: view === 'schedule' ? 'Signage Schedule' : 'Allocations',
+        }),
+      ).toHaveAttribute('aria-current', 'page');
+      fireEvent.click(
+        within(navigation).getByRole('link', { name: 'Activity' }),
+      );
+      expect(navigate).toHaveBeenCalledWith(`/sites/${siteId}/activity`);
+    },
+  );
   it('combines the authorized Site identity and Sites context in one loaded shell [site-details-activity-shell REQ-003..REQ-007]', async () => {
     let resolveActivity: ((value: SiteActivityResponse) => void) | undefined;
     let resolveSites: ((value: SitesPageResponse) => void) | undefined;
@@ -243,6 +287,10 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
       'min-h-[calc(100vh-64px)]',
     );
     expect(sections).toHaveClass('items-center');
+    // site-section-tabs-consistency REQ-001, REQ-003
+    expect(sections).toHaveClass('-mx-8', 'max-md:-mx-5', 'border-b');
+    expect(sections).not.toHaveClass('rounded', 'shadow-site-card', 'border');
+    expect(sections.parentElement).not.toHaveClass('py-8');
     expect(sections).not.toHaveClass('items-end');
     expect(within(sections).queryByText('more_horiz')).not.toBeInTheDocument();
     expect(

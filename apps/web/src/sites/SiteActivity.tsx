@@ -582,11 +582,11 @@ function SiteDetails({
       workspaceName={sitesPage.organizationName}
     >
       <section
-        className={`min-h-[calc(100vh-64px)] bg-[#fafafa] px-8 max-md:px-5 ${previewPlanId ? '[&>nav]:-mx-8 [&>nav]:rounded-none [&>nav]:border-x-0 [&>nav]:border-t-0 [&>nav]:shadow-none [&>nav>span]:min-h-[51px] [&>nav>span>a]:min-h-[51px]' : 'py-8'}`}
+        className={`min-h-[calc(100vh-64px)] bg-[#fafafa] px-8 max-md:px-5 ${previewPlanId ? '' : 'pb-8'}`}
       >
         <nav
           aria-label="Site sections"
-          className="flex min-h-[54px] max-w-full items-center gap-8 overflow-x-auto rounded border border-site-card-border bg-surface px-6 shadow-site-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="-mx-8 flex min-h-[54px] items-center gap-8 overflow-x-auto border-b border-site-card-border bg-surface px-6 max-md:-mx-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>span]:min-h-[51px] [&>span>a]:min-h-[51px]"
         >
           <span
             className={`flex min-h-[53px] shrink-0 items-center gap-2 px-1 text-[14px] font-medium ${activeSection === 'activity' ? 'border-b-2 border-action-primary' : ''}`}
