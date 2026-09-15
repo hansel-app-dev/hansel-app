@@ -1,7 +1,8 @@
 # Feature: Sign drawer Photos
 
 - ID: `sign-photos`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved in conversation on 2026-09-15.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-15`
@@ -92,4 +93,4 @@ Use a Photos-specific flag, default off in production, alongside allocation-plan
 
 ## Open questions
 
-- None. The proposed grid layout and confirmation treatment above await approval with this specification.
+- None.
