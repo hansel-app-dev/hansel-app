@@ -13,6 +13,14 @@ test('allocation cards match normal, hover and focus states [allocation-card-hov
   const card = cards.first();
   await expect(card).toBeVisible();
   const dots = card.getByText('more_vert');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(card).toHaveCSS('transition-property', 'none');
+  await expect(dots).toHaveCSS('transition-property', 'none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await expect(card).toHaveCSS('transition-duration', '0.15s');
+  await expect(card).toHaveCSS('transition-property', 'box-shadow');
+  await expect(dots).toHaveCSS('transition-duration', '0.15s');
+  await expect(dots).toHaveCSS('transition-property', 'opacity');
   await expect(card).toHaveCSS('box-shadow', 'none');
   await expect(dots).toHaveCSS('opacity', '0');
   const bounds = await card.boundingBox();

@@ -167,7 +167,7 @@ export function AllocationPlanCollection({
           >
             {visiblePlans.map((plan) => (
               <li
-                className="group relative min-h-[73px] min-w-0 rounded border border-control-border bg-surface hover:shadow-[0_3px_3px_rgba(0,0,0,0.16)] focus-within:shadow-[0_3px_3px_rgba(0,0,0,0.16)]"
+                className="group relative min-h-[73px] min-w-0 rounded border border-control-border bg-surface transition-shadow duration-150 ease-out motion-reduce:transition-none hover:shadow-[0_3px_3px_rgba(0,0,0,0.16)] focus-within:shadow-[0_3px_3px_rgba(0,0,0,0.16)]"
                 key={plan.id}
               >
                 <a
@@ -200,7 +200,7 @@ export function AllocationPlanCollection({
                   </span>
                 </a>
                 <AppSymbol
-                  className="pointer-events-none absolute right-2 top-[17px] !size-4 text-[18px] text-content-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                  className="pointer-events-none absolute right-2 top-[17px] !size-4 text-[18px] text-content-muted opacity-0 transition-opacity duration-150 ease-out motion-reduce:transition-none group-hover:opacity-100 group-focus-within:opacity-100"
                   weight={100}
                 >
                   more_vert
