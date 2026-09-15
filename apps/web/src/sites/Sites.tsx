@@ -14,6 +14,7 @@ import {
 } from '../application-shell/ApplicationShell.js';
 import { AddSiteModal } from './AddSiteModal.js';
 import { SiteCollection } from './SiteCollection.js';
+import type { CoverImageLoader } from './SiteCoverImage.js';
 
 function NewSiteButton({
   compact = false,
@@ -37,6 +38,8 @@ function NewSiteButton({
 }
 
 export interface SitesProps {
+  loadCoverImage?: CoverImageLoader;
+  uploadCoverImage?: (siteId: string, file: File) => Promise<void>;
   coverImageEnabled?: boolean;
   createSite: (input: CreateSiteRequest) => Promise<CreateSiteResponse>;
   loadDashboard: () => Promise<DashboardResponse>;
@@ -48,6 +51,8 @@ export interface SitesProps {
 }
 
 export function Sites({
+  loadCoverImage,
+  uploadCoverImage,
   coverImageEnabled = false,
   createSite,
   loadDashboard,
@@ -129,6 +134,7 @@ export function Sites({
         </section>
       ) : page?.sites.length ? (
         <SiteCollection
+          loadCoverImage={loadCoverImage}
           navigate={navigate}
           sites={page.sites}
           {...(now ? { now } : {})}
@@ -183,8 +189,9 @@ export function Sites({
       )}
       {modalOpen && page ? (
         <AddSiteModal
+          {...(uploadCoverImage ? { uploadCoverImage } : {})}
           canInviteMembers={page.canInviteMembers}
-          coverImageEnabled={coverImageEnabled}
+          coverImageEnabled={page.siteCoverImageEnabled ?? coverImageEnabled}
           createSite={createSite}
           creator={page.creator}
           members={page.members}

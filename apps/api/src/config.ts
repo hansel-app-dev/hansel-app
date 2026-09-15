@@ -5,8 +5,14 @@ interface BaseAppConfig {
   dashboardEnabled: boolean;
   sitesEnabled: boolean;
   allocationPlansEnabled: boolean;
+  allocationPlanDraftsEnabled: boolean;
   signageScheduleEnabled: boolean;
+  allocationPlanSignsEnabled: boolean;
+  signDocumentsEnabled: boolean;
+  signPhotosEnabled: boolean;
+  signCommentsEnabled: boolean;
   siteActivityEnabled: boolean;
+  organizationTraySettingsEnabled: boolean;
   allocationPlansBucketName: string | null;
   discoveryEnabled: boolean;
   runtimeEnvironment: 'test' | 'production';
@@ -207,6 +213,14 @@ export function loadConfig(
       (environment.SITES_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
     allocationPlansEnabled: environment.ALLOCATION_PLANS_ENABLED === 'true',
+    // Enable only after the additive placement migration has been applied.
+    allocationPlanSignsEnabled:
+      environment.ALLOCATION_PLAN_SIGNS_ENABLED === 'true',
+    signDocumentsEnabled: environment.SIGN_DOCUMENTS_ENABLED === 'true',
+    signPhotosEnabled: environment.SIGN_PHOTOS_ENABLED === 'true',
+    signCommentsEnabled: environment.SIGN_COMMENTS_ENABLED === 'true',
+    allocationPlanDraftsEnabled:
+      environment.ALLOCATION_PLAN_DRAFTS_ENABLED === 'true',
     signageScheduleEnabled:
       environment.SIGNAGE_SCHEDULE_ENABLED === 'true' ||
       (environment.SIGNAGE_SCHEDULE_ENABLED === undefined &&
@@ -214,6 +228,10 @@ export function loadConfig(
     siteActivityEnabled:
       environment.SITE_ACTIVITY_ENABLED === 'true' ||
       (environment.SITE_ACTIVITY_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
+    organizationTraySettingsEnabled:
+      environment.ORGANIZATION_TRAY_SETTINGS_ENABLED === 'true' ||
+      (environment.ORGANIZATION_TRAY_SETTINGS_ENABLED === undefined &&
         environment.NODE_ENV !== 'production'),
     allocationPlansBucketName:
       environment.ALLOCATION_PLANS_BUCKET_NAME?.trim() ?? null,

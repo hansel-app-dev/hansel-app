@@ -1,7 +1,7 @@
 import {
   cleanup,
   fireEvent,
-  render,
+  render as renderView,
   screen,
   waitFor,
 } from '@testing-library/react';
@@ -39,7 +39,57 @@ function selectAccess(name: 'People you invite' | 'Private') {
   fireEvent.click(screen.getByRole('option', { name }));
 }
 
+// Existing flow cases start with a name explicitly entered by the user.
+function render(...args: Parameters<typeof renderView>) {
+  const result = renderView(...args);
+  fireEvent.change(screen.getByLabelText('Name'), {
+    target: { value: 'New site' },
+  });
+  return result;
+}
+
 describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () => {
+  it('starts empty with a placeholder and requires a name [add-site-design-refresh REQ-002]', async () => {
+    const createSite = vi.fn(baseProps.createSite);
+    renderView(
+      <AddSiteModal {...baseProps} coverImageEnabled createSite={createSite} />,
+    );
+    expect(screen.getByPlaceholderText('New site')).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Enter a site name',
+    );
+    expect(createSite).not.toHaveBeenCalled();
+  });
+  it('uses truthful invited totals and does not create at the first Next [add-site-design-refresh REQ-006]', async () => {
+    const createSite = vi.fn(baseProps.createSite);
+    render(
+      <AddSiteModal {...baseProps} coverImageEnabled createSite={createSite} />,
+    );
+    selectAccess('People you invite');
+    expect(screen.getByText('Step 1 of 3')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Step 2 of 3')).toBeVisible();
+    expect(createSite).not.toHaveBeenCalled();
+  });
+
+  it('retries Private Next using the same request after failure [add-site-design-refresh REQ-005]', async () => {
+    const createSite = vi
+      .fn(baseProps.createSite)
+      .mockRejectedValueOnce(new Error('unavailable'));
+    render(
+      <AddSiteModal {...baseProps} coverImageEnabled createSite={createSite} />,
+    );
+    selectAccess('Private');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      "couldn't create the site",
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Step 2 of 2')).toBeVisible();
+    expect(createSite).toHaveBeenCalledTimes(2);
+    expect(createSite.mock.calls[0]).toEqual(createSite.mock.calls[1]);
+  });
   it('keeps the created Site in the modal for optional cover Image Step 3 [site-cover-image-add REQ-001, AC-001]', async () => {
     const onCreated = vi.fn();
     const createSite = vi.fn(baseProps.createSite);
@@ -53,11 +103,12 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add new site' }));
+    expect(screen.getByText('Step 1 of 2')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(
       await screen.findByRole('heading', { name: 'Add a cover image' }),
     ).toBeVisible();
-    expect(screen.getByText('Step 3 of 3')).toBeVisible();
+    expect(screen.getByText('Step 2 of 2')).toBeVisible();
     expect(createSite).toHaveBeenCalledOnce();
     expect(onCreated).not.toHaveBeenCalled();
     expect(
@@ -174,7 +225,9 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     });
     selectAccess('People you invite');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(await screen.findByText('Invite team members')).toBeVisible();
+    expect(
+      await screen.findByRole('heading', { name: 'Invite team members' }),
+    ).toBeVisible();
     expect(screen.getByText('Nabin Singh')).toBeVisible();
 
     fireEvent.change(screen.getByLabelText('Email or team member'), {
@@ -211,7 +264,7 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     render(<AddSiteModal {...baseProps} />);
     selectAccess('People you invite');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText('Invite team members');
+    await screen.findByRole('heading', { name: 'Invite team members' });
     fireEvent.change(screen.getByLabelText('Email or team member'), {
       target: { value: 'external@example.com' },
     });
@@ -285,7 +338,7 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     const { rerender } = render(<AddSiteModal {...baseProps} />);
     selectAccess('People you invite');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText('Invite team members');
+    await screen.findByRole('heading', { name: 'Invite team members' });
 
     rerender(<AddSiteModal {...baseProps} canInviteMembers={false} />);
     expect(
@@ -351,7 +404,7 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     render(<AddSiteModal {...baseProps} />);
     selectAccess('People you invite');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText('Invite team members');
+    await screen.findByRole('heading', { name: 'Invite team members' });
     const add = async (email: string, role: string) => {
       fireEvent.change(screen.getByLabelText('Email or team member'), {
         target: { value: email },
@@ -366,7 +419,7 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     await add('external@example.com', 'VIEWER');
     await add('editor@example.com', 'EDITOR');
     expect(screen.getAllByText('Ed Itor')).toHaveLength(1);
-    expect(screen.getByText('editor@example.com · Internal')).toBeVisible();
+    expect(screen.getByText('editor@example.com')).toBeVisible();
     fireEvent.change(screen.getByLabelText('Role for editor@example.com'), {
       target: { value: 'VIEWER' },
     });
@@ -384,7 +437,7 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     render(<AddSiteModal {...baseProps} createSite={createSite} />);
     selectAccess('People you invite');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await screen.findByText('Invite team members');
+    await screen.findByRole('heading', { name: 'Invite team members' });
     fireEvent.change(screen.getByLabelText('Email or team member'), {
       target: { value: 'editor@example.com' },
     });

@@ -148,12 +148,25 @@ This section is an index for discovery, not a promise that the current data mode
 | Allocation Plan                       | Prisma `AllocationPlan`, `AllocationPlanUpload`, and `AllocationPlanUploadBatch`; private S3 object storage | Implemented for approved add/list scope                                                                                                          |
 | Sign                                  | Prisma `SignType` and `Sign`; Site Signage Schedule API and inline editor                                   | Implemented for code, type, state, schedule fields, and timestamps; photos/comments/plan positioning remain source-only                          |
 | Document, Image, Video                | No approved persistent models                                                                               | Source-only concepts                                                                                                                             |
-| Sign Comment, Allocation Plan Comment | No approved persistent models                                                                               | Source-only concepts                                                                                                                             |
+| Sign Comment | Prisma `SignComment`, `SignCommentReaction`, `SignCommentAttachment` | Approved `sign-comments`: Sign-owned threads, attachments, mentions and reactions; deletion follows shared Sign |
+| Allocation Plan Comment | No approved persistent model | Source-only concept |
 | Activity and Site Comment             | Immutable Site-scoped Activity feed and text-only Site comments                                             | Implemented for the approved Site creation, Allocation Plan, Sign Type, Sign, and Site-comment scope; Site Comment was not a named FigJam object |
 
 When code and this table diverge, update the table in the same documentation change or explicitly explain why the new specification supersedes it.
 
+The approved `allocation-plan-multiple-files` amendment (2026-09-10) resolves Allocation Plan cardinality: one named Allocation Plan owns one or more ordered files. `AllocationPlanUpload` also represents the verified file association after attachment through `groupedPlanId`; these files are not independent Document/Image library objects. Existing single-file plans retain their IDs and receive their filename as the plan name. Verification alone creates no plan or Activity; final creation does both atomically. This supersedes only the earlier one-upload/one-plan interpretation, not the board's Sign relationships.
+
 ## How feature work must use this catalog
+
+The approved `sign-mounting-options` specification (2026-09-15) expands the Sign drawer's mounting attribute to Freestanding, Wall-mounted, Overhead and Cantilevered, with illustrated single-select options. It supersedes the original Wall-mounted-only restriction, retains that creation default, and does not change the Site's Sign Type grouping.
+
+The approved `sign-comments` specification (2026-09-15) explicitly accepts Sign-owned root comments and one-level replies, uploader-private draft attachments (PNG/JPEG/PDF, 5 MiB), membership mentions restricted to current Site access without notifications, and desired-state emoji reactions. This is an accepted implementation scope, not an inference from FigJam proximity. It does not introduce Allocation Plan comments, a media library, or synchronization with Site Activity or the Signage Schedule comment cell.
+
+The approved `sign-photos` specification (2026-09-15) supersedes the inactive Photos scope below. Sign-owned Images accept PNG/JPEG only, up to 5 MiB each, and remain separate from Docs. `SignPhoto` persists this association; its durable object ledger retains original/thumbnail cleanup work after Image or shared Sign deletion. Individual Image deletion does not delete the Sign. The Photos drawer supports list/grid, private thumbnails, downloads and confirmed deletion; preview, Organization library and Comments remain deferred. This acceptance does not resolve broader Image/Document library associations.
+
+The approved `sign-documents` specification (2026-09-15) enables the Sign drawer's Docs tab only: a Document uploaded here is owned by one shared Sign, accepts PNG/JPG/PDF up to 5 MB each, and is downloaded rather than previewed. Sign deletion revokes its Documents and retains durable object-cleanup work. This does not create an Organization library, populate Photos, enable Comments, or infer tags/categories from the board. It supersedes the earlier inactive Docs scope; Photos and Comments remain inactive.
+
+The approved `allocation-plan-signs` specification (2026-09-14) resolves plan placement: each placed Sign has one normalized position on one Allocation Plan file (or legacy plan image). The plan drawer and Signage Schedule share the same Sign record, including deletion. New plan-created Signs use the Site-local Plan signs group, distinct from mounting type. The initial mounting/function/colour values and eight orientations are explicitly specified; Docs, Photos and Comments remain inactive.
 
 Before drafting or implementing a feature:
 

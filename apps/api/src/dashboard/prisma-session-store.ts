@@ -45,6 +45,7 @@ export function createPrismaDashboardSessionStore(
               revokedAt: true,
               user: {
                 select: {
+                  email: true,
                   personalProfile: {
                     select: { firstName: true, lastName: true },
                   },
@@ -70,7 +71,23 @@ export function createPrismaDashboardSessionStore(
             tenantId: credential.family.tenantId,
           },
         },
-        select: { roleId: true },
+        select: {
+          roleId: true,
+          tenant: {
+            select: {
+              name: true,
+              memberships: {
+                where: { roleId: 'owner' },
+                take: 1,
+                select: {
+                  user: {
+                    select: { planSelection: { select: { planId: true } } },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
       if (!membership) {
         recordEvent('dashboard_membership_rejected');
@@ -79,6 +96,18 @@ export function createPrismaDashboardSessionStore(
       return {
         ...credential.family.user.personalProfile,
         roleId: membership.roleId,
+        ...(credential.family.user.email
+          ? { email: credential.family.user.email }
+          : {}),
+        ...(membership.tenant.name
+          ? { organizationName: membership.tenant.name }
+          : {}),
+        ...(membership.tenant.memberships[0]?.user.planSelection?.planId
+          ? {
+              planId:
+                membership.tenant.memberships[0].user.planSelection.planId,
+            }
+          : {}),
       };
     },
     async rotateRefresh(input: {
@@ -113,6 +142,7 @@ export function createPrismaDashboardSessionStore(
                   revokedAt: true,
                   user: {
                     select: {
+                      email: true,
                       personalProfile: {
                         select: { firstName: true, lastName: true },
                       },
@@ -148,7 +178,23 @@ export function createPrismaDashboardSessionStore(
               tenantId: credential.family.tenantId,
             },
           },
-          select: { roleId: true },
+          select: {
+            roleId: true,
+            tenant: {
+              select: {
+                name: true,
+                memberships: {
+                  where: { roleId: 'owner' },
+                  take: 1,
+                  select: {
+                    user: {
+                      select: { planSelection: { select: { planId: true } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
         });
         if (!membership) {
           recordEvent('dashboard_membership_rejected');
@@ -198,6 +244,18 @@ export function createPrismaDashboardSessionStore(
           viewer: {
             ...credential.family.user.personalProfile,
             roleId: membership.roleId,
+            ...(credential.family.user.email
+              ? { email: credential.family.user.email }
+              : {}),
+            ...(membership.tenant.name
+              ? { organizationName: membership.tenant.name }
+              : {}),
+            ...(membership.tenant.memberships[0]?.user.planSelection?.planId
+              ? {
+                  planId:
+                    membership.tenant.memberships[0].user.planSelection.planId,
+                }
+              : {}),
           },
         };
       });

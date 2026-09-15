@@ -47,12 +47,14 @@ const actionCopy = (
 };
 
 export function SiteActivityFeed({
+  viewer,
   initial,
   loadOlder,
   submitComment,
   onUnavailable,
   now = new Date(),
 }: {
+  viewer?: { displayName: string; initials: string };
   initial: SiteActivityPageResponse;
   loadOlder: (cursor: string) => Promise<SiteActivityPageResponse>;
   submitComment: (text: string) => Promise<SiteActivityItem>;
@@ -120,44 +122,67 @@ export function SiteActivityFeed({
     }
   };
   return (
-    <div className="px-5 pb-5 pt-4">
+    <div className="px-5 pb-[34px] pt-6">
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-content-muted">
           Site activity will appear here.
         </p>
       ) : (
-        <ol className="relative ml-3 border-l border-control-border">
+        <ol className="relative ml-[10px] border-l border-[#e2e6ec]">
           {items.map((item) => {
             const exact = new Date(item.createdAt).toLocaleString();
+            const isComment = item.kind === 'SITE_COMMENT_ADDED';
             return (
-              <li className="relative pb-5 pl-6 text-sm" key={item.id}>
+              <li
+                className={`relative pl-6 ${isComment ? 'pb-6' : 'min-h-[42px] pb-6'}`}
+                key={item.id}
+              >
                 <span
                   aria-hidden="true"
-                  className="absolute -left-[13px] grid size-6 place-items-center rounded-full border border-control-border bg-surface text-[10px] font-semibold"
+                  className={
+                    isComment
+                      ? 'absolute -left-[10px] top-[10px] grid size-5 place-items-center rounded-full bg-[#64748b] text-[8px] font-semibold text-white ring-4 ring-white'
+                      : 'absolute -left-[4px] top-[5px] size-[7px] rounded-full border border-[#cbd2dc] bg-white ring-[6px] ring-white'
+                  }
                 >
-                  {item.actor.initials}
+                  {isComment ? item.actor.initials : null}
                 </span>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 leading-5">
-                    <strong>{item.actor.displayName}</strong>{' '}
-                    {item.kind === 'SITE_COMMENT_ADDED'
-                      ? 'commented'
-                      : actionCopy(item)}
-                  </p>
-                  <time
-                    aria-label={exact}
-                    className="shrink-0 text-xs text-content-muted"
-                    dateTime={item.createdAt}
-                    title={exact}
-                  >
-                    {relativeTime(item.createdAt, now)}
-                  </time>
+                <div
+                  data-activity-comment-card={isComment ? '' : undefined}
+                  className={
+                    isComment
+                      ? 'min-h-[84px] rounded-[5px] border border-[#dfe3e9] px-[10px] py-[11px]'
+                      : ''
+                  }
+                >
+                  <div className="flex items-start justify-between gap-2 text-[10px] leading-[16px] text-[#475569]">
+                    <p className="min-w-0 break-words">
+                      <strong className="font-medium text-[#0f172a]">
+                        {item.actor.displayName}
+                      </strong>{' '}
+                      {item.kind === 'SITE_COMMENT_ADDED'
+                        ? 'commented'
+                        : actionCopy(item)}
+                    </p>
+                    <time
+                      aria-label={exact}
+                      className="shrink-0 text-[10px] leading-[16px] text-[#475569]"
+                      dateTime={item.createdAt}
+                      title={exact}
+                    >
+                      {relativeTime(item.createdAt, now).replace(
+                        / (minute|hour|day|month|year)s? ago$/,
+                        (_match, unit: string) =>
+                          `${({ minute: 'm', hour: 'h', day: 'd', month: 'mo', year: 'y' } as Record<string, string>)[unit] ?? unit} ago`,
+                      )}
+                    </time>
+                  </div>
+                  {item.kind === 'SITE_COMMENT_ADDED' ? (
+                    <p className="mt-1 whitespace-pre-wrap break-words text-[13px] leading-[21px] text-[#475569]">
+                      {item.commentText}
+                    </p>
+                  ) : null}
                 </div>
-                {item.kind === 'SITE_COMMENT_ADDED' ? (
-                  <p className="mt-2 rounded-md border border-control-border px-3 py-2 leading-5">
-                    {item.commentText}
-                  </p>
-                ) : null}
               </li>
             );
           })}
@@ -180,46 +205,65 @@ export function SiteActivityFeed({
           ) : null}
         </div>
       ) : null}
-      <div className="rounded-md border border-control-border p-2">
-        <label className="sr-only" htmlFor={commentId}>
-          Add your comment
-        </label>
-        <textarea
-          aria-describedby={error ? `${commentId}-error` : undefined}
-          className="min-h-20 w-full resize-y bg-transparent px-2 py-1 text-sm outline-none"
-          id={commentId}
-          maxLength={2_000}
-          onChange={(event) => {
-            setText(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-              event.preventDefault();
-              void submit();
-            }
-          }}
-          placeholder="Add your comment…"
-          value={text}
-        />
-        <div className="flex items-center justify-end">
-          <Button
-            disabled={!text.trim() || submitting}
-            onClick={() => void submit()}
-            type="button"
-            variant="secondary"
-          >
-            {submitting ? 'Commenting…' : 'Comment'}
-          </Button>
+      <div className="grid grid-cols-[20px_minmax(0,1fr)] items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="grid size-5 place-items-center rounded-full bg-[#64748b] text-[8px] font-semibold text-white"
+        >
+          {viewer?.initials ?? (
+            <svg
+              viewBox="0 0 20 20"
+              className="size-4"
+              fill="none"
+              stroke="currentColor"
+            >
+              <circle cx="10" cy="7" r="3" />
+              <path d="M4 17a6 6 0 0 1 12 0" />
+            </svg>
+          )}
+        </span>
+        <div className="min-w-0 rounded-[7px] border border-[#cdd3de] p-[6px] focus-within:border-focus">
+          <label className="sr-only" htmlFor={commentId}>
+            Add your comment
+          </label>
+          <textarea
+            aria-describedby={error ? `${commentId}-error` : undefined}
+            className="block min-h-[52px] w-full resize-none bg-transparent px-1 py-0 text-[12px] leading-[18px] text-[#475569] outline-none placeholder:text-[#7c8aa2]"
+            id={commentId}
+            maxLength={2_000}
+            onChange={(event) => {
+              setText(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                void submit();
+              }
+            }}
+            placeholder="Add your comment…"
+            value={text}
+          />
+          <div className="flex items-center justify-end">
+            <Button
+              className="!min-h-7 !rounded-[5px] !px-2 !py-1 !text-[12px] !leading-[18px] !shadow-none"
+              disabled={!text.trim() || submitting}
+              onClick={() => void submit()}
+              type="button"
+              variant="secondary"
+            >
+              {submitting ? 'Commenting…' : 'Comment'}
+            </Button>
+          </div>
+          {error ? (
+            <p
+              className="px-2 pt-2 text-sm text-danger"
+              id={`${commentId}-error`}
+              role="alert"
+            >
+              {error}
+            </p>
+          ) : null}
         </div>
-        {error ? (
-          <p
-            className="px-2 pt-2 text-sm text-danger"
-            id={`${commentId}-error`}
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
       </div>
       <p className="sr-only" aria-live="polite">
         {announcement}

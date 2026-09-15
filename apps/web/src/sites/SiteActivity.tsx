@@ -8,19 +8,22 @@ import type {
   CreateAllocationPlanUploadBatchRequest,
   CreateAllocationPlanUploadBatchResponse,
   AllocationPlan,
+  CommitAllocationPlanDraftRequest,
   SignageScheduleResponse,
   SignType,
   Sign,
   SiteActivityPageResponse,
   SiteActivityItem,
 } from '@hansel/contracts';
+import type { PlanSignsApi } from './plan-signs-api.js';
 import {
   ApplicationShell,
   AppSymbol,
   NotificationSymbol,
 } from '../application-shell/ApplicationShell.js';
 import { Button } from '../design-system/index.js';
-import { relativeTime, SiteMemberPreview } from './SiteCollection.js';
+import { relativeTime } from './SiteCollection.js';
+import { SiteShareControls } from './SiteShareControls.js';
 import { AddPlansModal } from './AddPlansModal.js';
 import { AllocationPlanViewer } from './AllocationPlanViewer.js';
 import { SignageSchedule } from './SignageSchedule.js';
@@ -62,8 +65,15 @@ interface SharedSiteDetailsProps {
     options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
   ) => Promise<void>;
   finalizeAllocationPlanUpload?: (uploadId: string) => Promise<void>;
+  commitAllocationPlanDraft?: (
+    input: CommitAllocationPlanDraftRequest,
+  ) => Promise<void>;
   previewPlanId?: string;
-  loadAllocationPlanContent?: () => Promise<Blob>;
+  planSignsApi?: PlanSignsApi;
+  loadAllocationPlanContent?: (
+    fileId?: string,
+    signal?: AbortSignal,
+  ) => Promise<Blob>;
   loadSignageSchedule?: () => Promise<SignageScheduleResponse>;
   createSignType?: (name: string) => Promise<SignType>;
   updateSignType?: (type: SignType, name: string) => Promise<SignType>;
@@ -96,7 +106,9 @@ export function AllocationPlanCollection({
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const visiblePlans = plans.filter((plan) =>
-    plan.filename.toLocaleLowerCase().includes(normalizedQuery),
+    (plan.name ?? plan.filename ?? '')
+      .toLocaleLowerCase()
+      .includes(normalizedQuery),
   );
 
   return (
@@ -151,7 +163,7 @@ export function AllocationPlanCollection({
         ) : (
           <ul
             aria-label="Allocation Plans"
-            className="mt-8 grid max-w-[568px] grid-cols-2 gap-4 max-sm:grid-cols-1"
+            className="mt-8 grid grid-cols-[repeat(auto-fill,minmax(min(100%,276px),276px))] gap-4"
           >
             {visiblePlans.map((plan) => (
               <li
@@ -164,6 +176,7 @@ export function AllocationPlanCollection({
                   </AppSymbol>
                 </span>
                 <a
+                  aria-label={plan.name ?? plan.filename}
                   className="ml-2 min-w-0 flex-1 rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                   href={`/sites/${siteId}/allocations/${plan.id}`}
                   onClick={(event) => {
@@ -175,9 +188,9 @@ export function AllocationPlanCollection({
                 >
                   <span
                     className="block truncate text-[14px] font-medium"
-                    title={plan.filename}
+                    title={plan.name ?? plan.filename}
                   >
-                    {plan.filename}
+                    {plan.name ?? plan.filename}
                   </span>
                   <span className="mt-1 block text-[12px] text-site-meta">
                     {plan.createdAt === plan.modifiedAt ? 'Created' : 'Edited'}{' '}
@@ -247,9 +260,9 @@ export function AllocationPlanCollection({
                             event.preventDefault();
                             navigate(event.currentTarget.pathname);
                           }}
-                          title={plan.filename}
+                          title={plan.name ?? plan.filename}
                         >
-                          {plan.filename}
+                          {plan.name ?? plan.filename}
                         </a>
                       </div>
                     </td>
@@ -281,8 +294,10 @@ function SiteDetails({
   createAllocationPlanUploadBatch,
   uploadAllocationPlan,
   finalizeAllocationPlanUpload,
+  commitAllocationPlanDraft,
   previewPlanId,
   loadAllocationPlanContent,
+  planSignsApi,
   loadSignageSchedule,
   createSignType,
   updateSignType,
@@ -495,54 +510,17 @@ function SiteDetails({
   return (
     <ApplicationShell
       activePage="Sites"
+      siteHeader
       headerActions={
-        <>
-          {selectedSite?.memberCount ? (
-            <SiteMemberPreview site={selectedSite} />
-          ) : null}
-          <div className="flex overflow-hidden rounded border border-control-border">
-            <button
-              aria-label="Share site"
-              className="min-h-9 px-4 text-[14px] disabled:cursor-not-allowed disabled:text-content-muted"
-              disabled
-              type="button"
-            >
-              Share
-            </button>
-            <button
-              aria-label="Share options"
-              className="grid size-9 place-items-center border-l border-control-border disabled:cursor-not-allowed disabled:text-content-muted"
-              disabled
-              type="button"
-            >
-              <AppSymbol className="!size-4 text-[18px]" weight={100}>
-                keyboard_arrow_down
-              </AppSymbol>
-            </button>
-          </div>
-          <span aria-hidden="true" className="h-8 w-px bg-control-border" />
-          <button
-            aria-label="Notifications"
-            className="grid size-9 place-items-center disabled:cursor-not-allowed disabled:text-content-muted"
-            disabled
-            type="button"
-          >
-            <AppSymbol weight={100}>notifications_none</AppSymbol>
-          </button>
-          <button
-            aria-label="Site settings"
-            className="grid size-9 place-items-center disabled:cursor-not-allowed disabled:text-content-muted"
-            disabled
-            type="button"
-          >
-            <AppSymbol weight={100}>tune</AppSymbol>
-          </button>
-        </>
+        <SiteShareControls
+          memberPreview={selectedSite?.memberPreview ?? []}
+          memberCount={selectedSite?.memberCount ?? 0}
+        />
       }
       headerLeading={
         <nav aria-label="Site breadcrumb">
-          <ol className="flex min-w-0 items-center gap-4 text-[14px]">
-            <li>
+          <ol className="flex min-w-0 items-center gap-4 text-[14px] leading-5">
+            <li className="flex shrink-0 items-center">
               <a
                 className="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 href="/sites"
@@ -555,18 +533,35 @@ function SiteDetails({
                 Sites
               </a>
             </li>
-            <li aria-hidden="true">
+            <li aria-hidden="true" className="flex shrink-0 items-center">
               <AppSymbol className="!size-4 text-[18px]" weight={100}>
                 chevron_right
               </AppSymbol>
             </li>
             <li
-              aria-current="page"
-              className="min-w-0 truncate font-semibold"
+              aria-current={previewPlanId ? undefined : 'page'}
+              className={`min-w-0 truncate ${previewPlanId ? '' : 'font-semibold'}`}
               title={siteContext.site.name}
             >
               {siteContext.site.name}
             </li>
+            {previewPlanId && (
+              <>
+                <li aria-hidden="true">
+                  <AppSymbol className="!size-4 text-[18px]">
+                    chevron_right
+                  </AppSymbol>
+                </li>
+                <li aria-current="page" className="truncate font-semibold">
+                  {allocationPlans.plans.find(
+                    (plan) => plan.id === previewPlanId,
+                  )?.name ??
+                    allocationPlans.plans.find(
+                      (plan) => plan.id === previewPlanId,
+                    )?.filename}
+                </li>
+              </>
+            )}
           </ol>
         </nav>
       }
@@ -586,10 +581,12 @@ function SiteDetails({
       siteNavigation={sitesPage.sites}
       workspaceName={sitesPage.organizationName}
     >
-      <section className="px-8 py-8 max-md:px-5">
+      <section
+        className={`min-h-[calc(100vh-64px)] bg-[#fafafa] px-8 max-md:px-5 ${previewPlanId ? '[&>nav]:-mx-8 [&>nav]:rounded-none [&>nav]:border-x-0 [&>nav]:border-t-0 [&>nav]:shadow-none [&>nav>span]:min-h-[51px] [&>nav>span>a]:min-h-[51px]' : 'py-8'}`}
+      >
         <nav
           aria-label="Site sections"
-          className="flex min-h-[54px] max-w-full items-end gap-8 overflow-x-auto rounded border border-site-card-border bg-surface px-6 shadow-site-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-h-[54px] max-w-full items-center gap-8 overflow-x-auto rounded border border-site-card-border bg-surface px-6 shadow-site-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <span
             className={`flex min-h-[53px] shrink-0 items-center gap-2 px-1 text-[14px] font-medium ${activeSection === 'activity' ? 'border-b-2 border-action-primary' : ''}`}
@@ -631,12 +628,6 @@ function SiteDetails({
               Allocations
             </a>
           </span>
-          <AppSymbol
-            className="pointer-events-none !size-4 text-[18px]"
-            weight={100}
-          >
-            more_horiz
-          </AppSymbol>
           <a
             aria-current={activeSection === 'signage' ? 'page' : undefined}
             className={`flex min-h-[53px] shrink-0 items-center gap-2 text-[14px] ${activeSection === 'signage' ? 'border-b-2 border-action-primary font-medium text-content' : 'text-content-muted'}`}
@@ -674,16 +665,17 @@ function SiteDetails({
             </section>
             <section
               aria-labelledby="site-activity-heading"
-              className="mt-8 max-w-[390px] overflow-hidden rounded-lg border border-site-card-border bg-surface shadow-site-card max-md:max-w-none"
+              className="mt-7 w-full max-w-[375px] bg-surface"
             >
               <h2
                 id="site-activity-heading"
-                className="border-b border-control-border px-6 py-5 text-[16px] font-semibold"
+                className="px-5 pt-4 text-[12px] font-semibold leading-[18px] text-[#0f172a]"
               >
                 Activity
               </h2>
               {activityPage ? (
                 <SiteActivityFeed
+                  viewer={dashboard.viewer}
                   initial={activityPage}
                   loadOlder={async (cursor) => {
                     const page = loadSiteActivityPage
@@ -731,7 +723,9 @@ function SiteDetails({
             );
             return plan ? (
               <AllocationPlanViewer
+                key={plan.id}
                 loadContent={loadAllocationPlanContent}
+                planSignsApi={planSignsApi}
                 plan={plan}
               />
             ) : (
@@ -827,6 +821,9 @@ function SiteDetails({
           createBatch={createAllocationPlanUploadBatch}
           upload={uploadAllocationPlan}
           finalize={finalizeAllocationPlanUpload}
+          {...(commitAllocationPlanDraft
+            ? { commit: commitAllocationPlanDraft }
+            : {})}
           onClose={() => {
             setShowAddPlans(false);
           }}

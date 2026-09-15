@@ -9,11 +9,15 @@
 - Domain references: `CONTEXT.md — Organization, Site, Site Access, Allocation Plan, Sign, Document, Image; docs/domain/figjam-object-catalog.md — Objects and data points (Sign, Document, Image), Canonical interpretation notes, Nesting map, Organization roles and permissions, Known ambiguities 7 and 8, Current implementation alignment`
 - Design authority: User-supplied `Workspace 5/Sites/Allcations/Plan_ Plan dropdown.png` showing Docs. The additional Workspace 9 image was unavailable; this specification uses the visible reference and the user's explicit answers.
 
-## Problem and outcome
+## Problem
 
 The Sign drawer has an inactive Docs tab. Enable uploading and downloading supporting files for the selected shared Sign, matching the supplied design. A successful upload remains available after reload and is never shown on another Sign accidentally.
 
-## Accepted product decisions and non-goals
+## Outcome and success metrics
+
+Successful uploads survive reload and download byte-for-byte; failed or unauthorized uploads never appear completed. Acceptance tests below measure these outcomes.
+
+## Non-goals
 
 The user confirmed multiple PNG, JPG and PDF uploads, up to 5 MB each; clicking a document downloads it; three-dot menu options are deferred; Library files is disabled. This amendment supersedes only the inactive Docs requirement in `allocation-plan-signs`. Photos and Comments remain inactive. No preview, library picker, document removal/renaming/sharing menu, tags, categories, search, or new organisation-wide library is included. Screenshot filenames and duplicate rows are illustrative, not seeded data.
 
@@ -30,17 +34,29 @@ The user confirmed multiple PNG, JPG and PDF uploads, up to 5 MB each; clicking 
 
 ## Acceptance scenarios
 
+### AC-001 through AC-005 — approved scenarios [REQ-001..008]
+
 - AC-001 [REQ-001..003]: Given a selected Sign with documents, when Docs opens, then its actual files and reference layout appear; hover/focus reveals the inactive three-dot control, Library files stays disabled, and a long list scrolls without moving the footer.
 - AC-002 [REQ-004..005,008]: Given a manager selects or drops multiple supported files plus an invalid file, when uploads run, then valid files complete independently, the invalid file explains its rejection, and retry does not duplicate completed records. Boundary-size, empty and forged files are tested server-side.
 - AC-003 [REQ-001,006..008]: Given completed documents, when the user reloads or changes Signs, then each list remains correctly scoped; clicking downloads exact bytes with attachment disposition. Another tenant or a user without Site access cannot list, finish or download them.
 - AC-004 [REQ-005..008]: Given an interrupted transfer, revoked permission or a concurrently deleted Sign, when completion is attempted, then no inaccessible or unverified document becomes a completed attachment. Deleting a Sign removes its document visibility from all sessions and permits retryable object cleanup.
 - AC-005 [REQ-002..006]: Given keyboard and read-only users, when interacting with Docs, then downloads remain accessible, unavailable actions are disabled, focus is visible, and upload errors/progress are announced without changing General/Photos/Comments behavior.
 
-## API, data and security
+## UX and accessibility
+
+REQ-001..006 define the reference layout, keyboard-accessible downloads, visible focus, disabled deferred controls and announced progress/errors. The list scrolls independently of its pinned footer.
+
+## API and integrations
 
 Add backward-compatible Sign-scoped list, upload-intent, completion and authenticated download operations to OpenAPI and shared contracts. Use cursor pagination for lists and the existing private upload infrastructure with short-lived upload authorization and checksum verification. Scope idempotency keys to tenant and upload payload; completion returns the existing result on retry. Use existing session, exact-Origin mutation checks and permission rules. Downloads use attachment Content-Disposition, sanitized filenames, no-store and nosniff; storage is never public. Do not render uploaded HTML or embed PDFs. Signature verification is not malware scanning; malware scanning is not represented as implemented by this feature.
 
+## Data and migration
+
 Use an additive attachment/upload schema migration with composite ownership constraints and no backfill. Preserve existing Signs and allocation files. Completed attachment metadata is removed/revoked atomically with Sign deletion; a durable cleanup record allows retry after storage failures. Expired/incomplete uploads are cleaned up, never listed as documents. Update domain alignment notes after approval to record this bounded Sign-attachment interpretation; the wider Document/Image library model remains unresolved.
+
+## Security and privacy
+
+REQ-006..008 govern current Site access, MANAGE_SIGNS, tenant isolation, verification, private storage, safe attachment downloads and deletion access revocation. The API section specifies the authentication and exact-Origin boundaries. No malware scanning or public library access is implied.
 
 ## Reliability and observability
 

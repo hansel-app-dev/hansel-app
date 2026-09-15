@@ -68,13 +68,20 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
             absoluteExpiresAt: new Date('2026-09-28T00:00:00.000Z'),
             revokedAt: null,
             user: {
+              email: 'owner@example.com',
               personalProfile: { firstName: 'Nabin', lastName: 'Singh' },
             },
           },
         }),
       },
       membership: {
-        findUnique: vi.fn().mockResolvedValue({ roleId: 'owner' }),
+        findUnique: vi.fn().mockResolvedValue({
+          roleId: 'owner',
+          tenant: {
+            name: 'Hansel',
+            memberships: [{ user: { planSelection: { planId: 'free' } } }],
+          },
+        }),
       },
     };
     const store = createPrismaDashboardSessionStore(prisma as never, vi.fn());
@@ -85,12 +92,18 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
       firstName: 'Nabin',
       lastName: 'Singh',
       roleId: 'owner',
+      email: 'owner@example.com',
+      organizationName: 'Hansel',
+      planId: 'free',
     });
     expect(prisma.membership.findUnique).toHaveBeenCalledWith({
       where: {
         userId_tenantId: { userId: 'user-id', tenantId: 'tenant-id' },
       },
-      select: { roleId: true },
+      select: expect.objectContaining({
+        roleId: true,
+        tenant: expect.anything(),
+      }),
     });
   });
 

@@ -1,0 +1,798 @@
+{
+  'collection':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'listSignComments',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'properties':
+                                {
+                                  'comments':
+                                    {
+                                      'type': 'array',
+                                      'items': { '$ref': '#/schemas/Comment' },
+                                    },
+                                  'nextCursor':
+                                    {
+                                      'oneOf':
+                                        [
+                                          { '$ref': '#/schemas/Cursor' },
+                                          { 'type': 'null' },
+                                        ],
+                                    },
+                                  'viewer':
+                                    {
+                                      'type': 'object',
+                                      'properties':
+                                        {
+                                          'id':
+                                            {
+                                              'type': 'string',
+                                              'format': 'uuid',
+                                            },
+                                          'name': { 'type': 'string' },
+                                          'initials': { 'type': 'string' },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+          'parameters':
+            [
+              {
+                'name': 'parentId',
+                'in': 'query',
+                'schema': { 'type': 'string', 'format': 'uuid' },
+              },
+              {
+                'name': 'cursor',
+                'in': 'query',
+                'schema': { 'type': 'string' },
+                'description': 'JSON encoded Cursor. Up to 50 roots or replies ordered oldest first.',
+              },
+            ],
+        },
+      'post':
+        {
+          'operationId': 'submitSignComment',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'required':
+                            [
+                              'idempotencyKey',
+                              'body',
+                              'parentId',
+                              'mentions',
+                              'attachmentIds',
+                            ],
+                          'properties':
+                            {
+                              'idempotencyKey':
+                                { 'type': 'string', 'format': 'uuid' },
+                              'body': { 'type': 'string', 'maxLength': 5000 },
+                              'parentId':
+                                {
+                                  'type': ['string', 'null'],
+                                  'format': 'uuid',
+                                },
+                              'mentions':
+                                {
+                                  'type': 'array',
+                                  'maxItems': 20,
+                                  'items':
+                                    {
+                                      'type': 'object',
+                                      'required':
+                                        [
+                                          'membershipId',
+                                          'name',
+                                          'start',
+                                          'end',
+                                        ],
+                                      'properties':
+                                        {
+                                          'membershipId':
+                                            {
+                                              'type': 'string',
+                                              'format': 'uuid',
+                                            },
+                                          'name':
+                                            {
+                                              'type': 'string',
+                                              'maxLength': 200,
+                                            },
+                                          'start':
+                                            { 'type': 'integer', 'minimum': 0 },
+                                          'end':
+                                            { 'type': 'integer', 'minimum': 1 },
+                                        },
+                                      'description': 'Sorted non-overlapping UTF-16 offsets must identify exact @name token. Membership and name revalidated on submit.',
+                                    },
+                                },
+                              'attachmentIds':
+                                {
+                                  'type': 'array',
+                                  'maxItems': 5,
+                                  'uniqueItems': true,
+                                  'items':
+                                    { 'type': 'string', 'format': 'uuid' },
+                                },
+                            },
+                          'description': 'Nonblank body or verified attachments required. Retry same complete draft with same key. Reply-to-reply normalizes to root.',
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/schemas/Comment' } },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+    },
+  'people':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'listSignMentionPeople',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'properties':
+                                {
+                                  'people':
+                                    {
+                                      'type': 'array',
+                                      'items':
+                                        {
+                                          'type': 'object',
+                                          'properties':
+                                            {
+                                              'id':
+                                                {
+                                                  'type': 'string',
+                                                  'format': 'uuid',
+                                                },
+                                              'name': { 'type': 'string' },
+                                              'initials': { 'type': 'string' },
+                                            },
+                                        },
+                                    },
+                                  'nextCursor':
+                                    {
+                                      'type': ['string', 'null'],
+                                      'format': 'uuid',
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+          'parameters':
+            [
+              {
+                'name': 'q',
+                'in': 'query',
+                'schema': { 'type': 'string', 'maxLength': 200 },
+              },
+              {
+                'name': 'cursor',
+                'in': 'query',
+                'schema': { 'type': 'string', 'format': 'uuid' },
+              },
+            ],
+        },
+    },
+  'reactions':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'commentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'put':
+        {
+          'operationId': 'setSignCommentReaction',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'properties':
+                            {
+                              'emoji':
+                                {
+                                  'enum': ['👍', '👎', '❤️', '🎉', '😄', '👀'],
+                                },
+                              'selected': { 'type': 'boolean' },
+                            },
+                          'required': ['emoji', 'selected'],
+                          'additionalProperties': false,
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/schemas/Comment' } },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+    },
+  'attachments':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'initiateSignCommentAttachment',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'requestBody':
+            {
+              'required': true,
+              'content':
+                {
+                  'application/json':
+                    {
+                      'schema':
+                        {
+                          'type': 'object',
+                          'additionalProperties': false,
+                          'required':
+                            [
+                              'idempotencyKey',
+                              'filename',
+                              'mediaType',
+                              'byteSize',
+                              'checksumSha256',
+                            ],
+                          'properties':
+                            {
+                              'filename': { 'type': 'string' },
+                              'mediaType':
+                                {
+                                  'enum':
+                                    [
+                                      'image/png',
+                                      'image/jpeg',
+                                      'application/pdf',
+                                    ],
+                                },
+                              'byteSize':
+                                {
+                                  'type': 'integer',
+                                  'minimum': 1,
+                                  'maximum': 5242880,
+                                },
+                              'idempotencyKey':
+                                { 'type': 'string', 'format': 'uuid' },
+                              'checksumSha256':
+                                {
+                                  'type': 'string',
+                                  'pattern': '^[A-Za-z0-9+/]{43}=$',
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'completed': { 'type': 'boolean' },
+                                  'uploadUrl':
+                                    { 'type': 'string', 'format': 'uri' },
+                                  'headers':
+                                    {
+                                      'type': 'object',
+                                      'additionalProperties':
+                                        { 'type': 'string' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+    },
+  'attachment':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'attachmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'post':
+        {
+          'operationId': 'verifySignCommentAttachment',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'required':
+                                [
+                                  'id',
+                                  'filename',
+                                  'mediaType',
+                                  'byteSize',
+                                  'createdAt',
+                                ],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'filename': { 'type': 'string' },
+                                  'mediaType':
+                                    {
+                                      'enum':
+                                        [
+                                          'image/png',
+                                          'image/jpeg',
+                                          'application/pdf',
+                                        ],
+                                    },
+                                  'byteSize':
+                                    {
+                                      'type': 'integer',
+                                      'minimum': 1,
+                                      'maximum': 5242880,
+                                    },
+                                  'createdAt':
+                                    { 'type': 'string', 'format': 'date-time' },
+                                },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+      'delete':
+        {
+          'operationId': 'discardDraftCommentAttachment',
+          'description': 'Requires current session and Site access with COMMENT capability, including Viewers. Mutations require exact Origin.',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Success; private, no-store',
+                  'content':
+                    {
+                      'application/json':
+                        {
+                          'schema':
+                            {
+                              'type': 'object',
+                              'properties': { 'discarded': { 'const': true } },
+                            },
+                        },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+    },
+  'download':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'attachmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'downloadSignCommentAttachment',
+          'description': 'Current Site access required. Unpublished files readable only by uploader. Attachment disposition; private no-store; nosniff.',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Original bytes',
+                  'content':
+                    {
+                      'application/octet-stream':
+                        { 'schema': { 'type': 'string', 'format': 'binary' } },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+    },
+  'thumbnail':
+    {
+      'parameters':
+        [
+          {
+            'name': 'siteId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'signId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+          {
+            'name': 'attachmentId',
+            'in': 'path',
+            'required': true,
+            'schema': { 'type': 'string', 'format': 'uuid' },
+          },
+        ],
+      'get':
+        {
+          'operationId': 'getSignCommentThumbnail',
+          'description': 'Same authorization as download. Metadata-free PNG derivative.',
+          'responses':
+            {
+              '200':
+                {
+                  'description': 'Private PNG',
+                  'content':
+                    {
+                      'image/png':
+                        { 'schema': { 'type': 'string', 'format': 'binary' } },
+                    },
+                },
+              '400': { 'description': 'Invalid input' },
+              '401': { 'description': 'Session required' },
+              '403': { 'description': 'Origin or access denied' },
+              '404': { 'description': 'Unavailable Sign, resource or feature' },
+              '409': { 'description': 'Idempotency conflict' },
+              '422':
+                {
+                  'description': 'Mention, attachment or verification unavailable',
+                },
+              '503': { 'description': 'Retryable failure' },
+            },
+        },
+    },
+  'schemas':
+    {
+      'Comment':
+        {
+          'type': 'object',
+          'properties':
+            {
+              'id': { 'type': 'string', 'format': 'uuid' },
+              'parentId': { 'type': ['string', 'null'], 'format': 'uuid' },
+              'body': { 'type': 'string' },
+              'author':
+                {
+                  'type': 'object',
+                  'properties':
+                    {
+                      'id': { 'type': 'string', 'format': 'uuid' },
+                      'name': { 'type': 'string' },
+                      'initials': { 'type': 'string' },
+                    },
+                },
+              'createdAt': { 'type': 'string', 'format': 'date-time' },
+              'mentions':
+                {
+                  'type': 'array',
+                  'items':
+                    {
+                      'type': 'object',
+                      'required': ['membershipId', 'name', 'start', 'end'],
+                      'properties':
+                        {
+                          'membershipId':
+                            { 'type': 'string', 'format': 'uuid' },
+                          'name': { 'type': 'string', 'maxLength': 200 },
+                          'start': { 'type': 'integer', 'minimum': 0 },
+                          'end': { 'type': 'integer', 'minimum': 1 },
+                        },
+                      'description': 'Sorted non-overlapping UTF-16 offsets must identify exact @name token. Membership and name revalidated on submit.',
+                    },
+                },
+              'attachments':
+                {
+                  'type': 'array',
+                  'items':
+                    {
+                      'type': 'object',
+                      'required':
+                        [
+                          'id',
+                          'filename',
+                          'mediaType',
+                          'byteSize',
+                          'createdAt',
+                        ],
+                      'properties':
+                        {
+                          'id': { 'type': 'string', 'format': 'uuid' },
+                          'filename': { 'type': 'string' },
+                          'mediaType':
+                            {
+                              'enum':
+                                ['image/png', 'image/jpeg', 'application/pdf'],
+                            },
+                          'byteSize':
+                            {
+                              'type': 'integer',
+                              'minimum': 1,
+                              'maximum': 5242880,
+                            },
+                          'createdAt':
+                            { 'type': 'string', 'format': 'date-time' },
+                        },
+                    },
+                },
+              'reactions':
+                {
+                  'type': 'array',
+                  'items':
+                    {
+                      'type': 'object',
+                      'properties':
+                        {
+                          'emoji':
+                            { 'enum': ['👍', '👎', '❤️', '🎉', '😄', '👀'] },
+                          'selected': { 'type': 'boolean' },
+                          'count': { 'type': 'integer', 'minimum': 1 },
+                        },
+                    },
+                },
+            },
+        },
+      'Cursor':
+        {
+          'type': 'object',
+          'required': ['id', 'createdAt'],
+          'properties':
+            {
+              'id': { 'type': 'string', 'format': 'uuid' },
+              'createdAt': { 'type': 'string', 'format': 'date-time' },
+            },
+        },
+    },
+}

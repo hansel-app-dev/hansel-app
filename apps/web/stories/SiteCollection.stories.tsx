@@ -1,6 +1,6 @@
 /** @spec sites-populated-state REQ-009..REQ-015, REQ-020..REQ-025 @spec sites-latest-first REQ-003, REQ-007 @figma 2025:11221, 2043:3580 */
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, within } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 import type { SiteSummary } from '@hansel/contracts';
 import { SiteCollection } from '../src/sites/SiteCollection.js';
 
@@ -58,6 +58,20 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Grid: Story = {};
+export const GridHover: Story = {
+  play: async ({ canvasElement }) => {
+    await userEvent.hover(
+      within(canvasElement).getByRole('link', { name: buildingSite.name }),
+    );
+  },
+};
+export const GridFocus: Story = {
+  play: ({ canvasElement }) => {
+    within(canvasElement)
+      .getByRole('link', { name: buildingSite.name })
+      .focus();
+  },
+};
 
 export const List: Story = {
   play: async ({ canvasElement }) => {

@@ -1,3 +1,4 @@
+/* eslint @typescript-eslint/unbound-method: off -- These assertions inspect mocked DOM methods without invoking them. */
 import {
   cleanup,
   fireEvent,
@@ -16,6 +17,7 @@ const pdf = vi.hoisted(() => ({
 vi.mock('pdfjs-dist/legacy/build/pdf.mjs', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
   getDocument: vi.fn(() => ({
+    destroy: pdf.destroy,
     promise: Promise.resolve({ getPage: pdf.getPage, destroy: pdf.destroy }),
   })),
 }));
@@ -36,6 +38,80 @@ const plan = {
 };
 
 describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]', () => {
+  it('switches ordered files and resets zoom [allocation-details-design AC-001]', async () => {
+    const files = ['Ground.png', 'First.png'].map((filename, index) => ({
+      id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
+      filename,
+      mediaType: 'image/png' as const,
+      byteSize: 3,
+    }));
+    const load = vi.fn().mockResolvedValue(new Blob());
+    render(
+      <AllocationPlanViewer
+        plan={{ ...plan, name: 'Building', files }}
+        loadContent={load}
+        render={() => Promise.resolve({ src: 'preview.png', release: vi.fn() })}
+      />,
+    );
+    await screen.findByRole('img', { name: 'Ground.png' });
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'First.png' }));
+    await screen.findByRole('img', { name: 'First.png' });
+    expect(load).toHaveBeenLastCalledWith(
+      files[1]?.id,
+      expect.any(AbortSignal),
+    );
+    expect(
+      screen.getByRole('button', { name: 'Reset zoom' }),
+    ).toHaveTextContent('100%');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('aborts obsolete files and retries the selected file [allocation-details-design AC-003]', async () => {
+    const files = ['Ground.png', 'First.png'].map((filename, index) => ({
+      id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
+      filename,
+      mediaType: 'image/png' as const,
+      byteSize: 3,
+    }));
+    let finish: ((blob: Blob) => void) | undefined;
+    const load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Blob>((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockRejectedValueOnce(new Error('private'))
+      .mockResolvedValue(new Blob());
+    const renderer = vi
+      .fn()
+      .mockResolvedValue({ src: 'current.png', release: vi.fn() });
+    const view = render(
+      <AllocationPlanViewer
+        plan={{ ...plan, files }}
+        loadContent={load}
+        render={renderer}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'First.png' }));
+    await screen.findByRole('button', { name: 'Retry' });
+    expect(load.mock.calls[0]?.[1].aborted).toBe(true);
+    finish?.(new Blob());
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    await screen.findByRole('img', { name: 'First.png' });
+    expect(renderer).toHaveBeenCalledOnce();
+    expect(load).toHaveBeenLastCalledWith(
+      files[1]?.id,
+      expect.any(AbortSignal),
+    );
+    view.unmount();
+    expect(load.mock.calls[2]?.[1].aborted).toBe(true);
+  });
+
   it('renders images directly and only page 1 of PDFs [AC-001, AC-002]', async () => {
     Object.assign(URL, {
       createObjectURL: vi.fn().mockReturnValue('blob:preview'),
@@ -53,8 +129,9 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       width: 0,
       height: 0,
       getContext: () => ({}),
-      toBlob: (callback: (value: Blob) => void) =>
-        callback(new Blob(['page 1'])),
+      toBlob: (callback: (value: Blob) => void) => {
+        callback(new Blob(['page 1']));
+      },
     };
     const createElement = vi
       .spyOn(document, 'createElement')
@@ -94,7 +171,9 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       width: 0,
       height: 0,
       getContext: () => ({}),
-      toBlob: (callback: (value: null) => void) => callback(null),
+      toBlob: (callback: (value: null) => void) => {
+        callback(null);
+      },
     } as never);
     await expect(renderPlan(input)).rejects.toThrow(
       'allocation_plan_preview_failed',
@@ -177,9 +256,7 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       <AllocationPlanViewer
         loadContent={() => Promise.resolve(new Blob())}
         plan={plan}
-        render={() =>
-          Promise.resolve({ src: 'preview.png', release: vi.fn() })
-        }
+        render={() => Promise.resolve({ src: 'preview.png', release: vi.fn() })}
       />,
     );
     await screen.findByRole('img');
@@ -308,11 +385,14 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
     );
     await screen.findByRole('img');
     ready.unmount();
-    await waitFor(() => expect(release).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(release).toHaveBeenCalledOnce();
+    });
   });
 
   it('releases a render that finishes after unmount [AC-004]', async () => {
-    let finish: ((value: { src: string; release: () => void }) => void) | undefined;
+    let finish:
+      ((value: { src: string; release: () => void }) => void) | undefined;
     const release = vi.fn();
     const renderContent = vi.fn(
       () =>
@@ -327,9 +407,13 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
         render={renderContent}
       />,
     );
-    await waitFor(() => expect(renderContent).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(renderContent).toHaveBeenCalledOnce();
+    });
     view.unmount();
     finish?.({ src: 'late', release });
-    await waitFor(() => expect(release).toHaveBeenCalledOnce());
+    await waitFor(() => {
+      expect(release).toHaveBeenCalledOnce();
+    });
   });
 });

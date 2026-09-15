@@ -151,8 +151,8 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
     fireEvent.click(screen.getByRole('button', { name: 'Grid view' }));
     expect(screen.getByText('No plans match your search.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
-    expect(screen.getByRole('dialog', { name: 'Add plans' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Close Add plans' }));
+    expect(screen.getByRole('dialog', { name: 'Add new Allocation' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close Add Allocation' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });

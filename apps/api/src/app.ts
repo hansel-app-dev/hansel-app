@@ -1,4 +1,18 @@
 import compression from 'compression';
+import { registerSignDocumentRoutes } from './sites/sign-document-routes.js';
+import { registerSignPhotoRoutes } from './sites/sign-photo-routes.js';
+import { registerSignCommentRoutes } from './sites/sign-comment-routes.js';
+import {
+  planSignCreateSchema,
+  planSignPatchSchema,
+  planSignDeleteSchema,
+  planSignSchema,
+  planSignsResponseSchema,
+  type PlanSign,
+  type PlanSignCreate,
+  type PlanSignPatch,
+  type PlanSignsResponse,
+} from '@hansel/contracts';
 import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import helmet from 'helmet';
@@ -34,6 +48,9 @@ import {
   siteActivityResponseSchema,
   sitesPageResponseSchema,
   allocationPlansResponseSchema,
+  commitAllocationPlanDraftRequestSchema,
+  verifyAllocationPlanDraftResponseSchema,
+  type CommitAllocationPlanDraftRequest,
   createAllocationPlanUploadBatchRequestSchema,
   createAllocationPlanUploadBatchResponseSchema,
   finalizeAllocationPlanUploadResponseSchema,
@@ -230,6 +247,12 @@ export interface AuthenticationModule {
 }
 
 export interface SitesModule {
+  signPhotos?: Omit<Parameters<typeof registerSignPhotoRoutes>[1], 'enabled' | 'allowedOrigin'>;
+  signComments?: Omit<Parameters<typeof registerSignCommentRoutes>[1], 'enabled' | 'allowedOrigin'>;
+  signDocuments?: Omit<
+    Parameters<typeof registerSignDocumentRoutes>[1],
+    'enabled' | 'allowedOrigin'
+  >;
   load(accessCredential: string): Promise<SitesPageResponse | null>;
   create(
     accessCredential: string,
@@ -253,15 +276,59 @@ export interface SitesModule {
     accessCredential: string,
     siteId: string,
   ): Promise<AllocationPlansResponse | null>;
+  createAllocationPlanDraft?(
+    credential: string,
+    siteId: string,
+    input: CreateAllocationPlanUploadBatchRequest,
+  ): Promise<CreateAllocationPlanUploadBatchResponse | null>;
+  verifyAllocationPlanDraft?(
+    credential: string,
+    siteId: string,
+    uploadId: string,
+  ): Promise<{ uploadId: string; verified: true } | null>;
+  commitAllocationPlanDraft?(
+    credential: string,
+    siteId: string,
+    input: CommitAllocationPlanDraftRequest,
+  ): Promise<FinalizeAllocationPlanUploadResponse | null>;
   loadAllocationPlanContent?(
     accessCredential: string,
     siteId: string,
     planId: string,
+    fileId?: string,
   ): Promise<{ mediaType: string; bytes: Uint8Array } | null>;
   loadSignageSchedule?(
     accessCredential: string,
     siteId: string,
   ): Promise<SignageScheduleResponse | null>;
+  planSigns?: {
+    load(
+      credential: string,
+      siteId: string,
+      planId: string,
+      fileId: string | null,
+    ): Promise<PlanSignsResponse | null>;
+    create(
+      credential: string,
+      siteId: string,
+      planId: string,
+      input: PlanSignCreate,
+    ): Promise<PlanSign | null>;
+    update(
+      credential: string,
+      siteId: string,
+      planId: string,
+      signId: string,
+      input: PlanSignPatch,
+    ): Promise<PlanSign | null>;
+    remove(
+      credential: string,
+      siteId: string,
+      planId: string,
+      signId: string,
+      updatedAt: string,
+    ): Promise<boolean>;
+  };
   createSignType?(
     accessCredential: string,
     siteId: string,
@@ -512,7 +579,12 @@ export function createApp(
     externalAuthEnabled?: boolean;
     sitesEnabled?: boolean;
     allocationPlansEnabled?: boolean;
+    allocationPlanDraftsEnabled?: boolean;
     signageScheduleEnabled?: boolean;
+    allocationPlanSignsEnabled?: boolean;
+    signDocumentsEnabled?: boolean;
+    signPhotosEnabled?: boolean;
+    signCommentsEnabled?: boolean;
     siteActivityEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
@@ -1282,6 +1354,117 @@ export function createApp(
         return response.status(409).json({ error: 'signage_conflict' });
       return response.status(503).json({ error: 'signage_unavailable' });
     };
+    if (sites.signPhotos) registerSignPhotoRoutes(app, { ...sites.signPhotos, enabled: !!config.signPhotosEnabled && !!config.allocationPlanSignsEnabled, allowedOrigin: config.allowedOrigin });
+    if (sites.signComments) registerSignCommentRoutes(app, { ...sites.signComments, enabled: !!config.signCommentsEnabled && !!config.allocationPlanSignsEnabled, allowedOrigin: config.allowedOrigin });
+    if (sites.signDocuments)
+      registerSignDocumentRoutes(app, {
+        ...sites.signDocuments,
+        enabled:
+          !!config.signDocumentsEnabled && !!config.allocationPlanSignsEnabled,
+        allowedOrigin: config.allowedOrigin,
+      });
+    app.all(
+      [
+        '/api/sites/:siteId/allocation-plans/:planId/signs',
+        '/api/sites/:siteId/allocation-plans/:planId/signs/:signId',
+      ],
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (!config.allocationPlanSignsEnabled || !sites.planSigns)
+          return response.status(404).json({ error: 'not_found' });
+        const credential = readApplicationCredential(request);
+        if (!credential)
+          return response
+            .status(401)
+            .json({ error: 'authentication_required' });
+        const uuid = createSiteResponseSchema.shape.siteId;
+        const siteId = uuid.safeParse(request.params.siteId);
+        const planId = uuid.safeParse(request.params.planId);
+        const signId = uuid.safeParse(request.params.signId);
+        if (!siteId.success || !planId.success)
+          return response.status(400).json({ error: 'invalid_request' });
+        if (
+          request.method !== 'GET' &&
+          request.headers.origin !== config.allowedOrigin
+        )
+          return response.status(403).json({ error: 'invalid_origin' });
+        try {
+          let result: unknown;
+          if (request.method === 'GET' && !request.params.signId) {
+            const fileId =
+              request.query.fileId === undefined
+                ? null
+                : uuid.safeParse(request.query.fileId);
+            if (fileId !== null && !fileId.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            const loaded = await sites.planSigns.load(
+              credential,
+              siteId.data,
+              planId.data,
+              fileId?.data ?? null,
+            );
+            result =
+              loaded &&
+              planSignsResponseSchema.parse({
+                ...loaded,
+                documentsEnabled: !!config.signDocumentsEnabled,
+                photosEnabled: !!config.signPhotosEnabled,
+                commentsEnabled: !!config.signCommentsEnabled,
+              });
+          } else if (request.method === 'POST' && !request.params.signId) {
+            const input = planSignCreateSchema.safeParse(request.body);
+            if (!input.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            const created = await sites.planSigns.create(
+              credential,
+              siteId.data,
+              planId.data,
+              input.data,
+            );
+            result = created && planSignSchema.parse(created);
+          } else if (request.method === 'PATCH' && signId.success) {
+            const input = planSignPatchSchema.safeParse(request.body);
+            if (!input.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            const updated = await sites.planSigns.update(
+              credential,
+              siteId.data,
+              planId.data,
+              signId.data,
+              input.data,
+            );
+            result = updated && planSignSchema.parse(updated);
+          } else if (request.method === 'DELETE' && signId.success) {
+            const input = planSignDeleteSchema.safeParse(request.body);
+            if (!input.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            result = (await sites.planSigns.remove(
+              credential,
+              siteId.data,
+              planId.data,
+              signId.data,
+              input.data.expectedUpdatedAt,
+            ))
+              ? { deleted: true }
+              : null;
+          } else
+            return response.status(405).json({ error: 'method_not_allowed' });
+          sites.recordEvent?.(
+            `plan_sign_${request.method.toLowerCase()}_success`,
+          );
+          return result
+            ? response
+                .status(request.method === 'POST' ? 201 : 200)
+                .json(result)
+            : response.status(401).json({ error: 'authentication_required' });
+        } catch (error) {
+          sites.recordEvent?.(
+            `plan_sign_${request.method.toLowerCase()}_failure`,
+          );
+          return signageResponse(response, error);
+        }
+      },
+    );
     app.get(
       '/api/sites/:siteId/signage-schedule',
       async (request, response) => {
@@ -1478,7 +1661,10 @@ export function createApp(
     );
 
     app.get(
-      '/api/sites/:siteId/allocation-plans/:planId/content',
+      [
+        '/api/sites/:siteId/allocation-plans/:planId/content',
+        '/api/sites/:siteId/allocation-plans/:planId/files/:fileId/content',
+      ],
       async (request, response) => {
         preparePrivateSiteResponse(response);
         response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -1500,7 +1686,13 @@ export function createApp(
           request.params.planId,
         );
         const credential = readApplicationCredential(request);
-        if (!siteId.success || !planId.success) {
+        const fileId =
+          request.params.fileId === undefined
+            ? undefined
+            : createSiteResponseSchema.shape.siteId.safeParse(
+                request.params.fileId,
+              );
+        if (!siteId.success || !planId.success || (fileId && !fileId.success)) {
           response.status(400).json({ error: 'invalid_request' });
           return;
         }
@@ -1513,6 +1705,7 @@ export function createApp(
             credential,
             siteId.data,
             planId.data,
+            ...(fileId?.success ? [fileId.data] : []),
           );
           if (!result) {
             response.status(401).json({ error: 'authentication_required' });
@@ -1533,6 +1726,118 @@ export function createApp(
       },
     );
 
+    for (const operation of ['create', 'verify', 'commit'] as const) {
+      const path =
+        '/api/sites/:siteId/allocation-plan-drafts' +
+        (operation === 'create'
+          ? ''
+          : operation === 'verify'
+            ? '/:uploadId/verify'
+            : '/commit');
+      app.post(path, async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (
+          !config.allocationPlansEnabled ||
+          !config.allocationPlanDraftsEnabled
+        ) {
+          response.status(404).json({ error: 'not_found' });
+          return;
+        }
+        if (!hasAllowedFormOrigin(request, config.allowedOrigin)) {
+          response.status(403).json({ error: 'forbidden' });
+          return;
+        }
+        const credential = readApplicationCredential(request);
+        if (!credential) {
+          response.status(401).json({ error: 'authentication_required' });
+          return;
+        }
+        const siteId = createSiteResponseSchema.shape.siteId.safeParse(
+          request.params.siteId,
+        );
+        if (!siteId.success) {
+          response.status(400).json({ error: 'invalid_request' });
+          return;
+        }
+        try {
+          let result;
+          if (operation === 'create') {
+            const input =
+              createAllocationPlanUploadBatchRequestSchema.safeParse(
+                request.body,
+              );
+            if (!input.success) {
+              response.status(400).json({ error: 'invalid_request' });
+              return;
+            }
+            result = await sites.createAllocationPlanDraft?.(
+              credential,
+              siteId.data,
+              input.data,
+            );
+            if (result)
+              response
+                .status(201)
+                .json(
+                  createAllocationPlanUploadBatchResponseSchema.parse(result),
+                );
+          } else if (operation === 'verify') {
+            const id = createSiteResponseSchema.shape.siteId.safeParse(
+              request.params.uploadId,
+            );
+            if (!id.success) {
+              response.status(400).json({ error: 'invalid_request' });
+              return;
+            }
+            result = await sites.verifyAllocationPlanDraft?.(
+              credential,
+              siteId.data,
+              id.data,
+            );
+            if (result)
+              response.json(
+                verifyAllocationPlanDraftResponseSchema.parse(result),
+              );
+          } else {
+            const input = commitAllocationPlanDraftRequestSchema.safeParse(
+              request.body,
+            );
+            if (!input.success) {
+              response.status(400).json({ error: 'invalid_request' });
+              return;
+            }
+            result = await sites.commitAllocationPlanDraft?.(
+              credential,
+              siteId.data,
+              input.data,
+            );
+            if (result)
+              response
+                .status(201)
+                .json(finalizeAllocationPlanUploadResponseSchema.parse(result));
+          }
+          if (!result)
+            response.status(401).json({ error: 'authentication_required' });
+        } catch (error) {
+          if (error instanceof AllocationPlansNotFoundError)
+            response.status(404).json({ error: 'not_found' });
+          else if (error instanceof AllocationPlansForbiddenError)
+            response.status(403).json({ error: 'forbidden' });
+          else if (error instanceof AllocationPlanUploadRejectedError)
+            response
+              .status(409)
+              .json({ error: 'allocation_draft_upload_rejected' });
+          else if (error instanceof AllocationPlansConflictError)
+            response.status(409).json({ error: 'allocation_draft_conflict' });
+          else {
+            sites.recordEvent?.(`allocation_draft_${operation}_unavailable`);
+            response
+              .status(503)
+              .json({ error: 'allocation_plans_unavailable' });
+          }
+        }
+      });
+    }
     app.post(
       '/api/sites/:siteId/allocation-plan-upload-batches',
       async (request, response) => {

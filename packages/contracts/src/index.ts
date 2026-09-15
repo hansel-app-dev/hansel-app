@@ -1,4 +1,5 @@
 import { z } from 'zod';
+export * from './plan-signs.js';
 import countries from 'i18n-iso-countries';
 import englishCountries from 'i18n-iso-countries/langs/en.json' with { type: 'json' };
 
@@ -515,8 +516,16 @@ export const dashboardResponseSchema = z
           .min(1)
           .refine((value) => Array.from(value).length <= 2),
         roleLabel: z.string().min(1).max(100),
+        email: z.email().max(254).optional(),
       })
       .strict(),
+    organization: z
+      .object({
+        name: z.string().min(1).max(200),
+        planDisplayName: z.string().min(1).max(100),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
@@ -625,6 +634,7 @@ export type SiteIdentity = z.infer<typeof siteIdentitySchema>;
 
 export const siteSummarySchema = siteIdentitySchema
   .extend({
+    hasCoverImage: z.boolean().optional(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     memberCount: z.number().int().nonnegative(),
@@ -638,6 +648,7 @@ export type SiteSummary = z.infer<typeof siteSummarySchema>;
 
 export const sitesPageResponseSchema = z
   .object({
+    siteCoverImageEnabled: z.boolean().optional(),
     organizationName: z.string().min(1).max(200),
     canCreateSite: z.boolean(),
     canInviteMembers: z.boolean(),
@@ -728,14 +739,35 @@ export type AllocationPlanMediaType = z.infer<
 export const allocationPlanSchema = z
   .object({
     id: z.uuid(),
-    filename: z.string().min(1).max(255),
-    mediaType: allocationPlanMediaTypeSchema,
-    byteSize: z.number().int().min(1).max(5_242_880),
+    name: z.string().min(1).max(400).optional(),
+    files: z
+      .array(
+        z
+          .object({
+            id: z.uuid(),
+            filename: z.string().min(1).max(255),
+            mediaType: allocationPlanMediaTypeSchema,
+            byteSize: z.number().int().min(1).max(5_242_880),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(20)
+      .optional(),
+    filename: z.string().min(1).max(255).optional(),
+    mediaType: allocationPlanMediaTypeSchema.optional(),
+    byteSize: z.number().int().min(1).max(5_242_880).optional(),
     createdAt: z.iso.datetime(),
     modifiedAt: z.iso.datetime(),
     uploadedBy: z.string().min(1).max(201),
   })
-  .strict();
+  .strict()
+  .refine(
+    (plan) =>
+      Boolean(plan.name && plan.files?.length) ||
+      Boolean(plan.filename && plan.mediaType && plan.byteSize),
+    'A plan must include named files or legacy single-file metadata.',
+  );
 export type AllocationPlan = z.infer<typeof allocationPlanSchema>;
 
 export const allocationPlansResponseSchema = z
@@ -794,6 +826,8 @@ export const finalizeAllocationPlanUploadResponseSchema = z
 export type FinalizeAllocationPlanUploadResponse = z.infer<
   typeof finalizeAllocationPlanUploadResponseSchema
 >;
+
+export * from './allocation-plan-drafts.js';
 
 const signageText = (maximum: number) =>
   z
@@ -905,3 +939,7 @@ export const updateSignRequestSchema = z.discriminatedUnion('field', [
     })
     .strict(),
 ]);
+export * from './cover-image.js';
+export * from './sign-documents.js';
+export * from './sign-photos.js';
+export * from './sign-comments.js';

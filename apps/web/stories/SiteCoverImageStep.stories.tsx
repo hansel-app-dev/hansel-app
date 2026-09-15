@@ -13,8 +13,8 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <div className="mx-auto mt-16 max-w-[500px] overflow-hidden rounded-lg bg-white shadow-2xl">
-        <header className="flex h-[51px] items-center border-b px-6 text-[18px] font-semibold">
+      <div className="mx-auto mt-16 max-w-[500px] overflow-hidden rounded-[6px] bg-white shadow-2xl">
+        <header className="flex h-[50px] items-center border-b px-6 text-[17px] font-semibold">
           Add a cover image
         </header>
         <Story />

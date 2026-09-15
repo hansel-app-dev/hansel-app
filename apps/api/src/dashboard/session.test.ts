@@ -104,6 +104,41 @@ describe('dashboard application session [dashboard-home REQ-005, REQ-010, REQ-01
     expect(rotateRefresh).not.toHaveBeenCalled();
   });
 
+  it('projects the private Organization tray summary only when enabled [organization-tray-settings REQ-012, REQ-017]', async () => {
+    const identity = {
+      firstName: 'Nabin',
+      lastName: 'Singh',
+      roleId: 'administrator',
+      email: 'owner@example.com',
+      organizationName: 'Hansel',
+      planId: 'plus',
+    };
+    const dependencies = {
+      authorizeAccess: vi.fn().mockResolvedValue(identity),
+      rotateRefresh: vi.fn(),
+      revokeFamilies: vi.fn(),
+      createCredential: () => 'unused',
+      digestCredential: (value: string) => `digest:${value}`,
+      now: () => new Date('2026-09-07T00:00:00.000Z'),
+      recordEvent: vi.fn(),
+      organizationTraySettingsEnabled: true,
+    };
+    await expect(
+      createDashboardSession(dependencies).load({
+        accessCredential: 'access',
+        refreshCredential: null,
+      }),
+    ).resolves.toEqual({
+      viewer: {
+        displayName: 'Nabin Singh',
+        initials: 'NS',
+        roleLabel: 'Administrator',
+        email: 'owner@example.com',
+      },
+      organization: { name: 'Hansel', planDisplayName: 'Plus Plan' },
+    });
+  });
+
   it('rotates one valid refresh credential when access is unavailable', async () => {
     const authorizeAccess = vi.fn().mockResolvedValue(null);
     const rotateRefresh = vi.fn().mockResolvedValue({

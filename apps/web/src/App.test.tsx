@@ -497,13 +497,15 @@ describe('App [REQ-002]', () => {
                     }
                   : url.endsWith('/allocation-plans')
                     ? { canAddPlans: true, plans: [] }
-                    : url.endsWith('/allocation-plan-upload-batches')
+                    : url.endsWith('/allocation-plan-drafts')
                       ? {
                           uploads: [
                             {
                               uploadId,
                               uploadUrl: `https://uploads.example.com/${uploadId}`,
-                              expiresAt: '2026-09-06T00:15:00.000Z',
+                              expiresAt: new Date(
+                                Date.now() + 900_000,
+                              ).toISOString(),
                               headers: {
                                 'content-type': 'application/pdf',
                                 'x-amz-checksum-sha256':
@@ -512,19 +514,21 @@ describe('App [REQ-002]', () => {
                             },
                           ],
                         }
-                      : url.endsWith('/finalize')
-                        ? {
-                            plan: {
-                              id: 'a87f107e-ac6e-46a7-b46c-11a86dd56c74',
-                              filename: 'plan.pdf',
-                              mediaType: 'application/pdf',
-                              byteSize: 5,
-                              createdAt: '2026-09-06T00:00:00.000Z',
-                              modifiedAt: '2026-09-06T00:00:00.000Z',
-                              uploadedBy: 'Owner',
-                            },
-                          }
-                        : { site: { id: siteId, name: 'Direct site' } },
+                      : url.endsWith('/verify')
+                        ? { uploadId, verified: true }
+                        : url.endsWith('/commit')
+                          ? {
+                              plan: {
+                                id: 'a87f107e-ac6e-46a7-b46c-11a86dd56c74',
+                                filename: 'plan.pdf',
+                                mediaType: 'application/pdf',
+                                byteSize: 5,
+                                createdAt: '2026-09-06T00:00:00.000Z',
+                                modifiedAt: '2026-09-06T00:00:00.000Z',
+                                uploadedBy: 'Owner',
+                              },
+                            }
+                          : { site: { id: siteId, name: 'Direct site' } },
             ),
           ),
         );
@@ -560,6 +564,9 @@ describe('App [REQ-002]', () => {
       screen.getByRole('link', { name: 'Allocations', current: 'page' }),
     ).toHaveAttribute('href', `/sites/${siteId}/allocations`);
     fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
+    fireEvent.change(screen.getByLabelText('Allocation name'), {
+      target: { value: 'Ground floor' },
+    });
     const file = new File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' });
     Object.defineProperty(file, 'arrayBuffer', {
       value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
@@ -567,8 +574,13 @@ describe('App [REQ-002]', () => {
     const picker = document.querySelector('input[type="file"]');
     if (!picker) throw new Error('Expected file picker');
     fireEvent.change(picker, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Add Allocation' }),
+      ).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });

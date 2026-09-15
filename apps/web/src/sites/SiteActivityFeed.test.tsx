@@ -45,6 +45,10 @@ describe('SiteActivityFeed [site-activity-feed-comments REQ-011..REQ-019, AC-001
     );
     expect(screen.getByText(/created sign/)).toHaveTextContent('RS.101');
     expect(screen.getByText('Ready for review.')).toBeVisible();
+    expect(screen.getByText('Ready for review.').parentElement).toHaveAttribute(
+      'data-activity-comment-card',
+    );
+    expect(screen.getByRole('textbox')).toHaveClass('min-h-[52px]');
     const field = screen.getByRole('textbox', { name: 'Add your comment' });
     fireEvent.change(field, { target: { value: 'A new comment' } });
     fireEvent.click(screen.getByRole('button', { name: 'Comment' }));

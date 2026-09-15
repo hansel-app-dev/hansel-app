@@ -440,6 +440,23 @@ describe('dashboard contract [dashboard-home REQ-005, REQ-007]', () => {
       }),
     ).toThrow();
   });
+
+  it('accepts the bounded Organization tray summary without internal keys [organization-tray-settings REQ-012]', () => {
+    const tray = {
+      viewer: {
+        ...response.viewer,
+        email: 'owner@example.com',
+      },
+      organization: { name: 'Hansel', planDisplayName: 'Free Plan' },
+    };
+    expect(dashboardResponseSchema.parse(tray)).toEqual(tray);
+    expect(() =>
+      dashboardResponseSchema.parse({
+        ...tray,
+        organization: { ...tray.organization, tenantId: 'private' },
+      }),
+    ).toThrow();
+  });
 });
 
 describe('discovery contract [onboarding-discovery REQ-002..REQ-010, REQ-017]', () => {

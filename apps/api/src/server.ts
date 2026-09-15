@@ -58,6 +58,7 @@ import {
 import { createPrismaExternalLoginStore } from './auth/prisma-external-login-store.js';
 import { createOpenIdProviderAdapter } from './auth/openid-provider.js';
 import { createAppleClientSecret } from './auth/apple-client-secret.js';
+import { createCoverImageRoutes } from './sites/cover-image.js';
 import {
   createConsolePasswordLockSender,
   createResendPasswordLockSender,
@@ -89,9 +90,15 @@ import { createPrismaSiteInvitationStore } from './sites/prisma-site-invitation-
 import { createSiteInvitationDispatcher } from './sites/site-invitation-dispatcher.js';
 import { createSiteInvitationWorker } from './sites/site-invitation-worker.js';
 import { createAllocationPlansFeature } from './sites/allocation-plans.js';
+import { createAllocationPlanDraftsFeature } from './sites/allocation-plan-drafts.js';
 import { createPrismaAllocationPlanStore } from './sites/prisma-allocation-plan-store.js';
 import { createS3AllocationPlanObjectStore } from './sites/s3-allocation-plan-object-store.js';
+import { createSignDocumentsFeature } from './sites/sign-documents.js';
+import { createSignPhotosFeature } from './sites/sign-photos.js';
+import { createSignCommentsFeature } from './sites/sign-comments.js';
+import { createSignCommentAttachments } from './sites/sign-comment-attachments.js';
 import { createSignageScheduleFeature } from './sites/signage-schedule.js';
+import { createPlanSignsFeature } from './sites/plan-signs.js';
 import { createSiteActivityFeature } from './sites/site-activity.js';
 
 configureDatabaseUrl();
@@ -407,6 +414,7 @@ const dashboard = createDashboardSession({
   recordEvent: (name) => {
     logger.info(name, { correlationId: randomUUID() });
   },
+  organizationTraySettingsEnabled: config.organizationTraySettingsEnabled,
 });
 const sitesStore = createPrismaSitesStore(
   prisma,
@@ -434,17 +442,80 @@ const allocationPlansFeature = createAllocationPlansFeature({
   digest: (value) => security.digestApplicationCredential(value),
   now: () => new Date(),
 });
+const allocationPlanDrafts = createAllocationPlanDraftsFeature({
+  prisma,
+  objects: createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+  digest: (value) => security.digestApplicationCredential(value),
+  activityEnabled: config.siteActivityEnabled,
+});
 const signageScheduleFeature = createSignageScheduleFeature(
   prisma,
   config.siteActivityEnabled,
 );
 const siteActivityFeature = createSiteActivityFeature(prisma);
+const planSignsFeature = createPlanSignsFeature(prisma);
+const signCommentsFeature = createSignCommentsFeature(prisma);
+// Keep draft cleanup active even when the discussion feature is rolled back.
+const commentAttachments = createSignCommentAttachments(prisma, createS3AllocationPlanObjectStore({ bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled' }));
+const commentCleanup = setInterval(() => { void commentAttachments.cleanup().catch(() => { logger.error('sign_comment_cleanup_failed', { correlationId: randomUUID() }); }); }, 60_000);
+commentCleanup.unref();
+const signPhotosFeature = createSignPhotosFeature(prisma, createS3AllocationPlanObjectStore({ bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled' }));
+const photoCleanup = setInterval(() => { void signPhotosFeature.cleanup().catch(() => { logger.error('sign_photo_cleanup_failed', { correlationId: randomUUID() }); }); }, 60_000);
+photoCleanup.unref();
+const signDocumentsFeature = createSignDocumentsFeature(
+  prisma,
+  createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+);
+// Cleanup stays active on rollback so revoked documents cannot become orphaned objects.
+const documentCleanup = setInterval(() => {
+  void signDocumentsFeature.cleanup().catch(() => {
+    logger.error('sign_document_cleanup_failed', {
+      correlationId: randomUUID(),
+    });
+  });
+}, 60_000);
+documentCleanup.unref();
 const resolveSitePrincipal = (credential: string) =>
   sitesStore.resolvePrincipal(
     security.digestApplicationCredential(credential),
     new Date(),
   );
 const sites: SitesModule = {
+  signComments: { feature: signCommentsFeature, attachments: commentAttachments, resolve: resolveSitePrincipal, record: (name) => { logger.info(name, { correlationId: randomUUID() }); } },
+  signPhotos: { feature: signPhotosFeature, resolve: resolveSitePrincipal, record: (name) => { logger.info(name, { correlationId: randomUUID() }); } },
+  signDocuments: {
+    feature: signDocumentsFeature,
+    resolve: resolveSitePrincipal,
+    record: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  },
+  planSigns: {
+    async load(credential, siteId, planId, fileId) {
+      const p = await resolveSitePrincipal(credential);
+      return p ? planSignsFeature.load(p, siteId, planId, fileId) : null;
+    },
+    async create(credential, siteId, planId, input) {
+      const p = await resolveSitePrincipal(credential);
+      return p ? planSignsFeature.create(p, siteId, planId, input) : null;
+    },
+    async update(credential, siteId, planId, signId, input) {
+      const p = await resolveSitePrincipal(credential);
+      return p
+        ? planSignsFeature.update(p, siteId, planId, signId, input)
+        : null;
+    },
+    async remove(credential, siteId, planId, signId, updatedAt) {
+      const p = await resolveSitePrincipal(credential);
+      if (!p) return false;
+      await planSignsFeature.remove(p, siteId, planId, signId, updatedAt);
+      return true;
+    },
+  },
   async listSiteActivity(credential, siteId, cursor) {
     const principal = await resolveSitePrincipal(credential);
     return principal
@@ -493,7 +564,17 @@ const sites: SitesModule = {
   },
   async load(credential) {
     const principal = await resolveSitePrincipal(credential);
-    return principal ? sitesFeature.load(principal) : null;
+    const page = principal ? await sitesFeature.load(principal) : null;
+    return page
+      ? {
+          ...page,
+          siteCoverImageEnabled:
+            Boolean(config.allocationPlansBucketName) &&
+            (process.env.SITE_COVER_IMAGE_ENABLED === 'true' ||
+              (process.env.SITE_COVER_IMAGE_ENABLED !== 'false' &&
+                process.env.NODE_ENV !== 'production')),
+        }
+      : null;
   },
   async create(credential, input) {
     const principal = await resolveSitePrincipal(credential);
@@ -505,12 +586,35 @@ const sites: SitesModule = {
   },
   async listAllocationPlans(credential, siteId) {
     const principal = await resolveSitePrincipal(credential);
-    return principal ? allocationPlansFeature.list(principal, siteId) : null;
+    if (!principal) return null;
+    const result = await allocationPlansFeature.list(principal, siteId);
+    return {
+      ...result,
+      canAddPlans: result.canAddPlans && config.allocationPlanDraftsEnabled,
+    };
   },
-  async loadAllocationPlanContent(credential, siteId, planId) {
+  async createAllocationPlanDraft(credential, siteId, input) {
     const principal = await resolveSitePrincipal(credential);
     return principal
-      ? allocationPlansFeature.content(principal, siteId, planId)
+      ? allocationPlanDrafts.createBatch(principal, siteId, input)
+      : null;
+  },
+  async verifyAllocationPlanDraft(credential, siteId, uploadId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? allocationPlanDrafts.verify(principal, siteId, uploadId)
+      : null;
+  },
+  async commitAllocationPlanDraft(credential, siteId, input) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? allocationPlanDrafts.commit(principal, siteId, input)
+      : null;
+  },
+  async loadAllocationPlanContent(credential, siteId, planId, fileId) {
+    const principal = await resolveSitePrincipal(credential);
+    return principal
+      ? allocationPlansFeature.content(principal, siteId, planId, fileId)
       : null;
   },
   async createAllocationPlanUploadBatch(credential, siteId, input) {
@@ -616,9 +720,24 @@ const passwordResetNotificationWorker = createPasswordLockEmailWorker({
   },
 });
 if (config.passwordRecoveryEnabled) passwordResetNotificationWorker.start();
+const coverImages = createCoverImageRoutes({
+  recordEvent: (name) => {
+    logger.error(name, { correlationId: randomUUID() });
+  },
+  prisma,
+  bucketName: config.allocationPlansBucketName,
+  enabled:
+    process.env.SITE_COVER_IMAGE_ENABLED === 'true' ||
+    (process.env.SITE_COVER_IMAGE_ENABLED !== 'false' &&
+      process.env.NODE_ENV !== 'production'),
+  allowedOrigin: config.allowedOrigin,
+  digest: (value) => security.digestApplicationCredential(value),
+});
 const server = createApp(
   config,
-  undefined,
+  (app) => {
+    app.use(coverImages.router);
+  },
   onboarding,
   {
     ...dashboard,
@@ -638,7 +757,42 @@ const server = createApp(
   );
 });
 
+let coverCleanupRunning = false;
+const coverCleanupTimer = setInterval(() => {
+  if (coverCleanupRunning || !config.allocationPlansBucketName) return;
+  coverCleanupRunning = true;
+  void coverImages
+    .cleanup()
+    .catch(() => {
+      logger.error('cover_image_cleanup_failed', {
+        correlationId: randomUUID(),
+      });
+    })
+    .finally(() => {
+      coverCleanupRunning = false;
+    });
+}, 60_000);
+coverCleanupTimer.unref();
+let allocationCleanupRunning = false;
+const allocationCleanupTimer = setInterval(() => {
+  if (allocationCleanupRunning || !config.allocationPlansBucketName) return;
+  allocationCleanupRunning = true;
+  void allocationPlanDrafts
+    .cleanup()
+    .catch(() => {
+      logger.error('allocation_draft_cleanup_failed', {
+        correlationId: randomUUID(),
+      });
+    })
+    .finally(() => {
+      allocationCleanupRunning = false;
+    });
+}, 60_000);
+allocationCleanupTimer.unref();
+
 function shutdown(signal: string): void {
+  clearInterval(coverCleanupTimer);
+  clearInterval(allocationCleanupTimer);
   siteInvitationWorker.stop();
   welcomeEmailWorker.stop();
   passwordLockEmailWorker.stop();

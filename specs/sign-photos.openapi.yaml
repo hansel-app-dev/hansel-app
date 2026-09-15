@@ -1,0 +1,203 @@
+collection:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: signId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  get:
+    operationId: listSignPhotos
+    description: Requires current session and Site read access. Private no-store response.
+    parameters:
+      - { name: cursor, in: query, schema: { type: string, format: uuid } }
+    responses:
+      '200':
+        description: Up to 50 completed photos, ordered by ID
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [photos, nextCursor]
+              properties:
+                photos: { type: array, items: { $ref: '#/Photo' } }
+                nextCursor: { type: [string, 'null'], format: uuid }
+      '401': { description: No session }
+      '404': { description: Unavailable Sign or disabled feature }
+      '503': { description: Retryable failure }
+  post:
+    operationId: initiateSignPhotoUpload
+    description: Requires session, exact Origin and MANAGE_SIGNS. Idempotency key binds tenant, Sign, uploader and manifest. Signed PUT expires within 15 minutes.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required:
+              [idempotencyKey, filename, mediaType, byteSize, checksumSha256]
+            properties:
+              idempotencyKey: { type: string, format: uuid }
+              filename:
+                {
+                  type: string,
+                  minLength: 1,
+                  maxLength: 255,
+                  description: No path separators or control characters,
+                }
+              mediaType: { type: string, enum: [image/png, image/jpeg] }
+              byteSize: { type: integer, minimum: 1, maximum: 5242880 }
+              checksumSha256: { type: string, pattern: '^[A-Za-z0-9+/]{43}=$' }
+    responses:
+      '200':
+        description: Upload intent or completed replay; completed replays omit PUT details
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, completed]
+              properties:
+                id: { type: string, format: uuid }
+                completed: { type: boolean }
+                uploadUrl: { type: string, format: uri }
+                headers:
+                  { type: object, additionalProperties: { type: string } }
+      '400': { description: Invalid manifest }
+      '401': { description: No session }
+      '403': { description: Origin or permission denied }
+      '404': { description: Unavailable Sign or disabled feature }
+      '409': { description: Idempotency mismatch }
+      '422': { description: Expired upload }
+      '503': { description: Retryable failure }
+item:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: signId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: photoId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  post:
+    operationId: completeSignPhoto
+    description: Requires session, exact Origin and MANAGE_SIGNS. Verify size, signature, checksum and decodability; create an oriented metadata-free thumbnail, then atomically make the Photo visible. Idempotent replay.
+    responses:
+      '200':
+        description: Verified photo
+        content: { application/json: { schema: { $ref: '#/Photo' } } }
+      '401': { description: No session }
+      '403': { description: Origin or permission denied }
+      '404': { description: Unavailable Sign/photo or disabled feature }
+      '422': { description: Invalid or expired upload }
+      '503': { description: Retryable failure }
+  delete:
+    operationId: deleteSignPhoto
+    description: Requires session, exact Origin and MANAGE_SIGNS. Idempotently deletes only this photo, never its Sign or Docs. Objects reclaimed through durable cleanup.
+    responses:
+      '200': { description: Deleted or already absent }
+      '401': { description: No session }
+      '403': { description: Origin or permission denied }
+      '404': { description: Unavailable Sign or disabled feature }
+      '503': { description: Retryable failure }
+download:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: signId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: photoId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  get:
+    operationId: downloadSignPhoto
+    description: Requires current session and Site access. Original bytes; never inline.
+    responses:
+      '200':
+        description: Private verified bytes
+        headers:
+          Content-Disposition:
+            {
+              schema: { type: string },
+              description: attachment with safe filename,
+            }
+          Cache-Control:
+            { schema: { type: string, const: 'private, no-store' } }
+          X-Content-Type-Options: { schema: { type: string, const: nosniff } }
+        content:
+          image/png: { schema: { type: string, format: binary } }
+          image/jpeg: { schema: { type: string, format: binary } }
+      '401': { description: No session }
+      '404': { description: Unavailable Sign/photo or disabled feature }
+      '422': { description: Stored bytes failed verification }
+      '503': { description: Retryable failure }
+Photo:
+  type: object
+  required: [id, filename, mediaType, byteSize, createdAt]
+  properties:
+    id: { type: string, format: uuid }
+    filename: { type: string }
+    mediaType: { type: string, enum: [image/png, image/jpeg] }
+    byteSize: { type: integer, minimum: 1, maximum: 5242880 }
+    createdAt: { type: string, format: date-time }
+
+thumbnail:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: signId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: photoId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  get:
+    operationId: thumbnailSignPhoto
+    description: Session and Site access required. Private no-store oriented metadata-free PNG, maximum 640 pixels per side.
+    responses:
+      '200':
+        {
+          description: Thumbnail,
+          content: { image/png: { schema: { type: string, format: binary } } },
+        }
+      '401': { description: No session }
+      '404': { description: Unavailable photo }
+      '503': { description: Retryable failure }

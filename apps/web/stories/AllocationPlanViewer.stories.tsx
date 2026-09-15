@@ -1,5 +1,7 @@
 /** @spec site-allocation-plan-preview REQ-006..REQ-013 @figma supplied 03.png */
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import type { PlanSign } from '@hansel/contracts';
+import type { PlanSignsApi } from '../src/sites/plan-signs-api.js';
 import { userEvent, within } from 'storybook/test';
 import { AllocationPlanViewer } from '../src/sites/AllocationPlanViewer.js';
 
@@ -27,12 +29,57 @@ const meta = {
     render: () => Promise.resolve({ src: preview, release: () => undefined }),
   },
   parameters: { layout: 'fullscreen' },
+  decorators: [
+    (Story, context) => (
+      <div
+        className={`ml-[300px] px-8 ${context.args.planSignsApi ? 'pt-[119px]' : 'pt-[151px]'} max-md:ml-0 max-md:px-5`}
+      >
+        <Story />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof AllocationPlanViewer>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ImagePlan: Story = {};
+export const MultipleFiles: Story = {
+  args: {
+    plan: {
+      ...plan,
+      name: 'Building A',
+      files: [
+        'Ground Floor.png',
+        'First Floor.png',
+        'Second Floor.png',
+        'Third Floor.png',
+      ].map((filename, index) => ({
+        id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
+        filename,
+        mediaType: 'image/png',
+        byteSize: 3,
+      })),
+    },
+  },
+};
+export const FileDropdown: Story = {
+  ...MultipleFiles,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'Select plan file' }),
+    );
+  },
+};
+export const LongFilename: Story = {
+  args: {
+    plan: {
+      ...plan,
+      filename:
+        'Building A - General Teaching Space - Allocation Plan Ground Floor.png',
+    },
+  },
+};
 export const Loading: Story = {
   args: { loadContent: () => new Promise(() => undefined) },
 };
@@ -59,5 +106,129 @@ export const SpacePanArmed: Story = {
       canvas.getByRole('region', { name: `${plan.filename} preview` }),
     );
     await userEvent.keyboard('[Space>]');
+  },
+};
+
+function signApi(readonly = false): PlanSignsApi {
+  const initial: PlanSign = {
+    id: '00000000-0000-4000-8000-000000000011',
+    fileId: null,
+    x: 0.45,
+    y: 0.55,
+    code: 'SG.001',
+    content: '',
+    mounting: 'Wall-mounted',
+    function: 'Wayfinder',
+    colour: 'Red',
+    orientation: 'down',
+    updatedAt: '2026-09-14T00:00:00.000Z',
+  };
+  let signs: PlanSign[] = [initial];
+  return {
+    load: () => Promise.resolve({ canManageSigns: !readonly, signs }),
+    create: (input) => {
+      const sign: PlanSign = {
+        ...initial,
+        id: crypto.randomUUID(),
+        fileId: input.fileId,
+        x: input.x,
+        y: input.y,
+        code: `SG.${String(signs.length + 1).padStart(3, '0')}`,
+        updatedAt: new Date().toISOString(),
+      };
+      signs = [...signs, sign];
+      return Promise.resolve(sign);
+    },
+    update: (id, input) => {
+      const current = signs.find((sign) => sign.id === id);
+      if (!current) return Promise.reject(new Error('not_found'));
+      const sign = {
+        ...current,
+        x: input.x ?? current.x,
+        y: input.y ?? current.y,
+        code: input.code ?? current.code,
+        content: input.content ?? current.content,
+        orientation: input.orientation ?? current.orientation,
+        updatedAt: new Date().toISOString(),
+      };
+      signs = signs.map((item) => (item.id === id ? sign : item));
+      return Promise.resolve(sign);
+    },
+    remove: (id) => {
+      signs = signs.filter((sign) => sign.id !== id);
+      return Promise.resolve();
+    },
+  };
+}
+export const PopulatedSigns: Story = { args: { planSignsApi: signApi() } };
+export const DeletePending: Story = {
+  args: {
+    planSignsApi: { ...signApi(), remove: () => new Promise(() => undefined) },
+  },
+};
+export const DeleteFailure: Story = {
+  args: {
+    planSignsApi: {
+      ...signApi(),
+      remove: () => Promise.reject(new Error('unavailable')),
+    },
+  },
+};
+export const MovableSigns: Story = { args: { planSignsApi: signApi() } };
+export const MovingSign: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const marker = await within(canvasElement).findByRole('button', {
+      name: 'Select sign SG.001',
+    });
+    const box = marker.getBoundingClientRect();
+    await userEvent.pointer([
+      {
+        target: marker,
+        coords: { clientX: box.x + 10, clientY: box.y + 10 },
+        keys: '[MouseLeft>]',
+      },
+      { target: marker, coords: { clientX: box.x + 70, clientY: box.y + 50 } },
+    ]);
+  },
+};
+export const MoveSaveFailure: Story = {
+  args: {
+    planSignsApi: {
+      ...signApi(),
+      update: () => Promise.reject(new Error('unavailable')),
+    },
+  },
+};
+export const SignDrawer: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      await within(canvasElement).findByRole('button', {
+        name: 'Select sign SG.001',
+      }),
+    );
+  },
+};
+export const ReadOnlySigns: Story = { args: { planSignsApi: signApi(true) } };
+export const SignSaveFailure: Story = {
+  args: {
+    planSignsApi: {
+      ...signApi(),
+      create: () => Promise.reject(new Error('unavailable')),
+    },
+  },
+};
+export const SignSaving: Story = {
+  args: {
+    planSignsApi: { ...signApi(), create: () => new Promise(() => undefined) },
+  },
+};
+export const EmptySigns: Story = {
+  args: {
+    planSignsApi: {
+      ...signApi(),
+      load: () => Promise.resolve({ signs: [], canManageSigns: true }),
+    },
   },
 };

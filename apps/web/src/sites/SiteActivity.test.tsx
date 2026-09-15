@@ -213,6 +213,15 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     const breadcrumb = screen.getByRole('navigation', {
       name: 'Site breadcrumb',
     });
+    expect(breadcrumb.querySelector('ol')).toHaveClass('items-center');
+    expect(breadcrumb.querySelector('li[aria-hidden="true"]')).toHaveClass(
+      'flex',
+      'items-center',
+    );
+    expect(within(breadcrumb).getByText('chevron_right')).toHaveClass(
+      'items-center',
+      'justify-center',
+    );
     expect(
       within(breadcrumb).getByRole('link', { name: 'Sites' }),
     ).toHaveAttribute('href', '/sites');
@@ -229,6 +238,13 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
       expect(screen.getByRole('button', { name: action })).toBeDisabled();
 
     const sections = screen.getByRole('navigation', { name: 'Site sections' });
+    expect(sections.parentElement).toHaveClass(
+      'bg-[#fafafa]',
+      'min-h-[calc(100vh-64px)]',
+    );
+    expect(sections).toHaveClass('items-center');
+    expect(sections).not.toHaveClass('items-end');
+    expect(within(sections).queryByText('more_horiz')).not.toBeInTheDocument();
     expect(
       within(sections).getByRole('link', { name: 'Activity' }),
     ).toHaveAttribute('aria-current', 'page');
@@ -314,7 +330,7 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
       name: 'Activity',
       current: 'page',
     });
-    fireEvent.click(screen.getByText('more_horiz'));
+    expect(screen.queryByText('more_horiz')).not.toBeInTheDocument();
     expect(navigate).not.toHaveBeenCalled();
     fireEvent.click(activity);
     expect(navigate).toHaveBeenLastCalledWith(`/sites/${siteId}/activity`);

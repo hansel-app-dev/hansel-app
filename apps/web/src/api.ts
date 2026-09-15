@@ -1,3 +1,4 @@
+import { AllocationDraftFilesRejectedError } from './sites/allocation-draft-errors.js';
 import {
   createOnboardingAccountResponseSchema,
   healthResponseSchema,
@@ -49,6 +50,8 @@ import {
   type SiteActivityResponse,
   type SitesPageResponse,
   allocationPlansResponseSchema,
+  verifyAllocationPlanDraftResponseSchema,
+  type CommitAllocationPlanDraftRequest,
   createAllocationPlanUploadBatchResponseSchema,
   finalizeAllocationPlanUploadResponseSchema,
   type AllocationPlansResponse,
@@ -303,6 +306,33 @@ export async function createSiteComment(
   return siteActivityItemSchema.parse(await response.json());
 }
 
+/** @spec site-cover-image-display REQ-004..REQ-006 */
+export async function loadSiteCoverImage(
+  siteId: string,
+  baseUrl: string,
+  signal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<Blob> {
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${encodeURIComponent(siteId)}/cover-image`,
+    {
+      credentials: 'include',
+      signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
+      cache: 'no-store',
+    },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (!response.ok) throw new Error('cover_image_load_failed');
+  const blob = await response.blob();
+  if (
+    !['image/png', 'image/jpeg'].includes(blob.type) ||
+    blob.size < 1 ||
+    blob.size > 3_000_000
+  )
+    throw new Error('invalid_cover_image');
+  return blob;
+}
+
 export async function loadAllocationPlans(
   siteId: string,
   baseUrl: string,
@@ -325,10 +355,17 @@ export async function loadAllocationPlanContent(
   planId: string,
   baseUrl: string,
   fetcher: typeof fetch = fetch,
+  fileId?: string,
+  signal?: AbortSignal,
 ): Promise<Blob> {
   const response = await fetcher(
-    `${baseUrl}/api/sites/${siteId}/allocation-plans/${planId}/content`,
-    { credentials: 'include' },
+    `${baseUrl}/api/sites/${siteId}/allocation-plans/${planId}${fileId ? `/files/${fileId}` : ''}/content`,
+    {
+      credentials: 'include',
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(45_000)])
+        : AbortSignal.timeout(45_000),
+    },
   );
   if (response.status === 401) throw new DashboardAuthenticationRequiredError();
   if (!response.ok) throw new Error('allocation_plan_preview_failed');
@@ -357,6 +394,76 @@ export async function createAllocationPlanUploadBatch(
   );
 }
 
+/** @spec allocation-plan-multiple-files REQ-004, REQ-005, REQ-008 */
+async function allocationDraftRequest(
+  siteId: string,
+  suffix: string,
+  input: unknown,
+  baseUrl: string,
+  fetcher: typeof fetch,
+): Promise<unknown> {
+  const response = await fetcher(
+    `${baseUrl}/api/sites/${siteId}/allocation-plan-drafts${suffix}`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(45_000),
+    },
+  );
+  if (response.status === 401) throw new DashboardAuthenticationRequiredError();
+  if (response.status === 409) {
+    const body: unknown = await response.json();
+    if (
+      typeof body === 'object' &&
+      body !== null &&
+      'error' in body &&
+      body.error === 'allocation_draft_upload_rejected'
+    )
+      throw new AllocationDraftFilesRejectedError();
+    throw new Error('allocation_draft_conflict');
+  }
+  if (!response.ok) throw new Error('allocation_draft_failed');
+  return response.json();
+}
+export async function createAllocationPlanDraft(
+  siteId: string,
+  input: CreateAllocationPlanUploadBatchRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+) {
+  return createAllocationPlanUploadBatchResponseSchema.parse(
+    await allocationDraftRequest(siteId, '', input, baseUrl, fetcher),
+  );
+}
+export async function verifyAllocationPlanDraft(
+  siteId: string,
+  uploadId: string,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+) {
+  return verifyAllocationPlanDraftResponseSchema.parse(
+    await allocationDraftRequest(
+      siteId,
+      `/${uploadId}/verify`,
+      {},
+      baseUrl,
+      fetcher,
+    ),
+  );
+}
+export async function commitAllocationPlanDraft(
+  siteId: string,
+  input: CommitAllocationPlanDraftRequest,
+  baseUrl: string,
+  fetcher: typeof fetch = fetch,
+) {
+  return finalizeAllocationPlanUploadResponseSchema.parse(
+    await allocationDraftRequest(siteId, '/commit', input, baseUrl, fetcher),
+  );
+}
+
 export async function uploadAllocationPlan(
   uploadUrl: string,
   file: File,
@@ -368,6 +475,10 @@ export async function uploadAllocationPlan(
     await new Promise<void>((resolve, reject) => {
       const request = new XMLHttpRequest();
       request.open('PUT', uploadUrl);
+      request.timeout = 120_000;
+      request.addEventListener('timeout', () => {
+        reject(new Error('allocation_plan_upload_timed_out'));
+      });
       for (const [name, value] of Object.entries(headers))
         request.setRequestHeader(name, value);
       request.upload.addEventListener('progress', (event) => {

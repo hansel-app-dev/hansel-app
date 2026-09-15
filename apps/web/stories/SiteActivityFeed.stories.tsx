@@ -28,7 +28,10 @@ const items: SiteActivityItem[] = [
 const meta = {
   title: 'Sites/Site Activity Feed',
   component: SiteActivityFeed,
+  parameters: { layout: 'fullscreen' },
   args: {
+    now: new Date('2026-09-08T00:00:00.000Z'),
+    viewer: { displayName: 'Nabin Singh', initials: 'NS' },
     initial: { items, nextCursor: null },
     loadOlder: (_cursor: string): Promise<SiteActivityPageResponse> =>
       Promise.resolve({ items: [], nextCursor: null }),
@@ -43,8 +46,8 @@ const meta = {
   },
   decorators: [
     (Story) => (
-      <div className="m-8 max-w-[390px] rounded-lg border border-site-card-border bg-surface shadow-site-card">
-        <h2 className="border-b border-control-border px-6 py-5 text-base font-semibold">
+      <div className="m-8 w-[375px] max-w-[calc(100vw-64px)] bg-surface">
+        <h2 className="px-5 pt-4 text-[12px] font-semibold leading-[18px] text-[#0f172a]">
           Activity
         </h2>
         <Story />

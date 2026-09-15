@@ -7,7 +7,7 @@
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-15`
 - Domain references: `CONTEXT.md — Sign, Allocation Plan, Site Access, Organization Role; docs/domain/figjam-object-catalog.md — Objects and data points (Sign), Canonical interpretation notes, Organization roles and permissions, Known ambiguities 7 and 10, Current implementation alignment`
-- Design authority: User-supplied `Hansel App UI (9)/field.png`, `field-1.png`, `field-2.png`, and `field-3.png`.
+- Design authority: User-supplied `Hansel App UI (9)/field.png`, `field-1.png`, `field-2.png`, and `field-3.png`. Subsequent user direction supplies exact 24×24 PNGs: `cantilivered.png`, `freestanding.png`, `overhead.png`, and `wall_mounted.png`; use these unchanged instead of recreated vectors.
 
 ## Problem
 
@@ -25,7 +25,7 @@ All four mounting choices show their reference icon and label in the dropdown an
 ## Requirements
 
 - REQ-001: General → Type is single-select with exactly Freestanding, Wall-mounted, Overhead, and Cantilevered, in that order. These describe the existing Sign mounting attribute, not the Site's Sign Type grouping.
-- REQ-002: Each menu option and the closed selected field display the corresponding illustrated icon beside its exact label. Match the supplied 302×40px field reference, neutral border, rounded corners, muted icon styling, aligned text and trailing chevron. Recreate individual icons as scalable vectors; do not embed entire field screenshots or infer a black field background from image transparency.
+- REQ-002: Each menu option and the closed selected field display the corresponding illustrated icon beside its exact label. Match the supplied 302×40px field reference, neutral border, rounded corners, muted icon styling, aligned text and trailing chevron. Use the supplied individual PNG icons unchanged at their native 24×24 size; do not embed entire field screenshots or infer a black field background from image transparency.
 - REQ-003: Selecting a choice saves immediately through the existing Sign update flow. Preserve optimistic concurrency, pending/failed-save recovery and current Site-access/MANAGE_SIGNS authorization. Existing Signs retain their values; new Signs remain Wall-mounted by default.
 - REQ-004: Client and server accept all four exact values and reject unsupported values. Reading any supported value must not break the plan's Sign list. Other attributes and Sign Type grouping remain unchanged.
 - REQ-005: Provide a labelled accessible trigger/listbox with selected state, keyboard navigation, Enter/Space selection, Escape dismissal and focus return. Viewers see the current icon and label but cannot edit. Add all selected states, open-menu, disabled and keyboard states to Storybook.

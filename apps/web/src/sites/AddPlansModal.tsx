@@ -1,46 +1,44 @@
-/** @spec site-allocation-plans-add REQ-002..REQ-005, REQ-019..REQ-021 @figma 2057:3458 */
+/** @spec allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012 */
 import { useEffect, useRef, useState } from 'react';
-import type {
-  CreateAllocationPlanUploadBatchRequest,
-  CreateAllocationPlanUploadBatchResponse,
+import {
+  allocationPlanNameSchema,
+  type CommitAllocationPlanDraftRequest,
+  type CreateAllocationPlanUploadBatchRequest,
+  type CreateAllocationPlanUploadBatchResponse,
 } from '@hansel/contracts';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
-import { Button } from '../design-system/index.js';
+import { AllocationDraftFilesRejectedError } from './allocation-draft-errors.js';
 
-const allowed = new Map([
-  ['image/png', ['.png']],
-  ['image/jpeg', ['.jpg', '.jpeg']],
-  ['application/pdf', ['.pdf']],
-]);
-
-async function checksum(file: File): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    await file.arrayBuffer(),
-  );
-  let binary = '';
-  for (const byte of new Uint8Array(digest))
-    binary += String.fromCharCode(byte);
-  return btoa(binary);
+type Intent = CreateAllocationPlanUploadBatchResponse['uploads'][number];
+interface Row {
+  id: string;
+  file: File;
+  state: 'queued' | 'uploading' | 'verifying' | 'verified' | 'failed';
+  progress: number;
+  intent?: Intent;
+  controller?: AbortController;
 }
-
-function validation(file: File): string | null {
-  const extensions = allowed.get(file.type);
-  if (
-    !extensions?.some((extension) =>
-      file.name.toLowerCase().endsWith(extension),
-    )
-  )
-    return 'Choose a PNG, JPG or PDF file.';
-  if (file.size < 1 || file.size > 5_242_880)
-    return 'Each file must be between 1 byte and 5 MB.';
-  return null;
+const secondary =
+  'h-10 min-w-20 rounded border border-[#d2d3d8] bg-transparent px-[15px] text-[14px] leading-5 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50';
+const primary =
+  'h-10 min-w-[65px] rounded bg-[#475569] px-4 text-[14px] leading-5 text-white disabled:bg-[#d4d4d8] disabled:text-[#71717a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+const types = {
+  'image/png': ['.png'],
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'application/pdf': ['.pdf'],
+};
+async function checksum(file: File) {
+  const bytes = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', await file.arrayBuffer()),
+  );
+  return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
 }
 
 export function AddPlansModal({
   createBatch,
   upload,
   finalize,
+  commit,
   onClose,
   onComplete,
 }: {
@@ -51,271 +49,623 @@ export function AddPlansModal({
     url: string,
     file: File,
     headers: Record<string, string>,
-    options?: { onProgress: (percentage: number) => void; signal: AbortSignal },
+    options?: { onProgress(percentage: number): void; signal: AbortSignal },
   ) => Promise<void>;
   finalize: (uploadId: string) => Promise<void>;
+  commit?: (input: CommitAllocationPlanDraftRequest) => Promise<void>;
   onClose: () => void;
   onComplete: () => void;
 }) {
-  const [files, setFiles] = useState<File[]>([]);
+  const [name, setName] = useState('');
+  const [nameEdited, setNameEdited] = useState(false);
+  const [rows, renderRows] = useState<Row[]>([]);
+  const current = useRef<Row[]>([]);
+  const [stage, setStage] = useState<'select' | 'upload'>('select');
   const [error, setError] = useState('');
-  const [pending, setPending] = useState(false);
-  const [states, setStates] = useState<('queued' | 'uploading' | 'complete')[]>(
-    [],
+  const [preparing, setPreparing] = useState(false);
+  const [retryPreparation, setRetryPreparation] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const generation = useRef(0);
+  const starting = useRef(false);
+  const committing = useRef(false);
+  const commitPayload = useRef<CommitAllocationPlanDraftRequest | undefined>(
+    undefined,
   );
-  const [progress, setProgress] = useState<number[]>([]);
-  const [complete, setComplete] = useState(false);
-  const controllers = useRef<(AbortController | undefined)[]>([]);
+  const batchKey = useRef(crypto.randomUUID());
   const dialog = useRef<HTMLDivElement>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const validName = allocationPlanNameSchema.safeParse(name);
+  function update(next: Row[]) {
+    current.current = next;
+    renderRows(next);
+  }
+  function patch(id: string, value: Partial<Row>) {
+    update(
+      current.current.map((row) =>
+        row.id === id ? { ...row, ...value } : row,
+      ),
+    );
+  }
+  function abandon() {
+    generation.current++;
+    current.current.forEach((row) => row.controller?.abort());
+    onClose();
+  }
+  function dismiss() {
+    if (committing.current) return;
+    if (stage === 'upload' || preparing) setConfirm(true);
+    else onClose();
+  }
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
   useEffect(() => {
+    const invoker = document.activeElement;
     dialog.current?.focus();
-    const close = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !pending) onClose();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        dismissRef.current();
+      }
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(
+        dialog.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled):not([type=file]), [tabindex="0"]',
+        ) ?? [],
+      ).filter((element) => !element.closest('[inert]'));
+      const first = controls[0],
+        last = controls.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+      if (
+        event.shiftKey &&
+        (document.activeElement === first ||
+          document.activeElement === dialog.current)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last ||
+          document.activeElement === dialog.current)
+      ) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', close);
+    window.addEventListener('keydown', keydown);
     return () => {
-      window.removeEventListener('keydown', close);
+      generation.current++;
+      current.current.forEach((row) => row.controller?.abort());
+      window.removeEventListener('keydown', keydown);
+      if (invoker instanceof HTMLElement) invoker.focus();
     };
-  }, [onClose, pending]);
-
-  const select = (next: File[]) => {
-    const problem = next.map(validation).find(Boolean);
-    if (problem) {
-      setError(problem);
+  }, []);
+  useEffect(() => {
+    if (confirm)
+      dialog.current?.querySelector<HTMLButtonElement>('[data-keep]')?.focus();
+  }, [confirm]);
+  function select(files: File[]) {
+    if (starting.current || stage !== 'select') return;
+    for (const file of files) {
+      const extensions = Object.entries(types).find(
+        ([type]) => type === file.type,
+      )?.[1];
+      if (
+        !extensions?.some((extension) =>
+          file.name.toLowerCase().endsWith(extension),
+        )
+      ) {
+        setError('Choose a PNG, JPG or PDF file.');
+        return;
+      }
+      if (file.size < 1 || file.size > 5_242_880) {
+        setError('Each file must be between 1 byte and 5 MB.');
+        return;
+      }
+    }
+    if (files.length + current.current.length > 20) {
+      setError('Choose no more than 20 files.');
       return;
     }
     setError('');
-    setFiles((current) => [...current, ...next].slice(0, 20));
-    setStates((current) =>
-      [...current, ...next.map(() => 'queued' as const)].slice(0, 20),
-    );
-    setProgress((current) => [...current, ...next.map(() => 0)].slice(0, 20));
-  };
-  const submit = async () => {
-    setPending(true);
+    batchKey.current = crypto.randomUUID();
+    update([
+      ...current.current,
+      ...files.map((file): Row => ({
+        id: crypto.randomUUID(),
+        file,
+        state: 'queued',
+        progress: 0,
+      })),
+    ]);
+  }
+  function remove(id: string) {
+    if (committing.current || commitPayload.current) return;
     setError('');
+    current.current.find((row) => row.id === id)?.controller?.abort();
+    update(current.current.filter((row) => row.id !== id));
+    if (!current.current.length) {
+      generation.current++;
+      starting.current = false;
+      setPreparing(false);
+      setStage('select');
+      batchKey.current = crypto.randomUUID();
+      setError('');
+    }
+  }
+  async function transfer(id: string, run: number) {
+    const row = current.current.find((entry) => entry.id === id);
+    if (!row?.intent || run !== generation.current) return;
+    const controller = new AbortController();
+    const alive = () =>
+      run === generation.current &&
+      !controller.signal.aborted &&
+      current.current.some((entry) => entry.id === id);
+    patch(id, { state: 'uploading', progress: 0, controller });
     try {
-      const manifest = await Promise.all(
-        files.map(async (file) => ({
+      if (new Date(row.intent.expiresAt).getTime() <= Date.now())
+        throw new Error('expired');
+      await upload(row.intent.uploadUrl, row.file, row.intent.headers, {
+        signal: controller.signal,
+        onProgress: (percentage) => {
+          if (alive())
+            patch(id, {
+              progress: Math.round(Math.min(100, Math.max(0, percentage))),
+            });
+        },
+      });
+      if (!alive()) return;
+      patch(id, { state: 'verifying', progress: 100 });
+      await finalize(row.intent.uploadId);
+      if (alive()) patch(id, { state: 'verified' });
+    } catch {
+      if (alive()) patch(id, { state: 'failed' });
+    }
+  }
+  async function start() {
+    if (starting.current || !validName.success || !current.current.length)
+      return;
+    starting.current = true;
+    setRetryPreparation(false);
+    setPreparing(true);
+    setError('');
+    const run = generation.current;
+    const selected = [...current.current];
+    try {
+      const files = await Promise.all(
+        selected.map(async ({ file }) => ({
           filename: file.name.normalize('NFC'),
-          mediaType: file.type as
-            'image/png' | 'image/jpeg' | 'application/pdf',
+          mediaType: file.type as keyof typeof types,
           byteSize: file.size,
           checksumSha256: await checksum(file),
         })),
       );
-      const response = await createBatch({
-        idempotencyKey: crypto.randomUUID(),
-        files: manifest,
+      const identities = files.map((file) =>
+        JSON.stringify([file.filename, file.byteSize, file.checksumSha256]),
+      );
+      if (new Set(identities).size !== files.length) {
+        setError('Remove duplicate files before continuing.');
+        return;
+      }
+      if (run !== generation.current) return;
+      const result = await createBatch({
+        idempotencyKey: batchKey.current,
+        files,
       });
-      for (const [index, intent] of response.uploads.entries()) {
-        const file = files[index];
-        if (!file) throw new Error('Upload manifest mismatch');
-        setStates((current) =>
-          current.map((state, item) =>
-            /* v8 ignore next -- sibling rows retain their state */
-            item === index ? 'uploading' : state,
-          ),
+      if (run !== generation.current) return;
+      if (result.uploads.length !== selected.length)
+        throw new Error('manifest');
+      update(
+        selected.map((row, index) => {
+          const intent = result.uploads[index];
+          if (!intent) throw new Error('manifest');
+          return { ...row, intent };
+        }),
+      );
+      setStage('upload');
+      setPreparing(false);
+      const queue = selected.map((row) => row.id);
+      await Promise.all(
+        Array.from({ length: Math.min(3, queue.length) }, async () => {
+          let id;
+          while ((id = queue.shift())) await transfer(id, run);
+        }),
+      );
+    } catch (failure) {
+      if (run === generation.current) {
+        if (failure instanceof AllocationDraftFilesRejectedError)
+          batchKey.current = crypto.randomUUID();
+        setRetryPreparation(true);
+        setError('We couldn’t start the upload. Please try again.');
+      }
+    } finally {
+      if (run === generation.current) {
+        starting.current = false;
+        setPreparing(false);
+      }
+    }
+  }
+  const active = rows.filter(
+    (row) => row.state === 'uploading' || row.state === 'verifying',
+  ).length;
+  const ready =
+    rows.length > 0 && rows.every((row) => row.state === 'verified');
+  async function create() {
+    if (!commit || committing.current || !ready || !validName.success) return;
+    committing.current = true;
+    setCreating(true);
+    setError('');
+    commitPayload.current ??= {
+      name: validName.data,
+      idempotencyKey: crypto.randomUUID(),
+      uploadIds: rows.flatMap((row) =>
+        row.intent ? [row.intent.uploadId] : [],
+      ),
+    };
+    try {
+      await commit(commitPayload.current);
+      onComplete();
+    } catch (failure) {
+      if (failure instanceof AllocationDraftFilesRejectedError) {
+        commitPayload.current = undefined;
+        generation.current++;
+        batchKey.current = crypto.randomUUID();
+        update(
+          current.current.map(({ file }): Row => ({
+            id: crypto.randomUUID(),
+            file,
+            state: 'queued',
+            progress: 0,
+          })),
         );
-        const controller = new AbortController();
-        controllers.current[index] = controller;
-        await upload(intent.uploadUrl, file, intent.headers, {
-          onProgress: (percentage) => {
-            setProgress((current) =>
-              current.map((value, item) =>
-                /* v8 ignore next -- sibling rows retain their progress */
-                item === index ? percentage : value,
-              ),
-            );
-          },
-          signal: controller.signal,
-        });
-        await finalize(intent.uploadId);
-        setStates((current) =>
-          current.map((state, item) =>
-            /* v8 ignore next -- sibling rows retain their state */
-            item === index ? 'complete' : state,
-          ),
+        setStage('select');
+        setRetryPreparation(true);
+        setError(
+          'The uploaded files expired or were rejected. Press Next to upload them again.',
+        );
+      } else {
+        setError(
+          'We couldn’t add the allocation. Please try again. Your uploaded files are retained temporarily.',
         );
       }
-      setComplete(true);
-    } catch {
-      setError('We couldn’t upload every plan. Please try again.');
     } finally {
-      setPending(false);
+      committing.current = false;
+      setCreating(false);
     }
-  };
+  }
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/25 p-4">
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-[#18181b]/30 p-4 backdrop-blur-[5px]"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) dismiss();
+      }}
+    >
       <div
-        aria-labelledby="add-plans-title"
-        aria-modal="true"
-        className="w-full max-w-[600px] rounded-lg bg-surface shadow-xl outline-none"
         ref={dialog}
         role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-plans-title"
         tabIndex={-1}
+        className="flex max-h-[calc(100dvh-32px)] w-full max-w-[500px] flex-col overflow-hidden rounded-[6px] bg-white tracking-[0.3px] text-[#27272a] shadow-[0_20px_30px_-10px_#00000030] outline-none"
       >
-        <header className="flex items-center justify-between border-b border-control-border px-6 py-4">
-          <h2 className="text-[17px] font-semibold" id="add-plans-title">
-            Add plans
+        <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-[#d4d4d8] px-6">
+          <h2
+            id="add-plans-title"
+            className="text-[17px] font-semibold leading-6"
+          >
+            Add new Allocation
           </h2>
           <button
-            aria-label="Close Add plans"
-            disabled={pending}
-            onClick={onClose}
+            aria-label="Close Add Allocation"
             type="button"
+            onClick={dismiss}
+            disabled={creating || confirm}
+            className="grid size-6 place-items-center text-[#71717a] focus-visible:outline-2 focus-visible:outline-focus"
           >
-            <AppSymbol weight={100}>close</AppSymbol>
+            <AppSymbol className="!size-6 text-[24px]" weight={100}>
+              close
+            </AppSymbol>
           </button>
         </header>
-        <div className="px-6 py-6">
-          <p className="mb-5 text-[15px]">Add plans here</p>
+        {confirm ? (
           <div
-            className="grid min-h-[250px] place-items-center rounded border border-dashed border-content-muted p-6 text-center"
-            onDragOver={(event) => {
-              event.preventDefault();
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              select(Array.from(event.dataTransfer.files));
-            }}
+            className="p-6"
+            role="group"
+            aria-label="Discard unfinished allocation"
           >
-            <div>
-              <AppSymbol
-                className="mx-auto !size-16 text-[64px] text-content-muted"
-                weight={100}
-              >
-                upload_file
-              </AppSymbol>
-              <p className="mt-4">Drag your file(s) here to get started</p>
-              <p className="my-2 text-content-muted">or</p>
-              <Button
-                onClick={() => picker.current?.click()}
+            <p className="text-sm">
+              Discard this allocation? Uploaded and unfinished files will be
+              abandoned.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-4">
+              <button
+                data-keep
                 type="button"
-                variant="secondary"
-              >
-                Browse files
-              </Button>
-              <input
-                accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
-                className="sr-only"
-                multiple
-                onChange={(event) => {
-                  select(Array.from(event.target.files ?? []));
+                className={secondary}
+                onClick={() => {
+                  setConfirm(false);
+                  dialog.current?.focus();
                 }}
-                ref={picker}
-                type="file"
-              />
+              >
+                Keep editing
+              </button>
+              <button type="button" className={primary} onClick={abandon}>
+                Discard allocation
+              </button>
             </div>
           </div>
-          {files.length > 0 ? (
-            <ul aria-label="Selected plans" className="mt-4 space-y-2 text-sm">
-              {files.map((file, index) => (
-                <li
-                  className={`rounded border px-4 py-3 ${
-                    states[index] === 'complete'
-                      ? 'border-[#88e6b5] bg-[#effff6]'
-                      : 'border-control-border bg-surface-subtle'
-                  }`}
-                  key={[file.name, String(file.size), String(index)].join('-')}
-                >
-                  <div className="flex items-center gap-3">
-                    <AppSymbol className="text-[24px]" weight={100}>
-                      picture_as_pdf
+        ) : (
+          <>
+            <div className="min-h-0 overflow-y-auto px-6 pb-[23px] pt-6">
+              <div className="flex h-10 items-center gap-2">
+                <span className="grid size-10 shrink-0 place-items-center rounded bg-[#f4f4f5]">
+                  <span className="grid size-5 place-items-center rounded-[2px] bg-[#4393ff] text-white">
+                    <AppSymbol className="!size-4 text-[15px]" weight={100}>
+                      layers
                     </AppSymbol>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold">
-                        {file.name}
-                        {states[index] === 'uploading' ? ' • Uploading…' : ''}
-                      </p>
-                      {states[index] === 'uploading' ? (
-                        <div className="mt-1 flex items-center gap-2">
-                          <span>{Number(progress[index])}%</span>
-                          <progress
-                            className="h-1 flex-1"
-                            max={100}
-                            value={Number(progress[index])}
-                          >
-                            {Number(progress[index])}%
-                          </progress>
-                        </div>
-                      ) : (
-                        <p className="text-content-muted">
-                          {(file.size / 1_048_576).toFixed(1)} MB
-                        </p>
-                      )}
+                  </span>
+                </span>
+                <input
+                  aria-label="Allocation name"
+                  placeholder="New allocation plan"
+                  aria-invalid={nameEdited && !validName.success}
+                  aria-describedby={
+                    nameEdited && !validName.success
+                      ? 'allocation-name-error'
+                      : undefined
+                  }
+                  value={name}
+                  disabled={creating || Boolean(commitPayload.current)}
+                  onChange={(event) => {
+                    setNameEdited(true);
+                    setName(event.target.value);
+                  }}
+                  className="h-10 min-w-0 flex-1 rounded border border-[#e0e0e5] bg-white px-[15px] text-[14px] leading-5 outline-none focus:border-focus"
+                />
+              </div>
+              {nameEdited && !validName.success ? (
+                <p
+                  id="allocation-name-error"
+                  className="mt-2 text-xs text-danger"
+                >
+                  Enter a name of 1–200 characters without control characters.
+                </p>
+              ) : null}
+              <input
+                ref={picker}
+                aria-label="Choose allocation files"
+                type="file"
+                multiple
+                accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                className="sr-only"
+                tabIndex={-1}
+                disabled={preparing || stage !== 'select'}
+                onChange={(event) => {
+                  select(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                }}
+              />
+              {stage === 'select' && rows.length === 0 ? (
+                <>
+                  <div
+                    className="relative mt-6 flex h-[250px] flex-col items-center rounded-[6px] text-center"
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      select(Array.from(event.dataTransfer.files));
+                    }}
+                  >
+                    <svg
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 size-full"
+                      viewBox="0 0 452 250"
+                      preserveAspectRatio="none"
+                    >
+                      <rect
+                        x="0.5"
+                        y="0.5"
+                        width="451"
+                        height="249"
+                        rx="6"
+                        fill="none"
+                        stroke="#64748b"
+                        strokeDasharray="10 10"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </svg>
+                    <svg
+                      aria-hidden="true"
+                      className="mt-[38px] size-[76px] shrink-0 text-[#64748b]"
+                      viewBox="0 0 76 76"
+                      fill="none"
+                    >
+                      <path
+                        d="M15 4h32l18 18v49a3 3 0 0 1-3 3H15a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Z"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        strokeLinejoin="round"
+                      />
+                      <path
+                        d="M47 4v18h18M26 52l12-12 12 12M38 40v24"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                    </svg>
+                    <p className="mt-[21px] text-[14px] leading-5">
+                      Drag your file(s) here to get started
+                    </p>
+                    <div className="my-2 flex w-[246px] max-w-[85%] items-center gap-[10px] text-[14px] leading-5">
+                      <span className="h-px flex-1 bg-[#dce1e9]" />
+                      or
+                      <span className="h-px flex-1 bg-[#dce1e9]" />
                     </div>
                     <button
-                      aria-label={`${states[index] === 'uploading' ? 'Cancel upload' : 'Remove'} ${file.name}`}
-                      className={
-                        states[index] === 'uploading' ? 'text-[#f59e0b]' : ''
-                      }
-                      disabled={states[index] === 'complete'}
-                      onClick={() => {
-                        if (states[index] === 'uploading') {
-                          controllers.current[index]?.abort();
-                          return;
-                        }
-                        setFiles((current) =>
-                          current.filter((_, item) => item !== index),
-                        );
-                        setStates((current) =>
-                          current.filter((_, item) => item !== index),
-                        );
-                        setProgress((current) =>
-                          current.filter((_, item) => item !== index),
-                        );
-                      }}
+                      disabled={preparing}
+                      onClick={() => picker.current?.click()}
+                      className="h-8 w-[108px] rounded border border-[#d2d3d8] px-[11px] text-[14px] leading-5 focus-visible:outline-2 focus-visible:outline-focus"
                       type="button"
                     >
-                      <AppSymbol weight={100}>cancel</AppSymbol>
+                      Browse files
                     </button>
                   </div>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="mt-6 text-[13px] text-content-muted" role="status">
-            PNG, JPG and PDF supported and up to 5mb.{' '}
-            {pending || complete ? (
-              <span>
-                ({states.filter((state) => state === 'complete').length} of{' '}
-                {files.length} uploaded)
-              </span>
-            ) : null}
-          </p>
-          {error ? (
-            <p className="mt-3 text-sm text-danger" role="alert">
-              {error}
-            </p>
-          ) : null}
-        </div>
-        <footer className="flex justify-end gap-4 border-t border-control-border bg-surface-subtle px-6 py-4">
-          {complete ? (
-            <Button onClick={onComplete} type="button">
-              Done
-            </Button>
-          ) : (
-            <>
-              <Button
-                disabled={pending}
-                onClick={onClose}
+                  <p className="mt-6 text-[12px] leading-5 text-[#71717a]">
+                    PNG, JPG and PDF supported and up to 5mb.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mb-6 mt-6 text-[14px] leading-5">
+                    Add plans here
+                  </p>
+                  <ul aria-label="Allocation files" className="space-y-3">
+                    {rows.map((row) => (
+                      <li
+                        key={row.id}
+                        className={`flex min-h-[62px] items-center gap-[10px] rounded-[6px] border px-3 py-[10px] ${row.state === 'verified' ? 'border-[#6aff91] bg-[#f0fdf5]' : 'border-[#d4d4d8] bg-[#fafafa]'}`}
+                      >
+                        <span className="grid size-9 shrink-0 place-items-center rounded bg-[#f4f4f5] text-[#273244]">
+                          <AppSymbol
+                            className="!size-7 text-[28px]"
+                            weight={200}
+                          >
+                            {row.file.type === 'application/pdf'
+                              ? 'picture_as_pdf'
+                              : 'image'}
+                          </AppSymbol>
+                        </span>
+                        <div className="min-w-0 flex-1 text-[12px] leading-[18px]">
+                          <p
+                            className="truncate font-bold"
+                            title={row.file.name}
+                          >
+                            {row.file.name}
+                            {row.state === 'uploading'
+                              ? ' • Uploading…'
+                              : row.state === 'verifying'
+                                ? ' • Verifying…'
+                                : row.state === 'queued' && stage === 'upload'
+                                  ? ' • Queued'
+                                  : row.state === 'failed'
+                                    ? ' • Upload failed'
+                                    : ''}
+                          </p>
+                          {row.state === 'uploading' ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[#52525b]">
+                                {row.progress}%
+                              </span>
+                              <div
+                                role="progressbar"
+                                aria-label={`Uploading ${row.file.name}`}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-valuenow={row.progress}
+                                className="h-[6px] flex-1 overflow-hidden rounded-full bg-[#e2e8f0]"
+                              >
+                                <div
+                                  className="h-full rounded-full bg-[#64748b]"
+                                  style={{ width: `${String(row.progress)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[#52525b]">
+                              {(row.file.size / 1_048_576).toFixed(1)}MB
+                              {row.state === 'verified' ? (
+                                <span className="sr-only"> — Uploaded</span>
+                              ) : null}
+                            </p>
+                          )}
+                          {row.state === 'failed' ? (
+                            <button
+                              type="button"
+                              disabled={active >= 3}
+                              className="underline"
+                              aria-label={`Retry ${row.file.name}`}
+                              onClick={() =>
+                                void transfer(row.id, generation.current)
+                              }
+                            >
+                              Retry
+                            </button>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={
+                            preparing ||
+                            creating ||
+                            Boolean(commitPayload.current)
+                          }
+                          aria-label={`${row.state === 'uploading' ? 'Cancel upload' : 'Remove'} ${row.file.name}`}
+                          onClick={() => {
+                            remove(row.id);
+                          }}
+                          className={`grid size-5 shrink-0 place-items-center ${row.state === 'uploading' ? 'text-[#ff7900]' : 'text-[#71717a]'}`}
+                        >
+                          <AppSymbol
+                            className="!size-5 text-[20px]"
+                            weight={100}
+                          >
+                            cancel
+                          </AppSymbol>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p role="status" className="sr-only">
+                    {rows.filter((row) => row.state === 'verified').length} of{' '}
+                    {rows.length} uploaded
+                  </p>
+                </>
+              )}
+              {error ? (
+                <p role="alert" className="mt-3 text-sm text-danger">
+                  {error}
+                </p>
+              ) : null}
+            </div>
+            <footer className="flex min-h-[74px] shrink-0 items-center justify-end gap-4 bg-[#f8fafc] px-6 py-4">
+              <button
                 type="button"
-                variant="secondary"
+                className={secondary}
+                disabled={creating}
+                onClick={dismiss}
               >
                 Cancel
-              </Button>
-              <Button
-                disabled={pending || files.length === 0 || Boolean(error)}
-                onClick={() => void submit()}
-                type="button"
-              >
-                Upload
-              </Button>
-            </>
-          )}
-        </footer>
+              </button>
+              {stage === 'select' ? (
+                <button
+                  className={primary}
+                  type="button"
+                  disabled={
+                    preparing ||
+                    !rows.length ||
+                    !validName.success ||
+                    (Boolean(error) && !retryPreparation)
+                  }
+                  onClick={() => void start()}
+                >
+                  {preparing ? 'Preparing…' : 'Next'}
+                </button>
+              ) : (
+                <button
+                  className={`${primary} min-w-[132px]`}
+                  type="button"
+                  disabled={!ready || !validName.success || creating || !commit}
+                  onClick={() => void create()}
+                >
+                  {creating ? 'Adding…' : 'Add Allocation'}
+                </button>
+              )}
+            </footer>
+          </>
+        )}
       </div>
     </div>
   );

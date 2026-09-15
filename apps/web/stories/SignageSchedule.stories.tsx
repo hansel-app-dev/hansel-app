@@ -65,6 +65,15 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const Populated: Story = {};
+export const ReferenceGrid: Story = {
+  decorators: [
+    (Story) => (
+      <div className="ml-[300px] px-8 pt-[151px] bg-[#fafafa] min-h-screen">
+        <Story />
+      </div>
+    ),
+  ],
+};
 export const Empty: Story = {
   args: { initial: { canManageSigns: true, signTypes: [] } },
 };

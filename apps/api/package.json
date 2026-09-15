@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "pnpm --filter @hansel/contracts build && tsx watch --env-file-if-exists=../../.env.local src/server.ts",
+    "dev": "pnpm --filter @hansel/contracts build && tsx watch --conditions=development --env-file-if-exists=../../.env.local src/server.ts",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -27,6 +27,7 @@
     "openid-client": "^6.8.7",
     "prisma": "^6.15.0",
     "resend": "^6.24.0",
+    "sharp": "^0.35.4",
     "zod": "^4.4.3"
   },
   "devDependencies": {

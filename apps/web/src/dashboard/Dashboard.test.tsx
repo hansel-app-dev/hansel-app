@@ -13,6 +13,82 @@ import { Dashboard } from './Dashboard.js';
 afterEach(cleanup);
 
 describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
+  it('opens the Organization tray and Account settings with unavailable actions disabled [organization-tray-settings REQ-001..REQ-011]', async () => {
+    render(
+      <Dashboard
+        loadDashboard={() =>
+          Promise.resolve({
+            viewer: {
+              displayName: 'John Smith',
+              initials: 'JS',
+              roleLabel: 'Owner',
+              email: 'john@example.com',
+            },
+            organization: {
+              name: 'Workspace Name',
+              planDisplayName: 'Pro Plan',
+            },
+          })
+        }
+        logout={() => Promise.resolve()}
+      />,
+    );
+
+    const trigger = await screen.findByRole('button', {
+      name: 'Open Organization menu',
+    });
+    fireEvent.click(trigger);
+    const menu = screen.getByRole('menu', { name: 'Organization' });
+    expect(within(menu).getByText('Pro Plan')).toBeVisible();
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Invite members' }),
+    ).toBeDisabled();
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Settings' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Settings' });
+    expect(within(dialog).getByText('john@example.com')).toBeVisible();
+    expect(
+      within(dialog).getByRole('button', { name: 'Manage email' }),
+    ).toBeDisabled();
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Close settings' }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('hides Organization management from Viewers [organization-tray-settings REQ-004]', async () => {
+    render(
+      <Dashboard
+        loadDashboard={() =>
+          Promise.resolve({
+            viewer: {
+              displayName: 'Vera Viewer',
+              initials: 'VV',
+              roleLabel: 'Viewer',
+              email: 'vera@example.com',
+            },
+            organization: {
+              name: 'Workspace Name',
+              planDisplayName: 'Free Plan',
+            },
+          })
+        }
+        logout={() => Promise.resolve()}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Open Organization menu' }),
+    );
+    expect(
+      screen.queryByRole('menuitem', { name: 'Settings' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Invite members' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Log out' })).toHaveFocus();
+  });
+
   it('opens the signed-in account menu and restores focus on Escape [dashboard-logout REQ-001..REQ-003]', async () => {
     render(
       <Dashboard

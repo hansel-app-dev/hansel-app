@@ -101,6 +101,22 @@ type Story = StoryObj<typeof meta>;
 
 export const NoPlans: Story = {};
 
+export const ManyPlans: Story = {
+  args: {
+    loadAllocationPlans: () =>
+      Promise.resolve({
+        ...populatedPlans,
+        plans: Array.from({ length: 3 }, (_, group) =>
+          populatedPlans.plans.map((plan, index) => ({
+            ...plan,
+            id: `00000000-0000-4000-8000-${String(group * 2 + index + 1).padStart(12, '0')}`,
+            filename: `Building ${String(group + 1)} ${plan.filename ?? 'Plan'}`,
+          })),
+        ).flat(),
+      }),
+  },
+};
+
 const populatedArgs = {
   loadAllocationPlans: () => Promise.resolve(populatedPlans),
 };

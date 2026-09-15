@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -6,266 +7,247 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ComponentProps } from 'react';
 import { AddPlansModal } from './AddPlansModal.js';
-
+import { AllocationDraftFilesRejectedError } from './allocation-draft-errors.js';
 afterEach(cleanup);
-
-describe('AddPlansModal [site-allocation-plans-add REQ-002..REQ-005, REQ-019..REQ-021]', () => {
-  it('shows the Figma copy and keeps Upload unavailable without files [AC-006]', () => {
-    render(
-      <AddPlansModal
-        createBatch={vi.fn()}
-        finalize={vi.fn()}
-        onClose={vi.fn()}
-        onComplete={vi.fn()}
-        upload={vi.fn()}
-      />,
+function file(name = 'plan.pdf') {
+  const value = new File(['%PDF-'], name, { type: 'application/pdf' });
+  Object.defineProperty(value, 'arrayBuffer', {
+    value: () => Promise.resolve(new TextEncoder().encode(name).buffer),
+  });
+  return value;
+}
+function setup(overrides: Partial<ComponentProps<typeof AddPlansModal>> = {}) {
+  const props = {
+    createBatch: vi.fn<ComponentProps<typeof AddPlansModal>['createBatch']>(
+      (input) =>
+        Promise.resolve({
+          uploads: input.files.map((_, i) => ({
+            uploadId: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+            uploadUrl: 'https://example.test/upload',
+            expiresAt: new Date(Date.now() + 900_000).toISOString(),
+            headers: {
+              'content-type': 'application/pdf',
+              'x-amz-checksum-sha256': 'A'.repeat(43) + '=',
+            },
+          })),
+        }),
+    ),
+    upload: vi.fn().mockResolvedValue(undefined),
+    finalize: vi.fn().mockResolvedValue(undefined),
+    commit: vi.fn().mockResolvedValue(undefined),
+    onClose: vi.fn(),
+    onComplete: vi.fn(),
+  };
+  render(<AddPlansModal {...props} {...overrides} />);
+  return props;
+}
+function select(files: File[]) {
+  fireEvent.change(screen.getByLabelText('Allocation name'), {
+    target: { value: 'Ground floor' },
+  });
+  fireEvent.change(screen.getByLabelText('Choose allocation files'), {
+    target: { files },
+  });
+}
+describe('allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012', () => {
+  it('shows the name and initial selection state with disabled Next', () => {
+    setup();
+    expect(
+      screen.getByRole('heading', { name: 'Add new Allocation' }),
+    ).toBeVisible();
+    expect(screen.getByLabelText('Allocation name')).toHaveValue('');
+    expect(screen.getByLabelText('Allocation name')).toHaveAttribute(
+      'placeholder',
+      'New allocation plan',
     );
-    expect(screen.getByRole('heading', { name: 'Add plans' })).toBeVisible();
+    expect(screen.getByLabelText('Allocation name')).toHaveAttribute(
+      'aria-invalid',
+      'false',
+    );
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Choose allocation files'), {
+      target: { files: [file()] },
+    });
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove plan.pdf' }));
+    select([file()]);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('Allocation name'), {
+      target: { value: ' ' },
+    });
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+  it('uses the uploading rectangle layout immediately after selection without starting uploads', () => {
+    const props = setup();
+    select([file()]);
+    expect(
+      screen.queryByText('Drag your file(s) here to get started'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Add plans here')).toBeVisible();
+    expect(
+      screen.getByRole('list', { name: 'Allocation files' }),
+    ).toBeVisible();
+    expect(screen.getByRole('listitem')).toHaveClass(
+      'min-h-[62px]',
+      'rounded-[6px]',
+    );
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(props.createBatch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove plan.pdf' }));
     expect(
       screen.getByText('Drag your file(s) here to get started'),
     ).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Browse files' }));
   });
-
-  it('rejects an unsupported file and removes a valid selection [AC-002, AC-006]', () => {
-    render(
-      <AddPlansModal
-        createBatch={vi.fn()}
-        finalize={vi.fn()}
-        onClose={vi.fn()}
-        onComplete={vi.fn()}
-        upload={vi.fn()}
-      />,
+  it('verifies multiple files without committing, then creates one named allocation', async () => {
+    const props = setup();
+    select([file('one.pdf'), file('two.pdf')]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Add Allocation' }),
+      ).toBeEnabled(),
     );
-    const picker = document.querySelector('input[type="file"]');
-    if (!picker) throw new Error('Expected file picker');
-    fireEvent.change(picker, {
-      target: { files: [new File(['x'], 'plan.txt', { type: 'text/plain' })] },
-    });
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Choose a PNG, JPG or PDF file.',
-    );
-    fireEvent.change(picker, {
-      target: {
-        files: [new File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' })],
-      },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Remove plan.pdf' }));
-    expect(screen.getByRole('button', { name: 'Upload' })).toBeDisabled();
-    fireEvent.change(picker, { target: { files: null } });
-    fireEvent.change(picker, {
-      target: {
-        files: [new File([], 'empty.pdf', { type: 'application/pdf' })],
-      },
-    });
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Each file must be between 1 byte and 5 MB.',
-    );
-  });
-
-  it('uploads and finalizes a valid file [AC-001]', async () => {
-    const createBatch = vi.fn().mockResolvedValue({
-      uploads: [
-        {
-          uploadId: '00000000-0000-4000-8000-000000000001',
-          uploadUrl: 'https://uploads.example/plan',
-          expiresAt: '2026-09-06T00:15:00.000Z',
-          headers: {
-            'content-type': 'application/pdf',
-            'x-amz-checksum-sha256':
-              'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-          },
-        },
-      ],
-    });
-    const upload = vi.fn().mockResolvedValue(undefined);
-    const finalize = vi.fn().mockResolvedValue(undefined);
-    const onComplete = vi.fn();
-    render(
-      <AddPlansModal
-        createBatch={createBatch}
-        finalize={finalize}
-        onClose={vi.fn()}
-        onComplete={onComplete}
-        upload={upload}
-      />,
-    );
-    const file = new File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' });
-    Object.defineProperty(file, 'arrayBuffer', {
-      value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
-    });
-    const picker = document.querySelector('input[type="file"]');
-    if (!picker) throw new Error('Expected file picker');
-    fireEvent.change(picker, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
-    expect(onComplete).toHaveBeenCalledOnce();
-    expect(upload).toHaveBeenCalledWith(
-      'https://uploads.example/plan',
-      file,
-      expect.any(Object),
-      expect.objectContaining({
-        onProgress: expect.any(Function),
-        signal: expect.any(AbortSignal),
-      }),
-    );
-    expect(finalize).toHaveBeenCalledOnce();
-  });
-
-  it('shows the Figma uploading progress and completed Done state [REQ-019]', async () => {
-    let finishUpload: (() => void) | undefined;
-    const upload = vi.fn<
-      (
-        url: string,
-        file: File,
-        headers: Record<string, string>,
-        options?: {
-          onProgress: (percentage: number) => void;
-          signal: AbortSignal;
-        },
-      ) => Promise<void>
-    >(
-      () =>
-        new Promise<void>((resolve) => {
-          finishUpload = resolve;
-        }),
-    );
-    const onComplete = vi.fn();
-    render(
-      <AddPlansModal
-        createBatch={() =>
-          Promise.resolve({
-            uploads: [
-              {
-                uploadId: '00000000-0000-4000-8000-000000000001',
-                uploadUrl: 'https://uploads.example/plan',
-                expiresAt: '2026-09-06T00:15:00.000Z',
-                headers: {
-                  'content-type': 'application/pdf',
-                  'x-amz-checksum-sha256':
-                    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-                },
-              },
-            ],
-          })
-        }
-        finalize={() => Promise.resolve()}
-        onClose={vi.fn()}
-        onComplete={onComplete}
-        upload={upload}
-      />,
-    );
-    const picker = document.querySelector('input[type="file"]');
-    if (!picker) throw new Error('Expected file picker');
-    const file = new File(['%PDF-'], 'HANSEL_L1_6054.pdf', {
-      type: 'application/pdf',
-    });
-    Object.defineProperty(file, 'arrayBuffer', {
-      value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
-    });
-    fireEvent.change(picker, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
+    expect(props.finalize).toHaveBeenCalledTimes(2);
+    expect(props.commit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
     await waitFor(() => {
-      expect(upload).toHaveBeenCalledOnce();
+      expect(props.onComplete).toHaveBeenCalledOnce();
     });
-    const options = upload.mock.calls[0]?.[3];
-    options?.onProgress(45);
-    expect(
-      await screen.findByText(/HANSEL_L1_6054\.pdf • Uploading…/),
-    ).toBeVisible();
-    expect((await screen.findAllByText('45%'))[0]).toBeVisible();
-    expect(screen.getByText('(0 of 1 uploaded)')).toBeVisible();
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: 'Cancel upload HANSEL_L1_6054.pdf',
+    expect(props.commit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Ground floor',
+        uploadIds: [
+          '00000000-0000-4000-8000-000000000001',
+          '00000000-0000-4000-8000-000000000002',
+        ],
       }),
     );
-    expect(options?.signal.aborted).toBe(true);
-    finishUpload?.();
-    expect(await screen.findByRole('button', { name: 'Done' })).toBeVisible();
-    expect(screen.getByText('(1 of 1 uploaded)')).toBeVisible();
-    expect(onComplete).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
-    expect(onComplete).toHaveBeenCalledOnce();
   });
-
-  it('supports Escape, drop, and recoverable upload failure [AC-002, AC-006]', async () => {
-    const onClose = vi.fn();
-    render(
-      <AddPlansModal
-        createBatch={() => Promise.reject(new Error('offline'))}
-        finalize={vi.fn()}
-        onClose={onClose}
-        onComplete={vi.fn()}
-        upload={vi.fn()}
-      />,
-    );
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalledOnce();
-    const dropZone = screen.getByText('Drag your file(s) here to get started')
-      .parentElement?.parentElement;
-    expect(dropZone).toBeTruthy();
-    fireEvent.dragOver(dropZone as Element);
-    const file = new File(['%PDF-'], 'dropped.pdf', {
-      type: 'application/pdf',
+  it('removes an active file and ignores its late completion', async () => {
+    let finish: (() => void) | undefined;
+    const props = setup({
+      upload: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      ),
     });
-    Object.defineProperty(file, 'arrayBuffer', {
-      value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
-    });
-    fireEvent.drop(dropZone as Element, { dataTransfer: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'We couldn’t upload every plan',
+    select([file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('plan.pdf • Uploading…');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Cancel upload plan.pdf' }),
     );
+    await act(async () => {
+      finish?.();
+      await Promise.resolve();
+    });
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(props.finalize).not.toHaveBeenCalled();
   });
-
-  it('reports a mismatched upload manifest', async () => {
-    render(
-      <AddPlansModal
-        createBatch={() =>
-          Promise.resolve({
-            uploads: [
-              {
-                uploadId: '00000000-0000-4000-8000-000000000001',
-                uploadUrl: 'https://uploads.example/one',
-                expiresAt: '2026-09-06T00:15:00.000Z',
-                headers: {
-                  'content-type': 'application/pdf',
-                  'x-amz-checksum-sha256':
-                    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-                },
-              },
-              {
-                uploadId: '00000000-0000-4000-8000-000000000002',
-                uploadUrl: 'https://uploads.example/two',
-                expiresAt: '2026-09-06T00:15:00.000Z',
-                headers: {
-                  'content-type': 'application/pdf',
-                  'x-amz-checksum-sha256':
-                    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-                },
-              },
-            ],
-          })
-        }
-        finalize={vi.fn()}
-        onClose={vi.fn()}
-        onComplete={vi.fn()}
-        upload={vi.fn()}
-      />,
-    );
-    const picker = document.querySelector('input[type="file"]');
-    if (!picker) throw new Error('Expected file picker');
-    const file = new File(['%PDF-'], 'plan.pdf', { type: 'application/pdf' });
-    Object.defineProperty(file, 'arrayBuffer', {
-      value: () => Promise.resolve(new TextEncoder().encode('%PDF-').buffer),
+  it('retries failed rows while retaining successful files', async () => {
+    const props = setup({
+      upload: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValue(undefined),
     });
-    fireEvent.change(picker, { target: { files: [file] } });
-    fireEvent.click(screen.getByRole('button', { name: 'Upload' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'We couldn’t upload every plan',
+    select([file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Retry plan.pdf' }),
     );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Add Allocation' }),
+      ).toBeEnabled(),
+    );
+    expect(props.createBatch).toHaveBeenCalledOnce();
+  });
+  it('confirms abandonment without creating an allocation', async () => {
+    const props = setup();
+    select([file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Add Allocation' }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(props.onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Discard allocation' }));
+    expect(props.onClose).toHaveBeenCalledOnce();
+    expect(props.commit).not.toHaveBeenCalled();
+  });
+  it('retains the commit key after an ambiguous creation failure', async () => {
+    const commit = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined);
+    const props = setup({ commit });
+    select([file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Add Allocation' }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
+    await waitFor(() => {
+      expect(props.onComplete).toHaveBeenCalledOnce();
+    });
+    expect(commit.mock.calls[0]).toEqual(commit.mock.calls[1]);
+  });
+  it('rejects unsupported and duplicate selections', async () => {
+    setup();
+    select([new File(['x'], 'file.txt', { type: 'text/plain' })]);
+    expect(screen.getByRole('alert')).toHaveTextContent('PNG');
+    select([file(), file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('duplicate'),
+    );
+    const remove = screen.getAllByRole('button', {
+      name: 'Remove plan.pdf',
+    })[0];
+    if (!remove) throw new Error('Expected remove action');
+    fireEvent.click(remove);
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+  });
+  it('can retry batch creation after a network failure', async () => {
+    const createBatch = vi.fn().mockRejectedValue(new Error('offline'));
+    setup({ createBatch });
+    select([file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(createBatch).toHaveBeenCalledTimes(2);
+    });
+    expect(createBatch.mock.calls[0]).toEqual(createBatch.mock.calls[1]);
+  });
+  it('lets expired uploads start again after a definitive rejection', async () => {
+    setup({
+      commit: vi
+        .fn()
+        .mockRejectedValue(new AllocationDraftFilesRejectedError()),
+    });
+    select([file()]);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: 'Add Allocation' }),
+      ).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+    expect(screen.getByLabelText('Allocation name')).toBeEnabled();
   });
 });

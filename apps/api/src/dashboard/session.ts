@@ -5,6 +5,9 @@ interface ViewerIdentity {
   firstName: string;
   lastName: string;
   roleId: string;
+  email?: string;
+  organizationName?: string;
+  planId?: string;
 }
 
 interface DashboardSessionDependencies {
@@ -30,6 +33,7 @@ interface DashboardSessionDependencies {
   digestCredential(value: string): string;
   now(): Date;
   recordEvent(name: string): void;
+  organizationTraySettingsEnabled?: boolean;
 }
 
 type DashboardSessionResult = DashboardResponse & {
@@ -39,7 +43,10 @@ type DashboardSessionResult = DashboardResponse & {
   };
 };
 
-function viewerFrom(identity: ViewerIdentity): DashboardResponse['viewer'] {
+function viewerFrom(
+  identity: ViewerIdentity,
+  includeAccountEmail = false,
+): DashboardResponse['viewer'] {
   const firstInitial = Array.from(identity.firstName).slice(0, 1).join('');
   const lastInitial = Array.from(identity.lastName).slice(0, 1).join('');
   const roleLabel =
@@ -50,7 +57,27 @@ function viewerFrom(identity: ViewerIdentity): DashboardResponse['viewer'] {
     displayName: `${identity.firstName} ${identity.lastName}`,
     initials: `${firstInitial}${lastInitial}`.toLocaleUpperCase(),
     roleLabel,
+    ...(includeAccountEmail && identity.email ? { email: identity.email } : {}),
   };
+}
+
+const planDisplayName = (planId: string) =>
+  `${planId.charAt(0).toLocaleUpperCase()}${planId.slice(1)} Plan`;
+
+function dashboardFrom(
+  identity: ViewerIdentity,
+  enabled: boolean,
+): DashboardResponse {
+  const viewer = viewerFrom(identity, enabled);
+  return enabled && identity.organizationName && identity.planId
+    ? {
+        viewer,
+        organization: {
+          name: identity.organizationName,
+          planDisplayName: planDisplayName(identity.planId),
+        },
+      }
+    : { viewer };
 }
 
 export function createDashboardSession(
@@ -94,7 +121,10 @@ export function createDashboardSession(
         : null;
       if (identity) {
         dependencies.recordEvent('dashboard_load_succeeded');
-        return { viewer: viewerFrom(identity) };
+        return dashboardFrom(
+          identity,
+          dependencies.organizationTraySettingsEnabled === true,
+        );
       }
       if (!input.refreshCredential) return null;
       const accessCredential = dependencies.createCredential();
@@ -125,7 +155,10 @@ export function createDashboardSession(
       }
       dependencies.recordEvent('dashboard_refresh_succeeded');
       return {
-        viewer: viewerFrom(rotation.viewer),
+        ...dashboardFrom(
+          rotation.viewer,
+          dependencies.organizationTraySettingsEnabled === true,
+        ),
         applicationSession: { accessCredential, refreshCredential },
       };
     },

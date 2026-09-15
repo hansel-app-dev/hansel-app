@@ -16,8 +16,8 @@ import { Button } from '../design-system/index.js';
 
 const colors = {
   SLATE: { text: 'text-[#62748d]', rail: 'border-l-[#62748d]' },
-  RED: { text: 'text-[#ff3b3b]', rail: 'border-l-[#ff7777]' },
-  TEAL: { text: 'text-[#00b8a9]', rail: 'border-l-[#33cdbf]' },
+  RED: { text: 'text-[#ff3b3b]', rail: 'border-l-[#ff3b3b]' },
+  TEAL: { text: 'text-[#00b8a9]', rail: 'border-l-[#00b8a9]' },
 } as const;
 type SignStatus = Sign['status'];
 const statusLabel: Record<SignStatus, string> = {
@@ -130,13 +130,13 @@ export function SignageSchedule({
     });
   };
   return (
-    <section aria-label="Signage Schedule" className="mt-4 min-w-0">
+    <section aria-label="Signage Schedule" className="mt-2 min-w-0">
       <div className="flex flex-wrap items-center gap-7 py-2 text-sm">
         <label className="flex items-center gap-2">
           <AppSymbol weight={100}>search</AppSymbol>
           <span className="sr-only">Search signs</span>
           <input
-            className="w-44 bg-transparent outline-none"
+            className="w-[38px] bg-transparent outline-none focus:w-44"
             placeholder="Search"
             type="search"
             value={query}
@@ -179,11 +179,11 @@ export function SignageSchedule({
             ))}
           </fieldset>
         </details>
-        <label className="flex items-center gap-2">
+        <label className="relative flex items-center gap-2 focus-within:outline-2 focus-within:outline-focus">
           <AppSymbol weight={100}>swap_vert</AppSymbol>Sort
           <select
             aria-label="Sort signs"
-            className="bg-transparent"
+            className="absolute inset-0 w-full cursor-pointer opacity-0"
             value={sort}
             onChange={(event) => {
               setSort(event.target.value as Sort);
@@ -205,12 +205,12 @@ export function SignageSchedule({
           ids.length > 0 && ids.every((id) => selected.has(id));
         return (
           <section
-            className="mt-7"
+            className="mt-6"
             key={type.id}
             aria-labelledby={`type-${type.id}`}
           >
             <div
-              className={`flex items-center gap-2 font-semibold ${colors[type.color].text}`}
+              className={`flex h-6 items-center gap-2 font-semibold ${colors[type.color].text}`}
             >
               <button
                 className="min-h-6 min-w-6"
@@ -236,12 +236,12 @@ export function SignageSchedule({
               )}
             </div>
             {!collapsed.has(type.id) ? (
-              <div
-                className={`mt-4 max-w-full overflow-x-auto rounded-md border border-control-border border-l-[6px] ${colors[type.color].rail}`}
-              >
-                <table className="w-full min-w-[1148px] table-fixed border-collapse text-left text-sm">
+              <div className="mt-4 max-w-full overflow-x-auto">
+                <table
+                  className={`w-full min-w-[1148px] table-fixed border-separate border-spacing-0 text-left text-sm [&_thead_th]:border-t [&_thead_th:last-child]:border-r [&_thead_th:last-child]:rounded-tr-md [&_thead_th:first-child]:rounded-tl-md [&_tbody_td:last-child]:border-r [&_tbody_tr:last-child_td]:border-b [&_thead]:bg-white [&_tbody]:bg-white [&_thead_th:first-child]:border-l-[6px] [&_tbody_td:first-child]:border-l-[6px] ${type.color === 'RED' ? '[&_thead_th:first-child]:border-l-[#ff3b3b] [&_tbody_td:first-child]:border-l-[#ff3b3b]' : type.color === 'TEAL' ? '[&_thead_th:first-child]:border-l-[#00b8a9] [&_tbody_td:first-child]:border-l-[#00b8a9]' : '[&_thead_th:first-child]:border-l-[#62748d] [&_tbody_td:first-child]:border-l-[#62748d]'}`}
+                >
                   <colgroup>
-                    <col className="w-[34px]" />
+                    <col className="w-[40px]" />
                     <col className="w-[150px]" />
                     <col className="w-[80px]" />
                     <col className="w-[116px]" />
@@ -318,7 +318,7 @@ export function SignageSchedule({
                     {initial.canManageSigns ? (
                       <tr>
                         <td className="h-[35px] border-r border-control-border" />
-                        <td colSpan={9} className="h-[35px] px-3">
+                        <td colSpan={9} className="h-[35px] border-control-border px-3 text-content-muted">
                           {Object.hasOwn(signDrafts, type.id) ? (
                             <DraftInput
                               label={`New sign code in ${type.name}`}
@@ -376,7 +376,7 @@ export function SignageSchedule({
                                 }));
                               }}
                             >
-                              ＋ Add sign
+                              + Add sign
                             </button>
                           )}
                         </td>
@@ -387,13 +387,16 @@ export function SignageSchedule({
                     <tr className="h-[35px]">
                       <td />
                       <td />
-                      <td className="border-t border-r border-control-border px-3">
+                      <td className="rounded-bl-md border-b border-l border-r border-control-border bg-white px-3">
                         {type.signs.reduce(
                           (sum, sign) => sum + sign.quantity,
                           0,
                         )}
                       </td>
-                      <td colSpan={7} />
+                      <td
+                        colSpan={7}
+                        className="rounded-br-md border-b border-r border-control-border bg-white"
+                      />
                     </tr>
                   </tfoot>
                 </table>
@@ -627,7 +630,7 @@ function SignCell({
   };
   const statusClass =
     field === 'status' && sign.status === 'APPROVED'
-      ? 'bg-[#55b800] text-white'
+      ? 'bg-[#70b000] text-white'
       : field === 'status' && sign.status === 'IN_PROGRESS'
         ? 'bg-[#ff9638] text-white'
         : '';
@@ -639,7 +642,7 @@ function SignCell({
         <select
           aria-label={`${sign.code} status`}
           disabled={!canEdit || saving}
-          className="h-[34px] w-full bg-transparent px-3 text-center"
+          className="h-[34px] w-full appearance-none bg-transparent px-3 text-center font-normal"
           value={value}
           onChange={(event) => {
             setValue(event.target.value);

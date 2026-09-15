@@ -5,6 +5,7 @@ import {
   NotificationSymbol,
 } from '../src/application-shell/ApplicationShell.js';
 import { Button } from '../src/design-system/index.js';
+import { userEvent, within } from 'storybook/test';
 
 const meta = {
   title: 'Application/Shell',
@@ -40,6 +41,15 @@ export const DashboardCurrent: Story = {
   args: { activePage: 'Dashboard' },
 };
 
+export const TallDashboard: Story = {
+  args: {
+    activePage: 'Dashboard',
+    children: (
+      <div className="h-[2400px] p-8">Scrollable dashboard content</div>
+    ),
+  },
+};
+
 export const LongBoundaryContent: Story = {
   args: {
     children: (
@@ -71,5 +81,54 @@ export const UnavailableAction: Story = {
         Unavailable action
       </Button>
     ),
+  },
+};
+
+const organizationDashboard = {
+  viewer: {
+    displayName: 'John Smith',
+    initials: 'JS',
+    roleLabel: 'Owner',
+    email: 'john.s@example.com',
+  },
+  organization: { name: 'Workspace Name', planDisplayName: 'Pro Plan' },
+} as const;
+
+export const OrganizationTrayOpen: Story = {
+  args: { loadDashboard: () => Promise.resolve(organizationDashboard) },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      await within(canvasElement).findByRole('button', {
+        name: 'Open Organization menu',
+      }),
+    );
+  },
+};
+
+export const AccountSettingsOpen: Story = {
+  args: { loadDashboard: () => Promise.resolve(organizationDashboard) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Open Organization menu' }),
+    );
+    await userEvent.click(canvas.getByRole('menuitem', { name: 'Settings' }));
+  },
+};
+
+export const ViewerOrganizationTray: Story = {
+  args: {
+    loadDashboard: () =>
+      Promise.resolve({
+        ...organizationDashboard,
+        viewer: { ...organizationDashboard.viewer, roleLabel: 'Viewer' },
+      }),
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      await within(canvasElement).findByRole('button', {
+        name: 'Open Organization menu',
+      }),
+    );
   },
 };

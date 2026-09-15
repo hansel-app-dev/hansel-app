@@ -36,6 +36,9 @@ export class HanselStack extends cdk.Stack {
       sitesContext === 'true' || (sitesContext === undefined && !production);
     const allocationPlansEnabled =
       this.node.tryGetContext('allocationPlansEnabled') === 'true';
+    const allocationPlanDraftsEnabled =
+      allocationPlansEnabled &&
+      this.node.tryGetContext('allocationPlanDraftsEnabled') === 'true';
     const loginEnabled = this.node.tryGetContext('loginEnabled') === 'true';
     const passwordRecoveryEnabled =
       this.node.tryGetContext('passwordRecoveryEnabled') === 'true' &&
@@ -202,6 +205,7 @@ export class HanselStack extends cdk.Stack {
             EMAIL_DELIVERY_MODE: 'resend',
             DISCOVERY_ENABLED: production ? 'false' : 'true',
             DASHBOARD_ENABLED: production ? 'false' : 'true',
+            ORGANIZATION_TRAY_SETTINGS_ENABLED: production ? 'false' : 'true',
             SITES_ENABLED: sitesEnabled ? 'true' : 'false',
             LOGIN_ENABLED: loginEnabled ? 'true' : 'false',
             PASSWORD_RECOVERY_ENABLED: passwordRecoveryEnabled
@@ -339,9 +343,23 @@ export class HanselStack extends cdk.Stack {
       'quarantine/*',
     );
     allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'plans/*');
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
+      'sign-documents/*',
+    );
+    allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'sign-photos/*');
+    allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'sign-comments/*');
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
+      'covers/*',
+    );
     api.taskDefinition.defaultContainer?.addEnvironment(
       'ALLOCATION_PLANS_ENABLED',
       allocationPlansEnabled ? 'true' : 'false',
+    );
+    api.taskDefinition.defaultContainer?.addEnvironment(
+      'ALLOCATION_PLAN_DRAFTS_ENABLED',
+      allocationPlanDraftsEnabled ? 'true' : 'false',
     );
     api.taskDefinition.defaultContainer?.addEnvironment(
       'ALLOCATION_PLANS_BUCKET_NAME',

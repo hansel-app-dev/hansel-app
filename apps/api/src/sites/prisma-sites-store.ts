@@ -9,6 +9,11 @@ function initials(firstName: string, lastName: string): string {
 }
 
 const siteSummarySelect = {
+  coverImage: {
+    where: { completedAt: { not: null } },
+    take: 1,
+    select: { id: true },
+  },
   id: true,
   name: true,
   createdAt: true,
@@ -68,6 +73,7 @@ function profileIdentity(
 
 function toSiteSummary(site: SiteSummaryRecord): SiteSummary {
   return {
+    hasCoverImage: site.coverImage.length > 0,
     id: site.id,
     name: site.name,
     createdAt: site.createdAt.toISOString(),
@@ -79,8 +85,8 @@ function toSiteSummary(site: SiteSummaryRecord): SiteSummary {
   };
 }
 
-function siteAccessWhere(
-  principal: ApplicationPrincipal,
+export function siteAccessWhere(
+  principal: Pick<ApplicationPrincipal, 'roleId' | 'membershipId'>,
 ): Prisma.SiteWhereInput | undefined {
   if (principal.roleId === 'owner') return undefined;
   return {

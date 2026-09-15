@@ -2,13 +2,12 @@
 import { useState } from 'react';
 import type { SiteSummary } from '@hansel/contracts';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
+import { SiteCoverImage, type CoverImageLoader } from './SiteCoverImage.js';
 
 export type SiteView = 'grid' | 'list';
 
 function avatarColorClass(index: number) {
-  if (index % 3 === 0) return 'bg-avatar-blue';
-  if (index % 3 === 1) return 'bg-avatar-purple';
-  return 'bg-avatar-pink';
+  return index % 3 === 2 ? 'bg-[#9038d0]' : 'bg-[#2873ca]';
 }
 
 function siteDestination(siteId: string) {
@@ -84,14 +83,14 @@ export function SiteMemberPreview({ site }: { site: SiteSummary }) {
     .join('; ');
   return (
     <span
-      className="flex items-center pl-1"
+      className="flex h-[22px] items-center"
       aria-label={accessibleLabel}
       role="group"
     >
       {site.memberPreview.map((member, index) => (
         <span
           aria-hidden="true"
-          className={`-ml-1 grid size-[22px] place-items-center rounded-full border-2 border-surface text-[9px] font-semibold text-avatar-foreground first:ml-0 ${avatarColorClass(index)}`}
+          className={`-ml-[6px] grid size-[22px] place-items-center rounded-full border border-white text-[9px] font-semibold text-white first:ml-0 ${avatarColorClass(index)}`}
           key={`${member.displayName}-${String(index)}`}
         >
           {member.initials}
@@ -100,7 +99,7 @@ export function SiteMemberPreview({ site }: { site: SiteSummary }) {
       {remaining ? (
         <span
           aria-hidden="true"
-          className="-ml-1 grid size-[22px] place-items-center rounded-full border-2 border-surface bg-avatar-more text-[9px] font-semibold text-avatar-more-foreground"
+          className="-ml-[6px] grid size-[22px] place-items-center rounded-full border border-white bg-avatar-more text-[9px] font-semibold text-avatar-more-foreground"
         >
           +{String(remaining)}
         </span>
@@ -142,10 +141,12 @@ export function SiteViewControl({
 }
 
 export function SiteGrid({
+  loadCoverImage,
   navigate,
   now,
   sites,
 }: {
+  loadCoverImage?: CoverImageLoader | undefined;
   navigate?: ((destination: string) => void) | undefined;
   now: Date;
   sites: readonly SiteSummary[];
@@ -153,29 +154,33 @@ export function SiteGrid({
   return (
     <ul
       aria-label="Sites grid"
-      className="grid grid-cols-[repeat(auto-fill,minmax(270px,1fr))] gap-4"
+      className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,275px),275px))] gap-4"
     >
       {sites.map((site) => {
         const isNew = site.createdAt === site.updatedAt;
         return (
           <li className="group relative min-w-0" key={site.id}>
             <SiteLink
-              className="block overflow-hidden rounded-[3px] border border-site-card-border bg-surface shadow-site-card transition-colors hover:border-site-card-border-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              className="block overflow-hidden rounded-[4px] border border-[#e2e2e7] bg-white transition-shadow duration-150 hover:shadow-[0_2px_3px_rgb(0_0_0/18%)] focus-visible:shadow-[0_2px_3px_rgb(0_0_0/18%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-reduce:transition-none"
               navigate={navigate}
               site={site}
             >
-              <span
-                className="block h-[188px] bg-site-cover"
-                aria-hidden="true"
+              <SiteCoverImage
+                siteId={site.id}
+                hasCoverImage={site.hasCoverImage ?? false}
+                loadCoverImage={loadCoverImage}
               />
-              <span className="block min-h-[84px] px-4 py-2">
-                <span className="flex min-w-0 items-center gap-2">
+              <span className="block h-[98px] px-[15px] pt-4 pb-4">
+                <span className="flex h-5 min-w-0 items-center gap-2 group-hover:pr-[22px] group-focus-within:pr-[22px]">
                   <SiteSymbol />
-                  <span className="truncate text-[14px]" title={site.name}>
+                  <span
+                    className="truncate text-[14px] leading-5 tracking-[0.2px]"
+                    title={site.name}
+                  >
                     {site.name}
                   </span>
                 </span>
-                <span className="mt-1 block text-[12px] text-site-meta">
+                <span className="mt-1 block text-[12px] leading-4 tracking-[0.2px] text-[#72727e]">
                   {isNew ? 'Created' : 'Edited'}{' '}
                   {relativeTime(site.updatedAt, now)}
                 </span>
@@ -185,7 +190,7 @@ export function SiteGrid({
               </span>
             </SiteLink>
             <span
-              className="absolute bottom-[35px] right-0 z-10 grid size-9 place-items-center opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+              className="absolute right-[7px] top-[191px] z-10 grid size-5 place-items-center text-[#72727e] opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
               data-site-overflow-reserve=""
               aria-hidden="true"
             >
@@ -271,22 +276,29 @@ export function SiteList({
 }
 
 export function SiteCollection({
+  loadCoverImage,
   navigate,
   now = new Date(),
   sites,
 }: {
+  loadCoverImage?: CoverImageLoader | undefined;
   navigate?: ((destination: string) => void) | undefined;
   now?: Date;
   sites: readonly SiteSummary[];
 }) {
   const [view, setView] = useState<SiteView>('grid');
   return (
-    <section className="px-8 py-6 max-md:px-5">
+    <section className="min-h-[calc(100vh-68px)] bg-[#fafafa] px-8 py-6 max-md:px-5">
       <div className="mb-4 flex justify-end">
         <SiteViewControl onChange={setView} view={view} />
       </div>
       {view === 'grid' ? (
-        <SiteGrid navigate={navigate} now={now} sites={sites} />
+        <SiteGrid
+          navigate={navigate}
+          now={now}
+          sites={sites}
+          loadCoverImage={loadCoverImage}
+        />
       ) : (
         <SiteList navigate={navigate} now={now} sites={sites} />
       )}

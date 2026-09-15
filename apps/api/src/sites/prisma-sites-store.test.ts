@@ -14,6 +14,7 @@ const siteId = '7fced42f-e2e4-4c31-89db-f282bdaeea44';
 const createdAt = new Date('2026-08-01T10:00:00.000Z');
 const updatedAt = new Date('2026-09-01T11:00:00.000Z');
 const siteRecord = {
+  coverImage: [],
   id: siteId,
   name: 'Existing',
   createdAt,
@@ -229,6 +230,7 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
       sites: [
         {
           id: siteId,
+          hasCoverImage: false,
           name: 'Existing',
           createdAt: '2026-08-01T10:00:00.000Z',
           updatedAt: '2026-09-01T11:00:00.000Z',
@@ -240,6 +242,32 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
         },
       ],
     });
+  });
+
+  it('projects only finalized cover availability in the bounded summary query [site-cover-image-display REQ-003]', async () => {
+    const h = harness();
+    const tenant = await h.prisma.tenant.findUniqueOrThrow();
+    h.prisma.tenant.findUniqueOrThrow.mockResolvedValue({
+      ...tenant,
+      sites: [{ ...siteRecord, coverImage: [{ id: 'cover' }] }],
+    });
+    const result = await h.store.loadContext(principal);
+    expect(result.sites[0]?.hasCoverImage).toBe(true);
+    expect(h.prisma.tenant.findUniqueOrThrow).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          sites: expect.objectContaining({
+            select: expect.objectContaining({
+              coverImage: {
+                where: { completedAt: { not: null } },
+                take: 1,
+                select: { id: true },
+              },
+            }),
+          }),
+        }),
+      }),
+    );
   });
 
   it('fails closed if a database adapter returns an unprofiled preview member [sites-populated-state REQ-012, REQ-024]', async () => {

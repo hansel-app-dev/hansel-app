@@ -416,6 +416,7 @@ model EmailDeliveryIntent {
 }
 
 model Membership {
+  coverImages SiteCoverImage[]
   id           String      @id @default(uuid()) @db.Uuid
   userId       String      @db.Uuid
   tenantId     String      @db.Uuid
@@ -434,6 +435,7 @@ model Membership {
 }
 
 model Site {
+  coverImage                  SiteCoverImage[]
   id                          String                      @id @default(uuid()) @db.Uuid
   tenantId                    String                      @db.Uuid
   createdByMembershipId       String                      @db.Uuid
@@ -456,6 +458,31 @@ model Site {
 
   @@unique([id, tenantId])
   @@index([tenantId, createdAt])
+}
+
+model SiteCoverImage {
+  id                   String    @id @db.Uuid
+  siteId               String    @unique @db.Uuid
+  tenantId             String    @db.Uuid
+  membershipId         String    @db.Uuid
+  sessionFamilyId      String    @db.Uuid
+  idempotencyKey       String    @db.Uuid
+  filename             String    @db.VarChar(255)
+  mediaType            String    @db.VarChar(32)
+  byteSize             Int
+  checksum             String    @db.VarChar(64)
+  objectKey            String    @unique @db.VarChar(100)
+  expiresAt            DateTime
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  site                 Site      @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  sessionFamily ApplicationSessionFamily @relation(fields: [sessionFamilyId], references: [id], onDelete: Restrict)
+}
+
+model CoverImageDeletion {
+  objectKey String   @id @db.VarChar(100)
+  createdAt DateTime @default(now())
 }
 
 model Activity {
@@ -506,6 +533,15 @@ model Sign {
   content        String     @default("") @db.VarChar(200)
   comments       String     @default("") @db.VarChar(1000)
   status         SignStatus @default(UNSPECIFIED)
+  mounting       String     @default("Wall-mounted") @db.VarChar(32)
+  function       String     @default("Wayfinder") @db.VarChar(32)
+  colour         String     @default("Red") @db.VarChar(32)
+  orientation    String     @default("down") @db.VarChar(16)
+  placement      SignPlacement?
+  documents      SignDocument[]
+  photos         SignPhoto[]
+  discussion     SignComment[]
+  commentAttachments SignCommentAttachment[]
   tenant         Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   site           Site       @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
   signType       SignType   @relation(fields: [signTypeId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
@@ -513,6 +549,7 @@ model Sign {
   updatedAt      DateTime   @updatedAt
 
   @@unique([tenantId, siteId, normalizedCode])
+  @@unique([id, tenantId, siteId])
   @@index([signTypeId, normalizedCode])
 }
 
@@ -521,11 +558,17 @@ model AllocationPlan {
   tenantId       String                @db.Uuid
   siteId         String                @db.Uuid
   uploadedById   String                @db.Uuid
-  objectKey      String                @unique @db.VarChar(512)
-  filename       String                @db.VarChar(255)
-  mediaType      String                @db.VarChar(32)
-  byteSize       Int
-  checksumSha256 String                @db.VarChar(44)
+  name           String                @db.VarChar(400)
+  objectKey      String?               @unique @db.VarChar(512)
+  filename       String?               @db.VarChar(255)
+  mediaType      String?               @db.VarChar(32)
+  byteSize       Int?
+  checksumSha256 String?               @db.VarChar(44)
+  files          AllocationPlanUpload[] @relation("PlanFiles")
+  signPlacements SignPlacement[]
+  signRequests   PlanSignRequest[]
+  creationKey    String?               @db.VarChar(64)
+  creationDigest String?               @db.VarChar(64)
   tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   site           Site                  @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
   uploadedBy     User                  @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
@@ -534,6 +577,8 @@ model AllocationPlan {
   updatedAt      DateTime              @updatedAt
 
   @@unique([id, tenantId])
+  @@unique([id, tenantId, siteId])
+  @@unique([tenantId, creationKey])
   @@index([siteId, createdAt, id])
 }
 
@@ -543,6 +588,7 @@ model AllocationPlanUploadBatch {
   siteId        String                 @db.Uuid
   keyDigest     String                 @db.VarChar(64)
   requestDigest String                 @db.VarChar(64)
+  grouped       Boolean                @default(false)
   tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   site          Site                   @relation(fields: [siteId, tenantId], references: [id, tenantId], onDelete: Cascade)
   uploads       AllocationPlanUpload[]
@@ -560,6 +606,12 @@ model AllocationPlanUpload {
   siteId           String                     @db.Uuid
   uploadedById     String                     @db.Uuid
   allocationPlanId String?                    @unique @db.Uuid
+  groupedPlanId    String?                    @db.Uuid
+  position         Int                        @default(0)
+  signPlacements   SignPlacement[]
+  verifiedObjectKey String?                   @db.VarChar(512)
+  verifiedAt       DateTime?
+  groupedPlan      AllocationPlan?            @relation("PlanFiles", fields: [groupedPlanId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Restrict)
   objectKey        String                     @unique @db.VarChar(512)
   filename         String                     @db.VarChar(255)
   mediaType        String                     @db.VarChar(32)
@@ -577,9 +629,157 @@ model AllocationPlanUpload {
   updatedAt        DateTime                   @updatedAt
 
   @@unique([id, tenantId])
+  @@unique([id, tenantId, siteId, groupedPlanId])
   @@unique([allocationPlanId, tenantId])
+  @@unique([groupedPlanId, position])
   @@index([siteId, status])
   @@index([status, expiresAt])
+}
+
+model SignDocument {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  signId String @db.Uuid
+  sign Sign @relation(fields: [signId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  uploadedById String @db.Uuid
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  filename String @db.VarChar(255)
+  mediaType String @db.VarChar(32)
+  byteSize Int
+  checksumSha256 String @db.VarChar(44)
+  completed Boolean @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([tenantId, requestKey])
+  @@index([tenantId, siteId, signId, id])
+}
+
+// Durable storage ledger intentionally survives deletion of its document.
+model SignDocumentObject {
+  documentId String @id @db.Uuid
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model SignComment {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  signId String @db.Uuid
+  sign Sign @relation(fields: [signId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  parentId String? @db.Uuid
+  parent SignComment? @relation("CommentReplies", fields: [parentId, tenantId, siteId, signId], references: [id, tenantId, siteId, signId], onDelete: Cascade)
+  replies SignComment[] @relation("CommentReplies")
+  authorId String @db.Uuid
+  authorName String @db.VarChar(200)
+  body String
+  mentions Json
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  createdAt DateTime @default(now())
+  reactions SignCommentReaction[]
+  attachments SignCommentAttachment[]
+  @@unique([id, tenantId, siteId, signId])
+  @@unique([tenantId, authorId, requestKey])
+  @@index([tenantId, siteId, signId, parentId, createdAt, id])
+}
+
+model SignCommentReaction {
+  commentId String @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  signId String @db.Uuid
+  authorId String @db.Uuid
+  emoji String @db.VarChar(16)
+  comment SignComment @relation(fields: [commentId, tenantId, siteId, signId], references: [id, tenantId, siteId, signId], onDelete: Cascade)
+  @@id([commentId, authorId, emoji])
+}
+
+model SignCommentAttachment {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  signId String @db.Uuid
+  sign Sign @relation(fields: [signId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  commentId String? @db.Uuid
+  comment SignComment? @relation(fields: [commentId, tenantId, siteId, signId], references: [id, tenantId, siteId, signId], onDelete: Cascade)
+  uploadedById String @db.Uuid
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  filename String @db.VarChar(255)
+  mediaType String @db.VarChar(32)
+  byteSize Int
+  checksumSha256 String @db.VarChar(44)
+  completed Boolean @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([tenantId, requestKey])
+  @@index([tenantId, siteId, signId, commentId])
+}
+
+// Survives Sign/Comment deletion for durable object reclamation.
+model SignCommentAttachmentObject {
+  attachmentId String @id @db.Uuid
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model SignPhoto {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  signId String @db.Uuid
+  sign Sign @relation(fields: [signId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  uploadedById String @db.Uuid
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  filename String @db.VarChar(255)
+  mediaType String @db.VarChar(32)
+  byteSize Int
+  checksumSha256 String @db.VarChar(44)
+  completed Boolean @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([tenantId, requestKey])
+  @@index([tenantId, siteId, signId, id])
+}
+
+// Durable storage ledger intentionally survives deletion of its image.
+model SignPhotoObject {
+  photoId String @id @db.Uuid
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model SignPlacement {
+  signId   String @id @db.Uuid
+  tenantId String @db.Uuid
+  siteId   String @db.Uuid
+  planId   String @db.Uuid
+  fileId   String? @db.Uuid
+  x        Float
+  y        Float
+  sign Sign @relation(fields: [signId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  plan AllocationPlan @relation(fields: [planId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Restrict)
+  file AllocationPlanUpload? @relation(fields: [fileId, tenantId, siteId, planId], references: [id, tenantId, siteId, groupedPlanId], onDelete: Restrict)
+
+  @@index([tenantId, siteId, planId, fileId])
+  @@unique([signId, tenantId, siteId])
+}
+
+model PlanSignRequest {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  planId String @db.Uuid
+  key String @db.Uuid
+  digest String @db.VarChar(64)
+  signId String @db.Uuid
+  plan AllocationPlan @relation(fields: [planId, tenantId, siteId], references: [id, tenantId, siteId], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, key])
 }
 
 model SiteGrant {
@@ -653,6 +853,7 @@ model SiteCreationRequest {
 }
 
 model ApplicationSessionFamily {
+  coverImages SiteCoverImage[]
   id                String                         @id @default(uuid()) @db.Uuid
   userId            String                         @db.Uuid
   tenantId          String                         @db.Uuid

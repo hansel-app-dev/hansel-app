@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPlanSignsApi } from './sites/plan-signs-api.js';
 import type { DashboardResponse } from '@hansel/contracts';
 import {
   createOnboardingAccount,
@@ -27,10 +28,12 @@ import {
   SiteActivityNotFoundError,
   loadAllocationPlans,
   loadAllocationPlanContent,
-  createAllocationPlanUploadBatch,
+  createAllocationPlanDraft,
+  commitAllocationPlanDraft,
   uploadAllocationPlan,
-  finalizeAllocationPlanUpload,
+  verifyAllocationPlanDraft,
   loadSites,
+  loadSiteCoverImage,
   loadSignageSchedule,
   createSignType,
   updateSignType,
@@ -48,6 +51,7 @@ import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
 import { Dashboard } from './dashboard/Dashboard.js';
 import { Sites } from './sites/Sites.js';
+import { uploadSiteCoverImage } from './sites/upload-cover-image.js';
 import {
   SiteActivity,
   SiteAllocationPlans,
@@ -175,6 +179,15 @@ export function App({
     window.sessionStorage.removeItem(verificationEmailKey);
     returnToLogin();
   };
+  const loadAuthenticatedCover = useCallback(
+    (siteId: string, signal: AbortSignal) =>
+      loadSiteCoverImage(siteId, apiUrl, signal).catch((error: unknown) => {
+        if (error instanceof DashboardAuthenticationRequiredError)
+          returnToLogin();
+        throw error;
+      }),
+    [apiUrl],
+  );
   const handleApplicationSession = <T,>(operation: Promise<T>) =>
     operation.catch((error: unknown) => {
       if (error instanceof DashboardAuthenticationRequiredError)
@@ -194,6 +207,10 @@ export function App({
   if (currentPath === '/sites') {
     return (
       <Sites
+        loadCoverImage={loadAuthenticatedCover}
+        uploadCoverImage={(siteId, file) =>
+          handleApplicationSession(uploadSiteCoverImage(siteId, file, apiUrl))
+        }
         coverImageEnabled={!import.meta.env.PROD}
         createSite={(input) =>
           handleApplicationSession(createSite(input, apiUrl))
@@ -289,11 +306,19 @@ export function App({
     return (
       <SiteAllocationPlans
         {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
-        loadAllocationPlanContent={() =>
+        loadAllocationPlanContent={(fileId, signal) =>
           handleApplicationSession(
-            loadAllocationPlanContent(siteId, planId, apiUrl),
+            loadAllocationPlanContent(
+              siteId,
+              planId,
+              apiUrl,
+              fetch,
+              fileId,
+              signal,
+            ),
           )
         }
+        planSignsApi={createPlanSignsApi(siteId, planId, apiUrl)}
         loadAllocationPlans={() =>
           handleApplicationSession(loadAllocationPlans(siteId, apiUrl))
         }
@@ -337,15 +362,20 @@ export function App({
         }
         createAllocationPlanUploadBatch={(input) =>
           handleApplicationSession(
-            createAllocationPlanUploadBatch(siteId, input, apiUrl),
+            createAllocationPlanDraft(siteId, input, apiUrl),
           )
         }
         uploadAllocationPlan={(url, file, headers, options) =>
           uploadAllocationPlan(url, file, headers, fetch, options)
         }
+        commitAllocationPlanDraft={(input) =>
+          handleApplicationSession(
+            commitAllocationPlanDraft(siteId, input, apiUrl),
+          ).then(() => undefined)
+        }
         finalizeAllocationPlanUpload={(uploadId) =>
           handleApplicationSession(
-            finalizeAllocationPlanUpload(siteId, uploadId, apiUrl),
+            verifyAllocationPlanDraft(siteId, uploadId, apiUrl),
           ).then(() => undefined)
         }
         logout={logoutAuthenticatedViewer}

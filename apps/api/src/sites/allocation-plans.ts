@@ -21,6 +21,7 @@ export interface PendingAllocationPlanUpload {
   expiresAt: Date;
   status: 'PENDING' | 'COMPLETED' | 'REJECTED' | 'EXPIRED';
   plan?: AllocationPlan;
+  grouped?: boolean;
 }
 
 export interface AllocationPlanStore {
@@ -33,6 +34,7 @@ export interface AllocationPlanStore {
     principal: ApplicationPrincipal,
     siteId: string,
     planId: string,
+    fileId?: string,
   ): Promise<{ objectKey: string; mediaType: string } | null>;
   createBatch(input: {
     principal: ApplicationPrincipal;
@@ -41,6 +43,7 @@ export interface AllocationPlanStore {
     requestDigest: string;
     keyDigest: string;
     expiresAt: Date;
+    grouped?: boolean;
     uploads: {
       id: string;
       objectKey: string;
@@ -95,7 +98,7 @@ export class AllocationPlanUploadRejectedError extends Error {}
 const canAdd = (roleId: string) =>
   hasOrganizationCapability(roleId, 'CREATE_SITE');
 
-function validSignature(mediaType: string, bytes: Uint8Array): boolean {
+export function validSignature(mediaType: string, bytes: Uint8Array): boolean {
   if (mediaType === 'image/png')
     return [137, 80, 78, 71, 13, 10, 26, 10].every(
       (value, index) => bytes[index] === value,
@@ -136,12 +139,14 @@ export function createAllocationPlansFeature(dependencies: {
       principal: ApplicationPrincipal,
       siteId: string,
       planId: string,
+      fileId?: string,
     ): Promise<{ mediaType: string; bytes: Uint8Array }> {
       await authorize(principal, siteId);
       const plan = await dependencies.store.findContent(
         principal,
         siteId,
         planId,
+        ...(fileId ? [fileId] : []),
       );
       if (!plan) throw new AllocationPlansNotFoundError();
       if (
@@ -157,6 +162,7 @@ export function createAllocationPlansFeature(dependencies: {
       principal: ApplicationPrincipal,
       siteId: string,
       request: CreateAllocationPlanUploadBatchRequest,
+      grouped = false,
     ): Promise<CreateAllocationPlanUploadBatchResponse> {
       await authorize(principal, siteId, true);
       const normalized = {
@@ -190,8 +196,13 @@ export function createAllocationPlansFeature(dependencies: {
         principal,
         siteId,
         request: normalized,
-        requestDigest: dependencies.digest(JSON.stringify(normalized.files)),
-        keyDigest: dependencies.digest(normalized.idempotencyKey),
+        requestDigest: dependencies.digest(
+          JSON.stringify([siteId, principal.userId, grouped, normalized.files]),
+        ),
+        keyDigest: dependencies.digest(
+          `${grouped ? 'draft:' : ''}${normalized.idempotencyKey}`,
+        ),
+        grouped,
         expiresAt,
         uploads,
       });
@@ -199,6 +210,15 @@ export function createAllocationPlansFeature(dependencies: {
         throw new AllocationPlansConflictError();
       if (result.status === 'forbidden')
         throw new AllocationPlansForbiddenError();
+      if (
+        grouped &&
+        result.uploads.some(
+          (upload) =>
+            upload.status !== 'PENDING' ||
+            upload.expiresAt <= dependencies.now(),
+        )
+      )
+        throw new AllocationPlanUploadRejectedError();
       return {
         uploads: await Promise.all(
           result.uploads.map(async (upload) => ({
@@ -237,6 +257,7 @@ export function createAllocationPlansFeature(dependencies: {
         uploadId,
       );
       if (!upload) throw new AllocationPlansNotFoundError();
+      if (upload.grouped) throw new AllocationPlanUploadRejectedError();
       if (upload.status === 'COMPLETED' && upload.plan)
         return { plan: upload.plan };
       if (upload.status !== 'PENDING' || upload.expiresAt <= dependencies.now())

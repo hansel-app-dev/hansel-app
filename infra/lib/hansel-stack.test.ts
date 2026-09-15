@@ -39,6 +39,7 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites
             { Name: 'EMAIL_DELIVERY_MODE', Value: 'resend' },
             { Name: 'DISCOVERY_ENABLED', Value: 'false' },
             { Name: 'DASHBOARD_ENABLED', Value: 'false' },
+            { Name: 'ORGANIZATION_TRAY_SETTINGS_ENABLED', Value: 'false' },
             { Name: 'SITES_ENABLED', Value: 'false' },
             { Name: 'LOGIN_ENABLED', Value: 'false' },
             { Name: 'PASSWORD_RECOVERY_ENABLED', Value: 'false' },

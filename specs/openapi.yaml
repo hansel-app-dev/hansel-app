@@ -3,6 +3,156 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /api/sites/{siteId}/signs/{signId}/comments:
+    $ref: './sign-comments.openapi.yaml#/collection'
+  /api/sites/{siteId}/signs/{signId}/comments/people:
+    $ref: './sign-comments.openapi.yaml#/people'
+  /api/sites/{siteId}/signs/{signId}/comments/{commentId}/reactions:
+    $ref: './sign-comments.openapi.yaml#/reactions'
+  /api/sites/{siteId}/signs/{signId}/comments/attachments:
+    $ref: './sign-comments.openapi.yaml#/attachments'
+  /api/sites/{siteId}/signs/{signId}/comments/attachments/{attachmentId}:
+    $ref: './sign-comments.openapi.yaml#/attachment'
+  /api/sites/{siteId}/signs/{signId}/comments/attachments/{attachmentId}/download:
+    $ref: './sign-comments.openapi.yaml#/download'
+  /api/sites/{siteId}/signs/{signId}/comments/attachments/{attachmentId}/thumbnail:
+    $ref: './sign-comments.openapi.yaml#/thumbnail'
+  /api/sites/{siteId}/signs/{signId}/photos:
+    $ref: './sign-photos.openapi.yaml#/collection'
+  /api/sites/{siteId}/signs/{signId}/photos/{photoId}:
+    $ref: './sign-photos.openapi.yaml#/item'
+  /api/sites/{siteId}/signs/{signId}/photos/{photoId}/thumbnail:
+    $ref: './sign-photos.openapi.yaml#/thumbnail'
+  /api/sites/{siteId}/signs/{signId}/photos/{photoId}/download:
+    $ref: './sign-photos.openapi.yaml#/download'
+  /api/sites/{siteId}/signs/{signId}/documents:
+    $ref: './sign-documents.openapi.yaml#/collection'
+  /api/sites/{siteId}/signs/{signId}/documents/{documentId}:
+    $ref: './sign-documents.openapi.yaml#/item'
+  /api/sites/{siteId}/signs/{signId}/documents/{documentId}/download:
+    $ref: './sign-documents.openapi.yaml#/download'
+  /api/sites/{siteId}/allocation-plans/{planId}/signs:
+    $ref: './plan-signs.openapi.yaml#/collection'
+  /api/sites/{siteId}/allocation-plans/{planId}/signs/{signId}:
+    $ref: './plan-signs.openapi.yaml#/item'
+  /api/sites/{siteId}/allocation-plan-drafts:
+    parameters:
+      - {
+          name: siteId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    post:
+      operationId: createAllocationPlanDraft
+      summary: Stage private uploads for one named plan without creating the plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              {
+                $ref: '#/components/schemas/CreateAllocationPlanUploadBatchRequest',
+              }
+      responses:
+        '201':
+          description: Ordered upload intents; session and exact-origin proof required
+          content:
+            application/json:
+              schema:
+                {
+                  $ref: '#/components/schemas/CreateAllocationPlanUploadBatchResponse',
+                }
+        '400': { description: Invalid manifest }
+        '401': { description: Authentication required }
+        '403': { description: Forbidden }
+        '404': { description: Unavailable site or disabled feature }
+        '409': { description: Idempotency conflict }
+        '503': { description: Retryable unavailability }
+  /api/sites/{siteId}/allocation-plan-drafts/{uploadId}/verify:
+    parameters:
+      - {
+          name: siteId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+      - {
+          name: uploadId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    post:
+      operationId: verifyAllocationPlanDraftFile
+      responses:
+        '200':
+          description: File verified but not attached; session and exact-origin proof required
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [uploadId, verified]
+                properties:
+                  uploadId: { type: string, format: uuid }
+                  verified: { type: boolean, const: true }
+        '400': { description: Invalid identifier }
+        '401': { description: Authentication required }
+        '403': { description: Forbidden }
+        '404': { description: Upload not found or disabled feature }
+        '409': { description: Upload expired or rejected }
+        '503': { description: Retryable unavailability }
+  /api/sites/{siteId}/allocation-plan-drafts/commit:
+    parameters:
+      - {
+          name: siteId,
+          in: path,
+          required: true,
+          schema: { type: string, format: uuid },
+        }
+    post:
+      operationId: commitAllocationPlanDraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, uploadIds, idempotencyKey]
+              properties:
+                name:
+                  {
+                    type: string,
+                    minLength: 1,
+                    maxLength: 200,
+                    description: 'Trimmed Unicode name, no C0 or DEL controls; duplicate names allowed.',
+                  }
+                idempotencyKey: { type: string, minLength: 32, maxLength: 200 }
+                uploadIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  uniqueItems: true
+                  items: { type: string, format: uuid }
+      responses:
+        '201':
+          description: One atomic plan and Activity; idempotent replay returns the same plan
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [plan]
+                properties:
+                  plan: { $ref: '#/components/schemas/AllocationPlan' }
+        '400': { description: Invalid input }
+        '401': { description: Authentication required }
+        '403': { description: Forbidden }
+        '404': { description: Site not found or disabled feature }
+        '409': { description: Conflict or expired/unverified/attached file }
+        '503': { description: Retryable unavailability }
   /login:
     get:
       operationId: renderLogin
@@ -788,6 +938,105 @@ paths:
         '400': { description: The request does not match the contract }
         '401': { description: The onboarding continuation is unavailable }
         '409': { description: Conflicting replay or rejected transition }
+  /api/sites/{siteId}/cover-image:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+    get:
+      operationId: getSiteCoverImage
+      description: Private finalized cover bytes for an authenticated Membership with Site visibility, independent of new-upload enablement.
+      responses:
+        '200':
+          description: Verified Site cover Image
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+            X-Content-Type-Options: { schema: { type: string, const: nosniff } }
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/cover-image-uploads:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+    post:
+      operationId: startSiteCoverImageUpload
+      description: Creator/session-family scoped, idempotent authorization valid for 15 minutes. Requires an exact trusted Origin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                [idempotencyKey, filename, mediaType, byteSize, checksum]
+              properties:
+                idempotencyKey: { type: string, format: uuid }
+                filename: { type: string, minLength: 1, maxLength: 255 }
+                mediaType: { type: string, enum: [image/png, image/jpeg] }
+                byteSize: { type: integer, minimum: 1, maximum: 3000000 }
+                checksum: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '201': &coverStartResponse
+          description: Upload authorization; no storage credentials or keys are disclosed
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [uploadId]
+                properties:
+                  uploadId: { type: string, format: uuid }
+        '200': *coverStartResponse
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/cover-image-uploads/{uploadId}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+      - name: uploadId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: finalizeSiteCoverImageUpload
+      description: Verifies the exact authorized bytes, decodes and strips metadata, and persists the cover privately before returning success. Safe to retry with identical bytes.
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema: { type: string, format: binary, maxLength: 3000000 }
+          image/jpeg:
+            schema: { type: string, format: binary, maxLength: 3000000 }
+      responses:
+        '200':
+          description: Cover is durably stored
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [destination]
+                properties:
+                  destination:
+                    { type: string, pattern: '^/sites/[0-9a-f-]{36}/activity$' }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '403': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '409': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
   /api/sites/{siteId}/allocation-plans:
     parameters:
       - $ref: '#/components/parameters/SiteId'
@@ -849,6 +1098,38 @@ paths:
             Cache-Control:
               { schema: { type: string, const: 'private, no-store' } }
             X-Content-Type-Options: { schema: { type: string, const: nosniff } }
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            application/pdf: { schema: { type: string, format: binary } }
+        '400': { $ref: '#/components/responses/SitesError' }
+        '401': { $ref: '#/components/responses/SitesError' }
+        '404': { $ref: '#/components/responses/SitesError' }
+        '503': { $ref: '#/components/responses/SitesError' }
+  /api/sites/{siteId}/allocation-plans/{allocationPlanId}/files/{fileId}/content:
+    parameters:
+      - $ref: '#/components/parameters/SiteId'
+      - name: allocationPlanId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: fileId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: loadAllocationPlanFileContent
+      security: [{ applicationAccess: [] }]
+      description: Reads only a completed file attached to this Allocation Plan, scoped to the current Organization and Site Access. Maximum 5 MiB; no storage capabilities are exposed.
+      responses:
+        '200':
+          description: Private attached Allocation Plan file bytes
+          headers:
+            Cache-Control:
+              { schema: { type: string, const: 'private, no-store' } }
+            X-Content-Type-Options: { schema: { type: string, const: nosniff } }
+            Content-Security-Policy:
+              { schema: { type: string, const: "default-src 'none'; sandbox" } }
           content:
             image/png: { schema: { type: string, format: binary } }
             image/jpeg: { schema: { type: string, format: binary } }
@@ -1321,10 +1602,27 @@ components:
     AllocationPlan:
       type: object
       additionalProperties: false
-      required:
-        [id, filename, mediaType, byteSize, createdAt, modifiedAt, uploadedBy]
+      anyOf:
+        - required: [name, files]
+        - required: [filename, mediaType, byteSize]
+      required: [id, createdAt, modifiedAt, uploadedBy]
       properties:
         id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 400 }
+        files:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, filename, mediaType, byteSize]
+            properties:
+              id: { type: string, format: uuid }
+              filename: { type: string, minLength: 1, maxLength: 255 }
+              mediaType:
+                { type: string, enum: [image/png, image/jpeg, application/pdf] }
+              byteSize: { type: integer, minimum: 1, maximum: 5242880 }
         filename: { type: string, minLength: 1, maxLength: 255 }
         mediaType:
           { type: string, enum: [image/png, image/jpeg, application/pdf] }
@@ -1778,6 +2076,14 @@ components:
             displayName: { type: string, minLength: 1, maxLength: 201 }
             initials: { type: string, minLength: 1, maxLength: 2 }
             roleLabel: { type: string, minLength: 1, maxLength: 100 }
+            email: { type: string, format: email, maxLength: 254 }
+        organization:
+          type: object
+          additionalProperties: false
+          required: [name, planDisplayName]
+          properties:
+            name: { type: string, minLength: 1, maxLength: 200 }
+            planDisplayName: { type: string, minLength: 1, maxLength: 100 }
     SiteRole:
       type: string
       enum: [ADMINISTRATOR, EDITOR, VIEWER]
@@ -1872,6 +2178,7 @@ components:
       additionalProperties: false
       required: [id, name, createdAt, updatedAt, memberCount, memberPreview]
       properties:
+        hasCoverImage: { type: boolean }
         id: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 100 }
         createdAt: { type: string, format: date-time }
@@ -1904,6 +2211,7 @@ components:
       properties:
         organizationName: { type: string, minLength: 1, maxLength: 200 }
         canCreateSite: { type: boolean }
+        siteCoverImageEnabled: { type: boolean }
         canInviteMembers: { type: boolean }
         creator: { $ref: '#/components/schemas/SiteMemberChoice' }
         siteLimitReached: { type: boolean }

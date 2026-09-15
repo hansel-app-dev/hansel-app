@@ -64,6 +64,7 @@ _Avoid_: Attachment when referring to the stored object itself
 
 **Image**:
 An uploaded image asset that may be linked to another Hansel object.
+The approved Sign Photos feature stores PNG/JPEG Images owned by a Sign separately from its Documents. The drawer uses “Photos” as UI copy; deleting one Image does not delete its Sign.
 _Avoid_: Photo when the asset may not be a photograph
 
 **Video**:
@@ -72,6 +73,7 @@ _Avoid_: Clip
 
 **Sign Comment**:
 A discussion entry attached to a Sign.
+The approved `sign-comments` scope includes one-level replies, private PNG/JPEG/PDF attachments, Site-access Membership mentions without notifications, and emoji reactions. All current Site-access roles may participate. Sign Comments are distinct from Site Activity comments and the legacy Signage Schedule comment cell; deleting the shared Sign removes its discussion.
 _Avoid_: Note, Message
 
 **Allocation Plan Comment**:

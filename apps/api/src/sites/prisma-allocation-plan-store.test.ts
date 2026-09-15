@@ -22,6 +22,7 @@ const plan = {
   },
 };
 const upload = {
+  batch: { grouped: false },
   id: 'u1',
   batchId: 'b',
   tenantId: 't',
@@ -87,6 +88,43 @@ function fixture() {
 }
 
 describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-006..REQ-018]', () => {
+  it('scopes attached file reads to the complete parent chain [allocation-details-design AC-003]', async () => {
+    const { store, prisma } = fixture();
+    prisma.allocationPlanUpload.findFirst.mockResolvedValueOnce({
+      ...upload,
+      verifiedObjectKey: 'plans/file',
+    });
+    await expect(
+      store.findContent(principal, 's', 'p', 'file'),
+    ).resolves.toEqual({
+      objectKey: 'plans/file',
+      mediaType: 'application/pdf',
+    });
+    expect(prisma.allocationPlanUpload.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'file',
+        groupedPlanId: 'p',
+        tenantId: 't',
+        siteId: 's',
+        status: 'COMPLETED',
+        groupedPlan: {
+          id: 'p',
+          tenantId: 't',
+          siteId: 's',
+          site: expect.objectContaining({ tenantId: 't' }),
+        },
+      },
+      select: { verifiedObjectKey: true, mediaType: true },
+    });
+    prisma.allocationPlanUpload.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      store.findContent(principal, 's', 'p', 'foreign'),
+    ).resolves.toBeNull();
+    await expect(
+      store.findContent(principal, 's', 'p', 'unverified'),
+    ).resolves.toBeNull();
+    expect(prisma.allocationPlan.findFirst).not.toHaveBeenCalled();
+  });
   it('scopes access, lists display metadata, finds and rejects uploads [AC-001, AC-003]', async () => {
     const { store, prisma } = fixture();
     await expect(store.canAccess(principal, 's')).resolves.toBe(true);

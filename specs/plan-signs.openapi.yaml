@@ -1,0 +1,216 @@
+# allocation-plan-signs REQ-001,007..012
+collection:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: planId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  get:
+    operationId: loadPlanSigns
+    summary: Read canonical signs placed on one file; omit fileId for legacy content
+    security: [{ applicationAccess: [] }]
+    parameters:
+      - { name: fileId, in: query, schema: { type: string, format: uuid } }
+    responses:
+      '200':
+        description: Private no-store result, scoped to session tenant and Site Access
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [canManageSigns, signs]
+              properties:
+                canManageSigns: { type: boolean }
+                signs:
+                  { type: array, maxItems: 5000, items: { $ref: '#/sign' } }
+      '400': { description: Invalid identifiers }
+      '401': { description: Authentication required }
+      '404': { description: Feature disabled or inaccessible plan/file }
+      '503': { description: Temporarily unavailable }
+  post:
+    operationId: createPlanSign
+    summary: Atomically create a Sign and placement; requires MANAGE_SIGNS and exact Origin
+    description: Tenant-scoped idempotency key retries return the same Sign. Changed payload conflicts. Generated Site-wide code is editable; defaults to Plan signs group.
+    security: [{ applicationAccess: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [fileId, x, y, idempotencyKey]
+            properties:
+              fileId: { type: [string, 'null'], format: uuid }
+              x: { type: number, minimum: 0, maximum: 1 }
+              y: { type: number, minimum: 0, maximum: 1 }
+              idempotencyKey: { type: string, format: uuid }
+    responses:
+      '201':
+        {
+          description: Saved canonical Sign; private no-store,
+          content: { application/json: { schema: { $ref: '#/sign' } } },
+        }
+      '400': { description: Invalid strict request }
+      '401': { description: Authentication required }
+      '403': { description: Permission or Origin rejected }
+      '404': { description: Feature disabled or inaccessible plan/file }
+      '409':
+        {
+          description: Idempotency conflict,
+          code conflict or allowance reached,
+        }
+      '503':
+        { description: Temporarily unavailable; retry the same idempotency key }
+item:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: planId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: signId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  patch:
+    operationId: updatePlanSign
+    summary: Update shared Sign with updatedAt concurrency; MANAGE_SIGNS and exact Origin required
+    security: [{ applicationAccess: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            minProperties: 2
+            dependentRequired: { x: [y], y: [x] }
+            required: [expectedUpdatedAt]
+            properties:
+              expectedUpdatedAt: { type: string, format: date-time }
+              x: { type: number, minimum: 0, maximum: 1 }
+              y: { type: number, minimum: 0, maximum: 1 }
+              code: { type: string, minLength: 1, maxLength: 40 }
+              content: { type: string, maxLength: 200 }
+              mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered] }
+              function: { const: Wayfinder }
+              colour: { const: Red }
+              orientation:
+                {
+                  enum:
+                    [
+                      left,
+                      up-left,
+                      up,
+                      up-right,
+                      right,
+                      down-right,
+                      down,
+                      down-left,
+                    ],
+                }
+    responses:
+      '200':
+        {
+          description: Updated canonical Sign; private no-store,
+          content: { application/json: { schema: { $ref: '#/sign' } } },
+        }
+      '400': { description: Invalid strict request }
+      '401': { description: Authentication required }
+      '403': { description: Permission or Origin rejected }
+      '404': { description: Feature disabled or inaccessible Sign }
+      '409':
+        {
+          description: Stale updatedAt or duplicate code; reload before editing,
+        }
+      '503': { description: Temporarily unavailable }
+  delete:
+    operationId: deletePlanSign
+    summary: Delete selected shared Sign and placement, including schedule entry; no undo
+    description: Requires MANAGE_SIGNS and exact Origin. Does not remove other Signs, the group or plan files.
+    security: [{ applicationAccess: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [expectedUpdatedAt]
+            properties:
+              expectedUpdatedAt: { type: string, format: date-time }
+    responses:
+      '200':
+        {
+          description: Removed from both views; private no-store,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      required: [deleted],
+                      additionalProperties: false,
+                      properties: { deleted: { const: true } },
+                    },
+                },
+            },
+        }
+      '400': { description: Invalid strict request }
+      '401': { description: Authentication required }
+      '403': { description: Permission or Origin rejected }
+      '404': { description: Feature disabled or inaccessible Sign }
+      '409': { description: Stale updatedAt; reload before deleting }
+      '503': { description: Temporarily unavailable }
+sign:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      id,
+      fileId,
+      x,
+      y,
+      code,
+      content,
+      updatedAt,
+      mounting,
+      function,
+      colour,
+      orientation,
+    ]
+  properties:
+    id: { type: string, format: uuid }
+    fileId: { type: [string, 'null'], format: uuid }
+    x: { type: number, minimum: 0, maximum: 1 }
+    y: { type: number, minimum: 0, maximum: 1 }
+    code: { type: string, minLength: 1, maxLength: 40 }
+    content: { type: string, maxLength: 200 }
+    updatedAt: { type: string, format: date-time }
+    mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered] }
+    function: { const: Wayfinder }
+    colour: { const: Red }
+    orientation:
+      {
+        enum: [left, up-left, up, up-right, right, down-right, down, down-left],
+      }

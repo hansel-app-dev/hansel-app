@@ -14,10 +14,13 @@ export function createS3AllocationPlanObjectStore(input: {
   bucketName: string;
   client?: S3Client;
   sign?: typeof getSignedUrl;
-}): AllocationPlanObjectStore {
+}): AllocationPlanObjectStore & { write: (key: string, bytes: Uint8Array) => Promise<void> } {
   const client = input.client ?? new S3Client({});
   const sign = input.sign ?? getSignedUrl;
   return {
+    async write(key, bytes) {
+      await client.send(new PutObjectCommand({ Bucket: input.bucketName, Key: key, Body: bytes, ContentType: 'image/png' }), { abortSignal: AbortSignal.timeout(20_000) });
+    },
     signPut(request) {
       return sign(
         client,

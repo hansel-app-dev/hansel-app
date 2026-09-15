@@ -8,7 +8,9 @@ import type {
   PendingAllocationPlanUpload,
 } from './allocation-plans.js';
 
-function accessWhere(principal: ApplicationPrincipal): Prisma.SiteWhereInput {
+export function accessWhere(
+  principal: ApplicationPrincipal,
+): Prisma.SiteWhereInput {
   return {
     tenantId: principal.tenantId,
     ...(principal.roleId === 'owner'
@@ -25,8 +27,12 @@ function accessWhere(principal: ApplicationPrincipal): Prisma.SiteWhereInput {
 
 const uploadInclude = {
   allocationPlan: {
-    include: { uploadedBy: { include: { personalProfile: true } } },
+    include: {
+      files: { orderBy: { position: 'asc' } },
+      uploadedBy: { include: { personalProfile: true } },
+    },
   },
+  batch: true,
 } satisfies Prisma.AllocationPlanUploadInclude;
 
 function uploaderName(user: {
@@ -38,11 +44,18 @@ function uploaderName(user: {
     : user.email.slice(0, user.email.indexOf('@'));
 }
 
-function toPlan(record: {
+export function toPlan(record: {
   id: string;
-  filename: string;
-  mediaType: string;
-  byteSize: number;
+  name?: string;
+  filename: string | null;
+  mediaType: string | null;
+  byteSize: number | null;
+  files?: {
+    id: string;
+    filename: string;
+    mediaType: string;
+    byteSize: number;
+  }[];
   createdAt: Date;
   updatedAt: Date;
   uploadedBy: {
@@ -52,9 +65,28 @@ function toPlan(record: {
 }): AllocationPlan {
   return {
     id: record.id,
-    filename: record.filename,
-    mediaType: record.mediaType as AllocationPlan['mediaType'],
-    byteSize: record.byteSize,
+    ...(record.name ? { name: record.name } : {}),
+    ...(record.filename && record.mediaType && record.byteSize
+      ? {
+          filename: record.filename,
+          mediaType: record.mediaType as NonNullable<
+            AllocationPlan['mediaType']
+          >,
+          byteSize: record.byteSize,
+        }
+      : {}),
+    ...(record.files?.length
+      ? {
+          files: record.files.map((file) => ({
+            id: file.id,
+            filename: file.filename,
+            mediaType: file.mediaType as NonNullable<
+              AllocationPlan['mediaType']
+            >,
+            byteSize: file.byteSize,
+          })),
+        }
+      : {}),
     createdAt: record.createdAt.toISOString(),
     modifiedAt: record.updatedAt.toISOString(),
     uploadedBy: uploaderName(record.uploadedBy),
@@ -77,6 +109,7 @@ function toUpload(
     checksumSha256: record.checksumSha256,
     expiresAt: record.expiresAt,
     status: record.status,
+    grouped: record.batch.grouped,
     ...(record.allocationPlan ? { plan: toPlan(record.allocationPlan) } : {}),
   };
 }
@@ -97,12 +130,36 @@ export function createPrismaAllocationPlanStore(
       const records = await prisma.allocationPlan.findMany({
         where: { tenantId: principal.tenantId, siteId },
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-        include: { uploadedBy: { include: { personalProfile: true } } },
+        include: {
+          files: { orderBy: { position: 'asc' } },
+          uploadedBy: { include: { personalProfile: true } },
+        },
       });
       return records.map(toPlan);
     },
-    async findContent(principal, siteId, planId) {
-      return prisma.allocationPlan.findFirst({
+    async findContent(principal, siteId, planId, fileId) {
+      if (fileId) {
+        const file = await prisma.allocationPlanUpload.findFirst({
+          where: {
+            id: fileId,
+            groupedPlanId: planId,
+            tenantId: principal.tenantId,
+            siteId,
+            status: 'COMPLETED',
+            groupedPlan: {
+              id: planId,
+              tenantId: principal.tenantId,
+              siteId,
+              site: accessWhere(principal),
+            },
+          },
+          select: { verifiedObjectKey: true, mediaType: true },
+        });
+        return file?.verifiedObjectKey
+          ? { objectKey: file.verifiedObjectKey, mediaType: file.mediaType }
+          : null;
+      }
+      const record = await prisma.allocationPlan.findFirst({
         where: {
           id: planId,
           siteId,
@@ -111,9 +168,14 @@ export function createPrismaAllocationPlanStore(
         },
         select: { objectKey: true, mediaType: true },
       });
+      return record?.objectKey && record.mediaType
+        ? { objectKey: record.objectKey, mediaType: record.mediaType }
+        : null;
     },
     async createBatch(input) {
       return prisma.$transaction(async (transaction) => {
+        if (input.grouped)
+          await transaction.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.principal.tenantId + input.keyDigest}, 0))::text`;
         const previous = await transaction.allocationPlanUploadBatch.findUnique(
           {
             where: {
@@ -122,16 +184,11 @@ export function createPrismaAllocationPlanStore(
                 keyDigest: input.keyDigest,
               },
             },
-            include: { uploads: { include: uploadInclude } },
+            include: {
+              uploads: { orderBy: { position: 'asc' }, include: uploadInclude },
+            },
           },
         );
-        if (previous)
-          return previous.requestDigest === input.requestDigest
-            ? {
-                status: 'replayed' as const,
-                uploads: previous.uploads.map(toUpload),
-              }
-            : { status: 'conflict' as const };
         const membership = await transaction.membership.findUnique({
           where: { id: input.principal.membershipId },
           select: { userId: true, tenantId: true, roleId: true },
@@ -146,6 +203,13 @@ export function createPrismaAllocationPlanStore(
           where: { ...accessWhere(input.principal), id: input.siteId },
         });
         if (site !== 1) return { status: 'forbidden' as const };
+        if (previous)
+          return previous.requestDigest === input.requestDigest
+            ? {
+                status: 'replayed' as const,
+                uploads: previous.uploads.map(toUpload),
+              }
+            : { status: 'conflict' as const };
         const batch = await transaction.allocationPlanUploadBatch.create({
           data: {
             id: randomUUID(),
@@ -153,11 +217,13 @@ export function createPrismaAllocationPlanStore(
             siteId: input.siteId,
             keyDigest: input.keyDigest,
             requestDigest: input.requestDigest,
+            grouped: input.grouped ?? false,
           },
         });
         await transaction.allocationPlanUpload.createMany({
-          data: input.uploads.map((upload) => ({
+          data: input.uploads.map((upload, position) => ({
             ...upload,
+            position,
             batchId: batch.id,
             tenantId: input.principal.tenantId,
             siteId: input.siteId,
@@ -168,7 +234,9 @@ export function createPrismaAllocationPlanStore(
         const created =
           await transaction.allocationPlanUploadBatch.findUniqueOrThrow({
             where: { id: batch.id },
-            include: { uploads: { include: uploadInclude } },
+            include: {
+              uploads: { orderBy: { position: 'asc' }, include: uploadInclude },
+            },
           });
         return { status: 'created', uploads: created.uploads.map(toUpload) };
       });
@@ -204,6 +272,7 @@ export function createPrismaAllocationPlanStore(
             siteId: upload.siteId,
             uploadedById: principal.userId,
             objectKey: finalObjectKey,
+            name: upload.filename,
             filename: upload.filename,
             mediaType: upload.mediaType,
             byteSize: upload.byteSize,
@@ -213,7 +282,14 @@ export function createPrismaAllocationPlanStore(
         });
         await transaction.allocationPlanUpload.update({
           where: { id: upload.id },
-          data: { status: 'COMPLETED', allocationPlanId: plan.id },
+          data: {
+            status: 'COMPLETED',
+            allocationPlanId: plan.id,
+            groupedPlanId: plan.id,
+            position: 0,
+            verifiedObjectKey: finalObjectKey,
+            verifiedAt: new Date(),
+          },
         });
         if (activityEnabled)
           await transaction.activity.create({
