@@ -46,6 +46,7 @@ import { ResetPassword } from './auth/ResetPassword.js';
 import { AboutYou } from './onboarding/AboutYou.js';
 import { OnboardingStart } from './onboarding/OnboardingStart.js';
 import { VerifyEmail } from './onboarding/VerifyEmail.js';
+import { MicrosoftEmail } from './onboarding/MicrosoftEmail.js';
 import { PlanSelection } from './onboarding/PlanSelection.js';
 import { OrganizationProfile } from './onboarding/OrganizationProfile.js';
 import { Discovery } from './onboarding/Discovery.js';
@@ -431,6 +432,7 @@ export function App({
       />
     );
   }
+  if (currentPath === '/onboarding/microsoft-email') return <MicrosoftEmail />;
   if (currentPath === '/onboarding') {
     return (
       <OnboardingStart

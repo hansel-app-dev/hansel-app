@@ -57,6 +57,8 @@ import {
 } from './auth/external-login.js';
 import { createPrismaExternalLoginStore } from './auth/prisma-external-login-store.js';
 import { createOpenIdProviderAdapter } from './auth/openid-provider.js';
+import { createMicrosoftProviderAdapter } from './auth/microsoft-provider.js';
+import { createMicrosoftSignup } from './auth/microsoft-signup.js';
 import { createAppleClientSecret } from './auth/apple-client-secret.js';
 import { createCoverImageRoutes } from './sites/cover-image.js';
 import {
@@ -229,17 +231,27 @@ const authentication: AuthenticationModule = {
     logger.error(name, { correlationId: randomUUID() });
   },
 };
+const microsoftSignup = createMicrosoftSignup({ prisma, digestKey: config.verificationDigestKey, sendVerificationCode, now: () => new Date(), recordEvent: name => { logger.info(name, { correlationId: randomUUID() }); } });
+const cleanupMicrosoftSignup = () => { void microsoftSignup.cleanup().catch(() => { logger.error('microsoft_signup_cleanup_failed', { correlationId: randomUUID() }); }); };
+cleanupMicrosoftSignup();
+const microsoftCleanup = setInterval(cleanupMicrosoftSignup, 60 * 60_000);
+microsoftCleanup.unref();
 if (config.externalAuthEnabled && config.externalAuth) {
   const externalSecurity = createExternalAuthSecurity(
     config.externalAuth.transactionKey,
   );
   const { google, microsoft, apple } = config.externalAuth;
+  if (microsoft) {
+    authentication.microsoftSignup = microsoftSignup;
+    authentication.createOnboardingCsrfProof = credential => security.createOnboardingCsrfProof(credential);
+  }
   const callbackUri = (provider: ExternalProvider): string => {
     const uri = config.externalAuth?.[provider]?.callbackUri;
     if (!uri) throw new Error('Provider unavailable');
     return uri;
   };
   const externalLogin = createExternalLogin({
+    ...(microsoft ? { startMicrosoftSignup: (input: Parameters<typeof microsoftSignup.start>[0]) => microsoftSignup.start(input) } : {}),
     ...externalSecurity,
     ...createPrismaExternalLoginStore(prisma),
     providers: {
@@ -256,12 +268,9 @@ if (config.externalAuthEnabled && config.externalAuth) {
         : {}),
       ...(microsoft
         ? {
-            microsoft: createOpenIdProviderAdapter({
-              issuer: `https://login.microsoftonline.com/${microsoft.tenantId}/v2.0`,
+            microsoft: createMicrosoftProviderAdapter({
               clientId: microsoft.clientId,
               clientSecret: microsoft.clientSecret,
-              scope: 'openid email profile',
-              usePkce: true,
             }),
           }
         : {}),
@@ -806,6 +815,7 @@ const allocationCleanupTimer = setInterval(() => {
 allocationCleanupTimer.unref();
 
 function shutdown(signal: string): void {
+  clearInterval(microsoftCleanup);
   clearInterval(coverCleanupTimer);
   clearInterval(allocationCleanupTimer);
   siteInvitationWorker.stop();

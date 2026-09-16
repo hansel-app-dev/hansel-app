@@ -163,10 +163,12 @@ export function loadConfig(
     if (
       allowedOrigin.startsWith('http:') &&
       (allowedOrigin !== 'http://localhost:5173' ||
-        enabledProviders.some((value) => value !== 'google'))
+        enabledProviders.some(
+          (value) => !['google', 'microsoft'].includes(value),
+        ))
     )
       throw new Error(
-        'Only Google supports the registered localhost development origin',
+        'Only Google and Microsoft support the registered localhost development origin',
       );
     externalAuth = { transactionKey };
     if (enabledProviders.includes('apple')) {
@@ -218,7 +220,17 @@ export function loadConfig(
         clientSecret: required(environment, 'GOOGLE_CLIENT_SECRET'),
         callbackUri: new URL('/auth/callback/google', allowedOrigin).toString(),
       };
-    if (enabledProviders.includes('microsoft'))
+    if (enabledProviders.includes('microsoft')) {
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          required(environment, 'MICROSOFT_CLIENT_ID'),
+        )
+      )
+        throw new Error('MICROSOFT_CLIENT_ID must be an application UUID');
+      if (required(environment, 'MICROSOFT_TENANT_ID') !== 'common')
+        throw new Error(
+          'MICROSOFT_TENANT_ID must be common for both account audiences',
+        );
       externalAuth.microsoft = {
         clientId: required(environment, 'MICROSOFT_CLIENT_ID'),
         clientSecret: required(environment, 'MICROSOFT_CLIENT_SECRET'),
@@ -228,6 +240,7 @@ export function loadConfig(
           allowedOrigin,
         ).toString(),
       };
+    }
   }
   const base = {
     allowedOrigin,

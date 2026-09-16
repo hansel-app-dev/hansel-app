@@ -53,6 +53,41 @@ function dependencies() {
 }
 
 describe('external login [user-login REQ-013..REQ-015]', () => {
+  it('preserves a new Microsoft identity in pending signup, never granting a session [microsoft-local-auth REQ-004]', async () => {
+    const deps = dependencies();
+    deps.consumeTransaction.mockResolvedValue({
+      intent: 'onboarding',
+      termsVersion: '2026-08-27',
+      privacyVersion: '2026-08-27',
+      redirectUri: 'https://app.example/auth/callback/microsoft',
+      nonceDigest: 'digest:nonce',
+      pkceVerifierDigest: 'digest:verifier',
+      sealedSecrets: 'sealed',
+    });
+    deps.providers.microsoft.exchange.mockResolvedValue({
+      subject: 'immutable',
+      emailHint: 'suggestion@example.com',
+      verifiedEmail: 'must-not-trust@example.com',
+    });
+    deps.completeIdentityLogin.mockResolvedValue('email-signup-required');
+    const startMicrosoftSignup = vi.fn().mockResolvedValue('pending');
+    const result = await createExternalLogin({
+      ...deps,
+      startMicrosoftSignup,
+    }).callback(
+      'microsoft',
+      new URL(
+        'https://app.example/auth/callback/microsoft?state=state&code=code',
+      ),
+    );
+    expect(result).toEqual({
+      status: 'microsoft-email-required',
+      pendingCredential: 'pending',
+    });
+    expect(deps.completeIdentityLogin.mock.calls[0]?.[0]).not.toHaveProperty(
+      'verifiedEmail',
+    );
+  });
   it('fails closed for disabled providers [google-local-auth REQ-001]', async () => {
     const deps = dependencies();
     const flow = createExternalLogin({ ...deps, providers: {} });

@@ -1,0 +1,106 @@
+# @spec microsoft-local-auth REQ-004..REQ-008
+state:
+  get:
+    summary: Read browser-bound pending Microsoft signup (private, no-store)
+    security: [{ microsoftPending: [] }]
+    responses:
+      '200':
+        description: Editable contact email suggestion and current delivery state
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, sent, resendAfter]
+              properties:
+                email: { type: string }
+                sent: { type: boolean }
+                resendAfter: { type: integer, minimum: 0 }
+      '401':
+        {
+          description: Pending signup absent or expired; restart Microsoft signup,
+        }
+send:
+  post:
+    summary: Send or resend a browser-bound Microsoft contact verification code
+    description: Requires exact same-origin request and a 30-minute HttpOnly pending cookie. Sixty-second cooldown and five sends per mailbox per hour. Does not create a User.
+    security: [{ microsoftPending: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [email]
+            properties:
+              email: { type: string, format: email, maxLength: 254 }
+    responses:
+      '200': { description: Code delivered }
+      '400': { description: Invalid contact email }
+      '401': { description: Restart Microsoft signup }
+      '403': { description: Invalid origin }
+      '429': { description: Wait before retrying }
+      '503': { description: Email delivery unavailable; no journey advancement }
+verify:
+  post:
+    summary: Consume a Microsoft-specific code and atomically create a new identity
+    security: [{ microsoftPending: [] }]
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [code]
+            properties:
+              code: { type: string, pattern: '^\d{6}$' }
+    responses:
+      '200':
+        {
+          description: Restricted onboarding cookies issued; destination is /onboarding/about-you,
+        }
+      '400':
+        {
+          description: Invalid,
+          expired,
+          or exhausted code; or account conflict. No account disclosure.,
+        }
+      '401': { description: Restart Microsoft signup }
+      '403': { description: Invalid origin }
+native:
+  get:
+    summary: Native Microsoft contact email and verification form
+    responses:
+      '200': { description: Accessible HTML form with no-store caching }
+nativeSubmit:
+  post:
+    summary: Native same-origin send or verify submission (authentication WAF route group)
+    requestBody:
+      content:
+        application/x-www-form-urlencoded:
+          schema:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [action, email]
+                properties:
+                  action: { const: send }
+                  email: { type: string, format: email, maxLength: 254 }
+              - type: object
+                additionalProperties: false
+                required: [action, code]
+                properties:
+                  action: { const: verify }
+                  code: { type: string, pattern: '^\d{6}$' }
+    responses:
+      '303': { description: Server-selected next step }
+      '400': { description: Safe retry guidance }
+      '403': { description: Invalid origin }
+components:
+  securitySchemes:
+    microsoftPending:
+      type: apiKey
+      in: cookie
+      name: hansel_microsoft_pending

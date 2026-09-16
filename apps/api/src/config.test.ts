@@ -85,10 +85,31 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
     expect(() => loadConfig(values)).toThrow('GOOGLE_CLIENT_SECRET');
     expect(() =>
       loadConfig({ ...values, ALLOWED_ORIGIN: 'http://127.0.0.1:5173' }),
-    ).toThrow('Only Google');
+    ).toThrow('registered localhost');
     expect(() =>
       loadConfig({ ...values, EXTERNAL_AUTH_PROVIDERS: 'microsoft' }),
-    ).toThrow('Only Google');
+    ).toThrow('MICROSOFT_CLIENT_ID');
+  });
+
+  it('enables both Microsoft audiences only at the exact localhost origin [microsoft-local-auth REQ-001, REQ-002]', () => {
+    const values = {
+      ...required,
+      EXTERNAL_AUTH_ENABLED: 'true',
+      EXTERNAL_AUTH_PROVIDERS: 'microsoft',
+      EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+      MICROSOFT_CLIENT_ID: '69f0c1de-39e5-44c8-ae49-c7875e7f3d8f',
+      MICROSOFT_CLIENT_SECRET: 'secret',
+      MICROSOFT_TENANT_ID: 'common',
+    };
+    expect(loadConfig(values).externalAuth?.microsoft?.callbackUri).toBe(
+      'http://localhost:5173/auth/callback/microsoft',
+    );
+    expect(() =>
+      loadConfig({ ...values, MICROSOFT_TENANT_ID: 'organizations' }),
+    ).toThrow('MICROSOFT_TENANT_ID');
+    expect(() =>
+      loadConfig({ ...values, MICROSOFT_CLIENT_ID: 'invalid' }),
+    ).toThrow('MICROSOFT_CLIENT_ID');
   });
 
   it('reads valid environment values', () => {
@@ -272,9 +293,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
       GOOGLE_CLIENT_ID: 'google-id',
       GOOGLE_CLIENT_SECRET: 'google-secret',
-      MICROSOFT_CLIENT_ID: 'microsoft-id',
+      MICROSOFT_CLIENT_ID: '69f0c1de-39e5-44c8-ae49-c7875e7f3d8f',
       MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
-      MICROSOFT_TENANT_ID: 'tenant-id',
+      MICROSOFT_TENANT_ID: 'common',
       APPLE_CLIENT_ID: 'apple-id',
       APPLE_TEAM_ID: 'team-id',
       APPLE_KEY_ID: 'key-id',
@@ -291,9 +312,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
           callbackUri: 'https://app.dev.example/auth/callback/google',
         },
         microsoft: {
-          clientId: 'microsoft-id',
+          clientId: '69f0c1de-39e5-44c8-ae49-c7875e7f3d8f',
           clientSecret: 'microsoft-secret',
-          tenantId: 'tenant-id',
+          tenantId: 'common',
           callbackUri: 'https://app.dev.example/auth/callback/microsoft',
         },
         apple: {
@@ -320,9 +341,9 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
         EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
         GOOGLE_CLIENT_ID: 'google-id',
         GOOGLE_CLIENT_SECRET: 'google-secret',
-        MICROSOFT_CLIENT_ID: 'microsoft-id',
+        MICROSOFT_CLIENT_ID: '69f0c1de-39e5-44c8-ae49-c7875e7f3d8f',
         MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
-        MICROSOFT_TENANT_ID: 'tenant-id',
+        MICROSOFT_TENANT_ID: 'common',
         APPLE_CLIENT_ID: 'apple-id',
         APPLE_TEAM_ID: 'team-id',
         APPLE_KEY_ID: 'key-id',
@@ -348,7 +369,7 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
         EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
         GOOGLE_CLIENT_ID: 'google-id',
         GOOGLE_CLIENT_SECRET: 'google-secret',
-        MICROSOFT_CLIENT_ID: 'microsoft-id',
+        MICROSOFT_CLIENT_ID: '69f0c1de-39e5-44c8-ae49-c7875e7f3d8f',
         MICROSOFT_CLIENT_SECRET: 'microsoft-secret',
         APPLE_CLIENT_ID: 'apple-id',
         APPLE_TEAM_ID: 'team-id',

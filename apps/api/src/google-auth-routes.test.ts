@@ -58,6 +58,11 @@ describe('Google routes [google-local-auth REQ-001, REQ-003, REQ-005]', () => {
     expect(result.text).toContain('role="alert"');
     expect(result.text).toContain('temporarily unavailable');
   });
+  it('explains rejected provider sign-in on the native page [microsoft-local-auth REQ-009]', async () => {
+    const { app } = setup();
+    const result = await request(app).get('/login?error=authentication_failed').expect(200);
+    expect(result.text).toContain('Use the sign-in method you used to create your account.');
+  });
   it('requires same-origin consent before onboarding and sets an HttpOnly binding', async () => {
     const { app, auth } = setup();
     await request(app)

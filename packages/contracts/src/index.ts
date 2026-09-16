@@ -4,6 +4,9 @@ import countries from 'i18n-iso-countries';
 import englishCountries from 'i18n-iso-countries/langs/en.json' with { type: 'json' };
 
 export const healthResponseSchema = z.object({ status: z.literal('ok') });
+/** @spec microsoft-local-auth REQ-009 */
+export const externalAuthenticationFailureMessage =
+  "We couldn't sign you in with this provider. Use the sign-in method you used to create your account. If you signed up with email and password, use those details below—linking Google or Microsoft to an existing account isn't supported yet. New to Hansel? Choose Create an account.";
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
 export const loginRequestSchema = z

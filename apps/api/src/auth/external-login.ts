@@ -19,7 +19,7 @@ export interface ProviderAdapter {
     state: string;
     nonce: string;
     codeVerifier: string;
-  }): Promise<{ subject: string; verifiedEmail?: string }>;
+  }): Promise<{ subject: string; verifiedEmail?: string; emailHint?: string }>;
 }
 
 interface ExternalTransaction {
@@ -38,6 +38,12 @@ interface Completion {
 }
 
 interface ExternalLoginDependencies {
+  startMicrosoftSignup?(input: {
+    subject: string;
+    emailHint?: string;
+    termsVersion: string;
+    privacyVersion: string;
+  }): Promise<string>;
   providers: Partial<Record<ExternalProvider, ProviderAdapter>>;
   callbackUri(provider: ExternalProvider): string;
   createTransaction(input: {
@@ -88,6 +94,7 @@ interface ExternalLoginDependencies {
 }
 
 export type ExternalLoginResult =
+  | { status: 'microsoft-email-required'; pendingCredential: string }
   | { status: 'rejected' }
   | { status: 'email-signup-required' }
   | {
@@ -195,7 +202,7 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
               intent: transaction.intent,
               termsVersion: externalPolicyVersion,
               privacyVersion: externalPolicyVersion,
-              ...(identity.verifiedEmail
+              ...(provider !== 'microsoft' && identity.verifiedEmail
                 ? { verifiedEmail: identity.verifiedEmail }
                 : {}),
             }
@@ -211,7 +218,20 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
           dependencies.digestOnboardingCredential(onboardingCredential),
         onboardingExpiresAt: new Date(now.getTime() + 15 * 60 * 1_000),
       });
-      if (completion === 'email-signup-required') return { status: completion };
+      if (completion === 'email-signup-required') {
+        if (provider === 'microsoft') {
+          if (!dependencies.startMicrosoftSignup) return { status: 'rejected' };
+          const pendingCredential = await dependencies.startMicrosoftSignup({
+            subject: identity.subject,
+            ...(identity.emailHint ? { emailHint: identity.emailHint } : {}),
+            termsVersion: externalPolicyVersion,
+            privacyVersion: externalPolicyVersion,
+          });
+          dependencies.recordEvent('microsoft_signup_pending');
+          return { status: 'microsoft-email-required', pendingCredential };
+        }
+        return { status: completion };
+      }
       if (!completion) {
         dependencies.recordEvent('external_login_rejected');
         return { status: 'rejected' };

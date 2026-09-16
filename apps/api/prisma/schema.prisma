@@ -135,6 +135,31 @@ model User {
   updatedAt                     DateTime                             @updatedAt
 }
 
+// @spec microsoft-local-auth REQ-004..REQ-008
+model MicrosoftPendingSignup {
+  credentialDigest String @id @db.VarChar(64)
+  subject String @db.VarChar(512)
+  termsVersion String @db.VarChar(64)
+  privacyVersion String @db.VarChar(64)
+  consentedAt DateTime
+  expiresAt DateTime
+  email String?
+  codeDigest String? @db.VarChar(64)
+  codeExpiresAt DateTime?
+  sentAt DateTime?
+  delivered Boolean @default(false)
+  failedAttempts Int @default(0)
+  @@index([expiresAt])
+}
+
+model MicrosoftVerificationSend {
+  id String @id @default(uuid()) @db.Uuid
+  emailDigest String @db.VarChar(64)
+  sentAt DateTime
+  @@index([emailDigest, sentAt])
+  @@index([sentAt])
+}
+
 model ExternalIdentity {
   id        String               @id @default(uuid()) @db.Uuid
   userId    String               @db.Uuid

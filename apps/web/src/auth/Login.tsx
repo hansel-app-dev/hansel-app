@@ -43,7 +43,7 @@ export function Login({ login, onLoggedIn }: LoginProps) {
       'error',
     );
     if (callbackError === 'authentication_failed')
-      return "We couldn't log you in. Check your details and try again.";
+      return externalAuthenticationFailureMessage;
     if (callbackError === 'provider_unavailable')
       return 'Login is temporarily unavailable. Please try again.';
     return '';
@@ -126,3 +126,4 @@ export function Login({ login, onLoggedIn }: LoginProps) {
     </AuthFormLayout>
   );
 }
+import { externalAuthenticationFailureMessage } from '@hansel/contracts';

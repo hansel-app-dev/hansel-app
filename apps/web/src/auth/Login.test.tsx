@@ -15,11 +15,11 @@ afterEach(() => {
 });
 
 describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
-  it('shows only the generic result after a rejected provider callback', () => {
+  it('explains provider rejection without revealing account existence [microsoft-local-auth REQ-009]', () => {
     window.history.replaceState({}, '', '/login?error=authentication_failed');
     render(<Login login={vi.fn()} />);
     expect(screen.getByRole('alert')).toHaveTextContent(
-      "We couldn't log you in. Check your details and try again.",
+      "Use the sign-in method you used to create your account.",
     );
     expect(screen.queryByText('authentication_failed')).not.toBeInTheDocument();
   });

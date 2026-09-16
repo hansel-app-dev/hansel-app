@@ -1,4 +1,6 @@
 import compression from 'compression';
+import { externalAuthenticationFailureMessage } from '@hansel/contracts';
+import { microsoftPendingCookie, registerMicrosoftSignupRoutes } from './auth/microsoft-signup-routes.js';
 import { registerSignDocumentRoutes } from './sites/sign-document-routes.js';
 import { registerSignPhotoRoutes } from './sites/sign-photo-routes.js';
 import { registerSignCommentRoutes } from './sites/sign-comment-routes.js';
@@ -233,6 +235,8 @@ export interface DashboardModule {
 }
 
 export interface AuthenticationModule {
+  microsoftSignup?: Parameters<typeof registerMicrosoftSignupRoutes>[1]['signup'];
+  createOnboardingCsrfProof?(credential: string): string;
   login(input: LoginRequest): Promise<PasswordLoginResult>;
   requestPasswordRecovery?(
     input: PasswordRecoveryRequest,
@@ -665,6 +669,10 @@ export function createApp(
         );
       }
     };
+    if (config.externalAuthEnabled && authentication.microsoftSignup && authentication.createOnboardingCsrfProof) {
+      const csrf = authentication.createOnboardingCsrfProof.bind(authentication);
+      registerMicrosoftSignupRoutes(app, { signup: authentication.microsoftSignup, allowedOrigin: config.allowedOrigin, complete: (response, credential) => { writeAuthenticationCookies(response, { status: 'accepted', destination: '/onboarding/about-you', onboardingSession: { onboardingCredential: credential, csrfProof: csrf(credential) } }); } });
+    }
     const isExternalProvider = (value: string): value is ExternalProvider =>
       externalProviders.some((provider) => provider === value) && Boolean(authentication.enabledProviders?.some((provider) => provider === value));
     app.get('/api/auth/providers', (_request, response) => {
@@ -741,6 +749,11 @@ export function createApp(
           provider,
           parameters,
         );
+        if (result.status === 'microsoft-email-required') {
+          response.cookie(microsoftPendingCookie, result.pendingCredential, { httpOnly: true, sameSite: 'lax', secure, maxAge: 30 * 60_000, path: '/' });
+          response.redirect(303, '/onboarding/microsoft-email');
+          return;
+        }
         if (result.status === 'email-signup-required') {
           response.redirect(303, '/onboarding?error=google_email_required');
           return;
@@ -799,7 +812,7 @@ export function createApp(
             request.query.error === 'provider_unavailable'
               ? 'Login is temporarily unavailable. Please try again.'
               : request.query.error === 'authentication_failed'
-                ? "We couldn't log you in. Check your details and try again."
+                ? externalAuthenticationFailureMessage
                 : '',
             request.query.password_reset === 'success'
               ? 'Your password has been reset. Log in with your new password.'

@@ -3,6 +3,16 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /api/auth/microsoft/signup:
+    $ref: './microsoft-signup.openapi.yaml#/state'
+  /api/auth/microsoft/signup/send:
+    $ref: './microsoft-signup.openapi.yaml#/send'
+  /api/auth/microsoft/signup/verify:
+    $ref: './microsoft-signup.openapi.yaml#/verify'
+  /onboarding/microsoft-email:
+    $ref: './microsoft-signup.openapi.yaml#/native'
+  /auth/microsoft/signup:
+    $ref: './microsoft-signup.openapi.yaml#/nativeSubmit'
   /api/sites/{siteId}/signs/{signId}/comments:
     $ref: './sign-comments.openapi.yaml#/collection'
   /api/sites/{siteId}/signs/{signId}/comments/people:
@@ -1478,6 +1488,10 @@ components:
                   - /login?error=authentication_failed
                   - /login?error=provider_unavailable
   securitySchemes:
+    microsoftPending:
+      type: apiKey
+      in: cookie
+      name: hansel_microsoft_pending
     onboardingContinuation:
       type: apiKey
       in: cookie
