@@ -1,7 +1,7 @@
 # Feature: Google login and onboarding on localhost
 
 - ID: `google-local-auth`
-- Status: approved
+- Status: `approved`
 - Approval: User approved implementation on 2026-09-16.
 - Clarification approved: On 2026-09-16 the user selected the existing email-signup flow when Google supplies no verified usable email; no separate Google email-verification flow is required.
 - Owner: Hansel product
