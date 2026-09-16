@@ -60,13 +60,10 @@ describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
       'current-password',
     );
     for (const provider of ['Google', 'Microsoft', 'Apple']) {
-      const providerLink = screen.getByRole('link', {
+      const providerLink = screen.getByRole('button', {
         name: `Continue with ${provider}`,
       });
-      expect(providerLink).toHaveAttribute(
-        'href',
-        `/auth/start/${provider.toLowerCase()}?intent=login`,
-      );
+      expect(providerLink).toBeDisabled();
       expect(providerLink.querySelector('img')).toHaveAttribute(
         'src',
         `/assets/${provider.toLowerCase()}-logo.svg`,

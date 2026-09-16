@@ -5,12 +5,8 @@ import type {
 } from '@hansel/contracts';
 import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
-import {
-  AuthFormLayout,
-  Button,
-  ProviderAction,
-  TextField,
-} from '../design-system/index.js';
+import { AuthFormLayout, Button, TextField } from '../design-system/index.js';
+import { ExternalProviderActions } from '../auth/ExternalProviderActions.js';
 
 const policyVersion = '2026-08-27';
 
@@ -45,8 +41,6 @@ const accountSchema = yup
   .required();
 
 type AccountForm = yup.InferType<typeof accountSchema>;
-
-const providers = ['google', 'microsoft', 'apple'] as const;
 
 export interface OnboardingStartProps {
   createAccount: (
@@ -105,11 +99,16 @@ export function OnboardingStart({
         </div>
       }
       heading="Let's get started"
-      providerActions={providers.map((provider) => (
-        <ProviderAction key={provider} provider={provider} />
-      ))}
+      providerActions={<ExternalProviderActions intent="onboarding" />}
       providerLabel="or"
     >
+      {new URLSearchParams(window.location.search).get('error') ===
+      'google_email_required' ? (
+        <p role="alert">
+          Google didn’t provide a verified email. Create your account with email
+          below and verify your email address.
+        </p>
+      ) : null}
       <form noValidate onSubmit={submit}>
         <TextField
           autoComplete="email"

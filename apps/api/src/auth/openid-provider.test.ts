@@ -2,6 +2,45 @@ import { describe, expect, it, vi } from 'vitest';
 import { createOpenIdProviderAdapter } from './openid-provider.js';
 
 describe('OpenID provider adapter [user-login REQ-013..REQ-015]', () => {
+  it.each([true, false, 'true', undefined])(
+    'only accepts boolean verified usable email (%s) [google-local-auth REQ-004]',
+    async (verified) => {
+      const adapter = createOpenIdProviderAdapter(
+        {
+          issuer: 'https://accounts.google.com',
+          clientId: 'id',
+          clientSecret: 'secret',
+          scope: 'openid email profile',
+          usePkce: true,
+        },
+        {
+          discover: vi.fn().mockResolvedValue({}),
+          calculateChallenge: vi.fn(),
+          buildUrl: vi.fn(),
+          exchangeCode: vi
+            .fn()
+            .mockResolvedValue({
+              claims: () => ({
+                sub: 'subject',
+                email: 'user@example.com',
+                email_verified: verified,
+              }),
+            }),
+        },
+      );
+      const result = await adapter.exchange({
+        callbackUrl: new URL('http://localhost:5173/auth/callback/google'),
+        redirectUri: 'http://localhost:5173/auth/callback/google',
+        state: 'state',
+        nonce: 'nonce',
+        codeVerifier: 'verifier',
+      });
+      expect(result).toEqual({
+        subject: 'subject',
+        ...(verified === true ? { verifiedEmail: 'user@example.com' } : {}),
+      });
+    },
+  );
   it('builds a state, nonce, exact-callback, and S256 PKCE authorization request', async () => {
     const configuration = {} as never;
     const dependencies = {

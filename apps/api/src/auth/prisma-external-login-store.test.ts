@@ -1,7 +1,102 @@
 import { describe, expect, it, vi } from 'vitest';
+import { Prisma } from '@prisma/client';
 import { createPrismaExternalLoginStore } from './prisma-external-login-store.js';
 
 describe('Prisma external login store [user-login REQ-011, REQ-013, REQ-014]', () => {
+  it('rejects uniqueness/race conflicts without swallowing outages [google-local-auth REQ-003, REQ-004]', async () => {
+    const input = {
+      provider: 'google' as const,
+      subject: 'subject',
+      now: new Date(),
+      accessCredentialDigest: 'a',
+      accessExpiresAt: new Date(),
+      refreshCredentialDigest: 'r',
+      absoluteExpiresAt: new Date(),
+      onboardingCredentialDigest: 'o',
+      onboardingExpiresAt: new Date(),
+    };
+    for (const code of ['P2002', 'P2034']) {
+      const store = createPrismaExternalLoginStore({
+        $transaction: vi
+          .fn()
+          .mockRejectedValue(
+            new Prisma.PrismaClientKnownRequestError('conflict', {
+              code,
+              clientVersion: 'test',
+            }),
+          ),
+      } as never);
+      await expect(store.completeIdentityLogin(input)).resolves.toBeNull();
+    }
+    const store = createPrismaExternalLoginStore({
+      $transaction: vi.fn().mockRejectedValue(new Error('outage')),
+    } as never);
+    await expect(store.completeIdentityLogin(input)).rejects.toThrow('outage');
+  });
+  it('creates a new verified identity atomically, never for login [google-local-auth REQ-003, REQ-004]', async () => {
+    const transaction = {
+      externalIdentity: { findUnique: vi.fn().mockResolvedValue(null) },
+      user: { create: vi.fn().mockResolvedValue({ id: 'new-user' }) },
+    };
+    const store = createPrismaExternalLoginStore({
+      $transaction: vi.fn(
+        async (callback: (value: typeof transaction) => Promise<unknown>) =>
+          callback(transaction),
+      ),
+    } as never);
+    const input = {
+      provider: 'google' as const,
+      subject: 'new-subject',
+      now: new Date(),
+      accessCredentialDigest: 'access',
+      accessExpiresAt: new Date(),
+      refreshCredentialDigest: 'refresh',
+      absoluteExpiresAt: new Date(),
+      onboardingCredentialDigest: 'continuation',
+      onboardingExpiresAt: new Date(),
+    };
+    await expect(store.completeIdentityLogin(input)).resolves.toBeNull();
+    expect(transaction.user.create).not.toHaveBeenCalled();
+    await expect(
+      store.completeIdentityLogin({
+        ...input,
+        intent: 'onboarding',
+        termsVersion: '2026-08-27',
+        privacyVersion: '2026-08-27',
+      }),
+    ).resolves.toBe('email-signup-required');
+    expect(transaction.user.create).not.toHaveBeenCalled();
+    await expect(
+      store.completeIdentityLogin({
+        ...input,
+        intent: 'onboarding',
+        termsVersion: '2026-08-27',
+        privacyVersion: '2026-08-27',
+        verifiedEmail: 'new@example.com',
+      }),
+    ).resolves.toEqual({
+      destination: '/onboarding/about-you',
+      sessionKind: 'onboarding',
+    });
+    expect(transaction.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'new@example.com',
+          emailVerifiedAt: input.now,
+          externalIdentities: {
+            create: { provider: 'GOOGLE', subject: 'new-subject' },
+          },
+          consents: expect.any(Object),
+          journeys: {
+            create: {
+              entryPath: 'NEW_ORGANIZATION',
+              currentStep: 'PERSONAL_PROFILE',
+            },
+          },
+        }),
+      }),
+    );
+  });
   it('persists only digests and encrypted transient provider secrets', async () => {
     const create = vi.fn();
     const store = createPrismaExternalLoginStore({

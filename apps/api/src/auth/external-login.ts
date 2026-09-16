@@ -4,8 +4,9 @@ import type { LoginDestination } from '@hansel/contracts';
 export const externalProviders = ['google', 'microsoft', 'apple'] as const;
 export type ExternalProvider = (typeof externalProviders)[number];
 export type ExternalIntent = 'login' | 'onboarding';
+export const externalPolicyVersion = '2026-08-27';
 
-interface ProviderAdapter {
+export interface ProviderAdapter {
   buildAuthorizationUrl(input: {
     state: string;
     nonce: string;
@@ -18,10 +19,12 @@ interface ProviderAdapter {
     state: string;
     nonce: string;
     codeVerifier: string;
-  }): Promise<{ subject: string }>;
+  }): Promise<{ subject: string; verifiedEmail?: string }>;
 }
 
 interface ExternalTransaction {
+  termsVersion?: string | null;
+  privacyVersion?: string | null;
   intent: ExternalIntent;
   redirectUri: string;
   nonceDigest: string;
@@ -35,7 +38,7 @@ interface Completion {
 }
 
 interface ExternalLoginDependencies {
-  providers: Record<ExternalProvider, ProviderAdapter>;
+  providers: Partial<Record<ExternalProvider, ProviderAdapter>>;
   callbackUri(provider: ExternalProvider): string;
   createTransaction(input: {
     provider: ExternalProvider;
@@ -46,6 +49,8 @@ interface ExternalLoginDependencies {
     sealedSecrets: string;
     redirectUri: string;
     expiresAt: Date;
+    termsVersion?: string;
+    privacyVersion?: string;
   }): Promise<void>;
   consumeTransaction(input: {
     provider: ExternalProvider;
@@ -55,6 +60,10 @@ interface ExternalLoginDependencies {
   completeIdentityLogin(input: {
     provider: ExternalProvider;
     subject: string;
+    intent?: ExternalIntent;
+    verifiedEmail?: string;
+    termsVersion?: string;
+    privacyVersion?: string;
     now: Date;
     accessCredentialDigest: string;
     accessExpiresAt: Date;
@@ -62,7 +71,7 @@ interface ExternalLoginDependencies {
     absoluteExpiresAt: Date;
     onboardingCredentialDigest: string;
     onboardingExpiresAt: Date;
-  }): Promise<Completion | null>;
+  }): Promise<Completion | 'email-signup-required' | null>;
   createState(): string;
   createNonce(): string;
   createCodeVerifier(): string;
@@ -80,6 +89,7 @@ interface ExternalLoginDependencies {
 
 export type ExternalLoginResult =
   | { status: 'rejected' }
+  | { status: 'email-signup-required' }
   | {
       status: 'accepted';
       destination: LoginDestination;
@@ -99,6 +109,8 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
       provider: ExternalProvider,
       intent: ExternalIntent,
     ): Promise<string> {
+      const adapter = dependencies.providers[provider];
+      if (!adapter) throw new Error('Provider unavailable');
       const state = dependencies.createState();
       const nonce = dependencies.createNonce();
       const codeVerifier = dependencies.createCodeVerifier();
@@ -107,6 +119,12 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
       await dependencies.createTransaction({
         provider,
         intent,
+        ...(intent === 'onboarding'
+          ? {
+              termsVersion: externalPolicyVersion,
+              privacyVersion: externalPolicyVersion,
+            }
+          : {}),
         stateDigest: dependencies.digest(state),
         nonceDigest: dependencies.digest(nonce),
         pkceVerifierDigest: dependencies.digest(codeVerifier),
@@ -114,9 +132,12 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
         redirectUri,
         expiresAt: new Date(now.getTime() + 10 * 60 * 1_000),
       });
-      const destination = await dependencies.providers[
-        provider
-      ].buildAuthorizationUrl({ state, nonce, codeVerifier, redirectUri });
+      const destination = await adapter.buildAuthorizationUrl({
+        state,
+        nonce,
+        codeVerifier,
+        redirectUri,
+      });
       dependencies.recordEvent('external_login_started');
       return destination;
     },
@@ -126,7 +147,8 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
       callbackUrl: URL,
     ): Promise<ExternalLoginResult> {
       const state = callbackUrl.searchParams.get('state');
-      if (!state || callbackUrl.searchParams.has('error')) {
+      const adapter = dependencies.providers[provider];
+      if (!adapter || !state || callbackUrl.searchParams.has('error')) {
         dependencies.recordEvent('external_login_rejected');
         return { status: 'rejected' };
       }
@@ -136,7 +158,12 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
         stateDigest: dependencies.digest(state),
         now,
       });
-      if (transaction?.intent !== 'login') {
+      if (
+        !transaction ||
+        (transaction.intent !== 'login' &&
+          (transaction.termsVersion !== externalPolicyVersion ||
+            transaction.privacyVersion !== externalPolicyVersion))
+      ) {
         dependencies.recordEvent('external_login_rejected');
         return { status: 'rejected' };
       }
@@ -150,7 +177,7 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
         dependencies.recordEvent('external_login_rejected');
         return { status: 'rejected' };
       }
-      const identity = await dependencies.providers[provider].exchange({
+      const identity = await adapter.exchange({
         callbackUrl,
         redirectUri: transaction.redirectUri,
         state,
@@ -163,6 +190,16 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
       const completion = await dependencies.completeIdentityLogin({
         provider,
         subject: identity.subject,
+        ...(transaction.intent === 'onboarding'
+          ? {
+              intent: transaction.intent,
+              termsVersion: externalPolicyVersion,
+              privacyVersion: externalPolicyVersion,
+              ...(identity.verifiedEmail
+                ? { verifiedEmail: identity.verifiedEmail }
+                : {}),
+            }
+          : {}),
         now,
         accessCredentialDigest:
           dependencies.digestApplicationCredential(accessCredential),
@@ -174,6 +211,7 @@ export function createExternalLogin(dependencies: ExternalLoginDependencies) {
           dependencies.digestOnboardingCredential(onboardingCredential),
         onboardingExpiresAt: new Date(now.getTime() + 15 * 60 * 1_000),
       });
+      if (completion === 'email-signup-required') return { status: completion };
       if (!completion) {
         dependencies.recordEvent('external_login_rejected');
         return { status: 'rejected' };

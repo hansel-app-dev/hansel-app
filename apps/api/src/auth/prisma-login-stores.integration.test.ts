@@ -76,6 +76,65 @@ integration(
   () => {
     afterAll(() => prisma.$disconnect());
 
+    it('atomically creates Google onboarding, rejects email collision and deduplicates races [google-local-auth REQ-003, REQ-004]', async () => {
+      const suffix = randomUUID();
+      const email = `google-onboarding-${suffix}@example.com`;
+      const store = createPrismaExternalLoginStore(prisma);
+      const input = {
+        ...successInput(suffix),
+        provider: 'google' as const,
+        subject: suffix,
+        intent: 'onboarding' as const,
+        verifiedEmail: email,
+        termsVersion: '2026-08-27',
+        privacyVersion: '2026-08-27',
+      };
+      try {
+        await Promise.all([
+          store.completeIdentityLogin(input),
+          store.completeIdentityLogin({
+            ...input,
+            onboardingCredentialDigest: `other-${suffix}`,
+          }),
+        ]);
+        const users = await prisma.user.findMany({
+          where: { email },
+          include: {
+            externalIdentities: true,
+            consents: true,
+            journeys: true,
+            continuation: true,
+            sessionFamilies: true,
+          },
+        });
+        expect(users).toHaveLength(1);
+        expect(users[0]?.externalIdentities).toHaveLength(1);
+        expect(users[0]?.consents).toHaveLength(1);
+        expect(users[0]?.journeys[0]?.currentStep).toBe('PERSONAL_PROFILE');
+        expect(users[0]?.continuation).not.toBeNull();
+        expect(users[0]?.sessionFamilies).toHaveLength(0);
+        await expect(
+          store.completeIdentityLogin({
+            ...input,
+            subject: `collision-${suffix}`,
+          }),
+        ).resolves.toBeNull();
+        expect(
+          await prisma.externalIdentity.count({
+            where: { subject: `collision-${suffix}` },
+          }),
+        ).toBe(0);
+        await expect(
+          store.completeIdentityLogin({ ...input, intent: 'login' }),
+        ).resolves.toEqual({
+          destination: '/onboarding/about-you',
+          sessionKind: 'onboarding',
+        });
+      } finally {
+        await prisma.user.deleteMany({ where: { email } });
+      }
+    });
+
     it('issues a session, evicts the oldest family, and resets failure state atomically', async () => {
       const seeded = await seedUser({ memberships: 1 });
       const tenant = seeded.tenants[0];

@@ -5,13 +5,9 @@ import type { LoginRequest, LoginResponse } from '@hansel/contracts';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import * as yup from 'yup';
-import {
-  AuthFormLayout,
-  Button,
-  ProviderAction,
-  TextField,
-} from '../design-system/index.js';
+import { AuthFormLayout, Button, TextField } from '../design-system/index.js';
 import { LoginAuthenticationError } from '../api.js';
+import { ExternalProviderActions } from './ExternalProviderActions.js';
 
 const loginSchema = yup
   .object({
@@ -29,8 +25,6 @@ const loginSchema = yup
   .required();
 
 type LoginForm = yup.InferType<typeof loginSchema>;
-
-const providers = ['google', 'microsoft', 'apple'] as const;
 
 export interface LoginProps {
   login: (input: LoginRequest) => Promise<LoginResponse>;
@@ -87,13 +81,7 @@ export function Login({ login, onLoggedIn }: LoginProps) {
         </p>
       }
       heading="Log in to your account"
-      providerActions={providers.map((provider) => (
-        <ProviderAction
-          href={`/auth/start/${provider}?intent=login`}
-          key={provider}
-          provider={provider}
-        />
-      ))}
+      providerActions={<ExternalProviderActions intent="login" />}
       providerLabel="or log in with"
     >
       {passwordResetSucceeded ? (

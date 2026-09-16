@@ -30,14 +30,14 @@ interface BaseAppConfig {
 
 export interface ExternalAuthConfig {
   transactionKey: string;
-  google: { clientId: string; clientSecret: string; callbackUri: string };
-  microsoft: {
+  google?: { clientId: string; clientSecret: string; callbackUri: string };
+  microsoft?: {
     clientId: string;
     clientSecret: string;
     tenantId: string;
     callbackUri: string;
   };
-  apple: {
+  apple?: {
     clientId: string;
     teamId: string;
     keyId: string;
@@ -145,48 +145,63 @@ export function loadConfig(
       throw new Error(
         'EXTERNAL_AUTH_TRANSACTION_KEY must be at least 32 characters',
       );
-    const appleCallbackUri = required(environment, 'APPLE_CALLBACK_URL');
-    let appleCallback: URL;
-    try {
-      appleCallback = new URL(appleCallbackUri);
-    } catch {
-      throw new Error('APPLE_CALLBACK_URL must be an absolute HTTPS callback');
-    }
-    if (
-      appleCallback.protocol !== 'https:' ||
-      appleCallback.username ||
-      appleCallback.password ||
-      appleCallback.search ||
-      appleCallback.hash ||
-      appleCallback.pathname !== '/auth/callback/apple'
+    const enabledProviders = (
+      environment.EXTERNAL_AUTH_PROVIDERS ?? 'google,microsoft,apple'
     )
-      throw new Error('APPLE_CALLBACK_URL must be an absolute HTTPS callback');
-    const productionAppleCallback = new URL(
-      '/auth/callback/apple',
-      allowedOrigin,
-    ).toString();
+      .split(',')
+      .map((value) => value.trim());
     if (
-      runtimeEnvironment === 'production' &&
-      appleCallback.toString() !== productionAppleCallback
+      !enabledProviders.length ||
+      enabledProviders.some(
+        (value) => !['google', 'microsoft', 'apple'].includes(value),
+      ) ||
+      new Set(enabledProviders).size !== enabledProviders.length
     )
-      throw new Error('APPLE_CALLBACK_URL must match the production callback');
-    externalAuth = {
-      transactionKey,
-      google: {
-        clientId: required(environment, 'GOOGLE_CLIENT_ID'),
-        clientSecret: required(environment, 'GOOGLE_CLIENT_SECRET'),
-        callbackUri: new URL('/auth/callback/google', allowedOrigin).toString(),
-      },
-      microsoft: {
-        clientId: required(environment, 'MICROSOFT_CLIENT_ID'),
-        clientSecret: required(environment, 'MICROSOFT_CLIENT_SECRET'),
-        tenantId: required(environment, 'MICROSOFT_TENANT_ID'),
-        callbackUri: new URL(
-          '/auth/callback/microsoft',
-          allowedOrigin,
-        ).toString(),
-      },
-      apple: {
+      throw new Error(
+        'EXTERNAL_AUTH_PROVIDERS must contain unique supported providers',
+      );
+    if (
+      allowedOrigin.startsWith('http:') &&
+      (allowedOrigin !== 'http://localhost:5173' ||
+        enabledProviders.some((value) => value !== 'google'))
+    )
+      throw new Error(
+        'Only Google supports the registered localhost development origin',
+      );
+    externalAuth = { transactionKey };
+    if (enabledProviders.includes('apple')) {
+      const appleCallbackUri = required(environment, 'APPLE_CALLBACK_URL');
+      let appleCallback: URL;
+      try {
+        appleCallback = new URL(appleCallbackUri);
+      } catch {
+        throw new Error(
+          'APPLE_CALLBACK_URL must be an absolute HTTPS callback',
+        );
+      }
+      if (
+        appleCallback.protocol !== 'https:' ||
+        appleCallback.username ||
+        appleCallback.password ||
+        appleCallback.search ||
+        appleCallback.hash ||
+        appleCallback.pathname !== '/auth/callback/apple'
+      )
+        throw new Error(
+          'APPLE_CALLBACK_URL must be an absolute HTTPS callback',
+        );
+      const productionAppleCallback = new URL(
+        '/auth/callback/apple',
+        allowedOrigin,
+      ).toString();
+      if (
+        runtimeEnvironment === 'production' &&
+        appleCallback.toString() !== productionAppleCallback
+      )
+        throw new Error(
+          'APPLE_CALLBACK_URL must match the production callback',
+        );
+      externalAuth.apple = {
         clientId: required(environment, 'APPLE_CLIENT_ID'),
         teamId: required(environment, 'APPLE_TEAM_ID'),
         keyId: required(environment, 'APPLE_KEY_ID'),
@@ -195,8 +210,24 @@ export function loadConfig(
           '\n',
         ),
         callbackUri: appleCallback.toString(),
-      },
-    };
+      };
+    }
+    if (enabledProviders.includes('google'))
+      externalAuth.google = {
+        clientId: required(environment, 'GOOGLE_CLIENT_ID'),
+        clientSecret: required(environment, 'GOOGLE_CLIENT_SECRET'),
+        callbackUri: new URL('/auth/callback/google', allowedOrigin).toString(),
+      };
+    if (enabledProviders.includes('microsoft'))
+      externalAuth.microsoft = {
+        clientId: required(environment, 'MICROSOFT_CLIENT_ID'),
+        clientSecret: required(environment, 'MICROSOFT_CLIENT_SECRET'),
+        tenantId: required(environment, 'MICROSOFT_TENANT_ID'),
+        callbackUri: new URL(
+          '/auth/callback/microsoft',
+          allowedOrigin,
+        ).toString(),
+      };
   }
   const base = {
     allowedOrigin,

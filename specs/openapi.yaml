@@ -332,7 +332,47 @@ paths:
             application/json:
               schema:
                 { $ref: '#/components/schemas/PasswordResetUnavailableError' }
+  /api/auth/providers:
+    get:
+      operationId: listEnabledAuthProviders
+      summary: Public provider availability without credentials
+      responses:
+        '200':
+          description: Non-cacheable enabled-provider list; empty when disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [providers]
+                properties:
+                  providers:
+                    type: array
+                    uniqueItems: true
+                    maxItems: 3
+                    items: { type: string, enum: [google, microsoft, apple] }
   /auth/start/{provider}:
+    post:
+      operationId: startExternalOnboarding
+      summary: Start browser-bound onboarding with current server-owned policy consent
+      parameters:
+        - $ref: '#/components/parameters/ExternalProvider'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [intent, acceptsTerms]
+              properties:
+                intent: { type: string, const: onboarding }
+                acceptsTerms: { type: string, const: 'true' }
+      responses:
+        '303': { description: Provider redirect with short-lived HttpOnly transaction cookie, or safe failure }
+        '400': { description: Unexpected form fields }
+        '403': { description: Same-origin consent required }
+        '404': { description: Provider disabled or unsupported intent }
     get:
       operationId: startExternalLogin
       summary: Start a server-owned external authorization-code login

@@ -233,43 +233,55 @@ if (config.externalAuthEnabled && config.externalAuth) {
   const externalSecurity = createExternalAuthSecurity(
     config.externalAuth.transactionKey,
   );
-  const appleClientSecret = await createAppleClientSecret({
-    ...config.externalAuth.apple,
-    now: new Date(),
-  });
-  const callbackUris: Record<ExternalProvider, string> = {
-    google: config.externalAuth.google.callbackUri,
-    microsoft: config.externalAuth.microsoft.callbackUri,
-    apple: config.externalAuth.apple.callbackUri,
+  const { google, microsoft, apple } = config.externalAuth;
+  const callbackUri = (provider: ExternalProvider): string => {
+    const uri = config.externalAuth?.[provider]?.callbackUri;
+    if (!uri) throw new Error('Provider unavailable');
+    return uri;
   };
   const externalLogin = createExternalLogin({
     ...externalSecurity,
     ...createPrismaExternalLoginStore(prisma),
     providers: {
-      google: createOpenIdProviderAdapter({
-        issuer: 'https://accounts.google.com',
-        clientId: config.externalAuth.google.clientId,
-        clientSecret: config.externalAuth.google.clientSecret,
-        scope: 'openid email profile',
-        usePkce: true,
-      }),
-      microsoft: createOpenIdProviderAdapter({
-        issuer: `https://login.microsoftonline.com/${config.externalAuth.microsoft.tenantId}/v2.0`,
-        clientId: config.externalAuth.microsoft.clientId,
-        clientSecret: config.externalAuth.microsoft.clientSecret,
-        scope: 'openid email profile',
-        usePkce: true,
-      }),
-      apple: createOpenIdProviderAdapter({
-        issuer: 'https://appleid.apple.com',
-        clientId: config.externalAuth.apple.clientId,
-        clientSecret: appleClientSecret,
-        scope: 'name email',
-        usePkce: false,
-        responseMode: 'form_post',
-      }),
+      ...(google
+        ? {
+            google: createOpenIdProviderAdapter({
+              issuer: 'https://accounts.google.com',
+              clientId: google.clientId,
+              clientSecret: google.clientSecret,
+              scope: 'openid email profile',
+              usePkce: true,
+            }),
+          }
+        : {}),
+      ...(microsoft
+        ? {
+            microsoft: createOpenIdProviderAdapter({
+              issuer: `https://login.microsoftonline.com/${microsoft.tenantId}/v2.0`,
+              clientId: microsoft.clientId,
+              clientSecret: microsoft.clientSecret,
+              scope: 'openid email profile',
+              usePkce: true,
+            }),
+          }
+        : {}),
+      ...(apple
+        ? {
+            apple: createOpenIdProviderAdapter({
+              issuer: 'https://appleid.apple.com',
+              clientId: apple.clientId,
+              clientSecret: await createAppleClientSecret({
+                ...apple,
+                now: new Date(),
+              }),
+              scope: 'name email',
+              usePkce: false,
+              responseMode: 'form_post',
+            }),
+          }
+        : {}),
     },
-    callbackUri: (provider) => callbackUris[provider],
+    callbackUri,
     createApplicationCredential: () => security.createApplicationCredential(),
     digestApplicationCredential: (credential) =>
       security.digestApplicationCredential(credential),
@@ -283,10 +295,13 @@ if (config.externalAuthEnabled && config.externalAuth) {
       logger.info(name, { correlationId: randomUUID() });
     },
   });
+  authentication.enabledProviders = (
+    ['google', 'microsoft', 'apple'] as const
+  ).filter((provider) => Boolean(config.externalAuth?.[provider]));
   authentication.startExternal = (provider, intent) =>
     externalLogin.start(provider, intent);
   authentication.callbackExternal = (provider, parameters) => {
-    const callbackUrl = new URL(callbackUris[provider]);
+    const callbackUrl = new URL(callbackUri(provider));
     for (const [key, value] of Object.entries(parameters))
       callbackUrl.searchParams.set(key, value);
     return externalLogin.callback(provider, callbackUrl);

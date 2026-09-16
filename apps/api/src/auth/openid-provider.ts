@@ -18,7 +18,8 @@ export interface OpenIdProviderConfig {
 }
 
 interface GrantResult {
-  claims(): { sub?: unknown } | undefined;
+  claims():
+    { sub?: unknown; email?: unknown; email_verified?: unknown } | undefined;
 }
 
 interface OpenIdDependencies {
@@ -89,7 +90,7 @@ export function createOpenIdProviderAdapter(
       state: string;
       nonce: string;
       codeVerifier: string;
-    }): Promise<{ subject: string }> {
+    }): Promise<{ subject: string; verifiedEmail?: string }> {
       if (
         input.callbackUrl.origin + input.callbackUrl.pathname !==
         input.redirectUri
@@ -106,10 +107,20 @@ export function createOpenIdProviderAdapter(
         input.callbackUrl,
         checks,
       );
-      const subject = result.claims()?.sub;
+      const claims = result.claims();
+      const subject = claims?.sub;
       if (typeof subject !== 'string' || !subject)
         throw new Error('Provider identity is unavailable');
-      return { subject };
+      const email = claims.email;
+      return {
+        subject,
+        ...(claims.email_verified === true &&
+        typeof email === 'string' &&
+        email.length <= 254 &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+          ? { verifiedEmail: email.toLowerCase() }
+          : {}),
+      };
     },
   };
 }

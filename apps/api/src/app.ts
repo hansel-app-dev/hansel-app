@@ -238,7 +238,8 @@ export interface AuthenticationModule {
     input: PasswordRecoveryRequest,
   ): Promise<PasswordRecoveryRequestResponse>;
   resetPassword?(input: PasswordResetRequest): Promise<PasswordResetResponse>;
-  startExternal?(provider: ExternalProvider, intent: 'login'): Promise<string>;
+  enabledProviders?: readonly ExternalProvider[];
+  startExternal?(provider: ExternalProvider, intent: 'login' | 'onboarding'): Promise<string>;
   callbackExternal?(
     provider: ExternalProvider,
     parameters: Record<string, string>,
@@ -422,12 +423,13 @@ function renderOptions(
   ].join('');
 }
 
-function renderLoginForm(
+function renderLoginFormHtml(
   values: Record<string, unknown> = {},
   error = '',
   status = '',
+  available: readonly ExternalProvider[] = [],
 ): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Log in — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section class="login-panel" aria-labelledby="login-heading"><h1 id="login-heading">Log in to your account</h1><div class="login-form-group">${status ? `<p role="status">${escapeHtml(status)}</p>` : ''}${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/login" method="post"><div class="auth-field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"></div><div class="auth-field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required maxlength="128"></div><p><a href="/forgot-password">Forgot password?</a></p><button type="submit">Log in</button></form></div><div class="provider-group"><div class="divider" aria-hidden="true"><span>or log in with</span><img data-testid="login-provider-divider" src="/assets/login-provider-divider.svg" alt=""></div><nav aria-label="External login providers"><a href="/auth/start/google?intent=login"><span class="provider-icon"><img src="/assets/google-logo.svg" alt="" aria-hidden="true"></span>Continue with Google</a><a href="/auth/start/microsoft?intent=login"><span class="provider-icon"><img src="/assets/microsoft-logo.svg" alt="" aria-hidden="true"></span>Continue with Microsoft</a><a href="/auth/start/apple?intent=login"><span class="provider-icon"><img class="apple" src="/assets/apple-logo.svg" alt="" aria-hidden="true"></span>Continue with Apple</a></nav></div><p>Don&#39;t have an account? <a href="/onboarding">Create an account</a></p></section></main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Log in — Hansel</title><link rel="stylesheet" href="/assets/login-progressive.css"></head><body><main><a class="logo" href="/" aria-label="Hansel home"><img src="/assets/hansel-logo-beta.svg" alt=""></a><section class="login-panel" aria-labelledby="login-heading"><h1 id="login-heading">Log in to your account</h1><div class="login-form-group">${status ? `<p role="status">${escapeHtml(status)}</p>` : ''}${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ''}<form action="/api/auth/login" method="post"><div class="auth-field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" placeholder="your@email.com" required value="${escapeHtml(values.email)}"></div><div class="auth-field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" required maxlength="128"></div><p><a href="/forgot-password">Forgot password?</a></p><button type="submit">Log in</button></form></div><div class="provider-group"><div class="divider" aria-hidden="true"><span>or log in with</span><img data-testid="login-provider-divider" src="/assets/login-provider-divider.svg" alt=""></div><nav aria-label="External login providers">${externalProviders.map((provider) => `<${available.includes(provider) ? `a href="/auth/start/${provider}?intent=login"` : 'button type="button" disabled'}><span class="provider-icon"><img class="${provider === 'apple' ? 'apple' : ''}" src="/assets/${provider}-logo.svg" alt="" aria-hidden="true"></span>Continue with ${provider === 'google' ? 'Google' : provider === 'apple' ? 'Apple' : 'Microsoft'}</${available.includes(provider) ? 'a' : 'button'}>`).join('')}</nav></div><p>Don&#39;t have an account? <a href="/onboarding">Create an account</a></p></section></main></body></html>`;
 }
 
 function renderForgotPasswordForm(
@@ -605,6 +607,7 @@ export function createApp(
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
   if (authentication) {
+    const renderLoginForm = (values: Record<string, unknown> = {}, error = '', status = '') => renderLoginFormHtml(values, error, status, config.externalAuthEnabled === true ? authentication.enabledProviders ?? [] : []);
     const secure = config.allowedOrigin.startsWith('https://');
     const writeAuthenticationCookies = (
       response: express.Response,
@@ -663,29 +666,46 @@ export function createApp(
       }
     };
     const isExternalProvider = (value: string): value is ExternalProvider =>
-      externalProviders.some((provider) => provider === value);
-    app.get('/auth/start/:provider', async (request, response) => {
+      externalProviders.some((provider) => provider === value) && Boolean(authentication.enabledProviders?.some((provider) => provider === value));
+    app.get('/api/auth/providers', (_request, response) => {
+      preventRecoveryResponseReuse(response);
+      response.json({ providers: config.externalAuthEnabled === true ? authentication.enabledProviders ?? [] : [] });
+    });
+    const startExternal = async (request: express.Request, response: express.Response) => {
       preventRecoveryResponseReuse(response);
       response.vary('Cookie');
+      const provider = request.params.provider;
+      const intent: unknown = request.method === 'POST' ? (request.body as Record<string, unknown> | undefined)?.intent : request.query.intent;
       if (
         config.externalAuthEnabled !== true ||
         !authentication.startExternal ||
-        !isExternalProvider(request.params.provider) ||
-        request.query.intent !== 'login'
+        typeof provider !== 'string' || !isExternalProvider(provider) ||
+        (intent !== 'login' && intent !== 'onboarding') || (intent === 'onboarding' && request.method !== 'POST') || (request.method === 'POST' && intent !== 'onboarding')
       ) {
         response.status(404).send('Not found');
         return;
       }
+      if (intent === 'onboarding' && (!hasAllowedFormOrigin(request, config.allowedOrigin) || (request.body as Record<string, unknown> | undefined)?.acceptsTerms !== 'true')) {
+        response.status(403).send('Consent and same-origin initiation required');
+        return;
+      }
+      if (intent === 'onboarding' && Object.keys(request.body as Record<string, unknown>).some((key) => !['intent', 'acceptsTerms'].includes(key))) {
+        response.status(400).send('Invalid request');
+        return;
+      }
       try {
-        response.redirect(
-          303,
-          await authentication.startExternal(request.params.provider, 'login'),
-        );
+        const destination = await authentication.startExternal(provider, intent);
+        const state = new URL(destination).searchParams.get('state');
+        if (!state) throw new Error('Missing transaction state');
+        response.cookie(`hansel_external_${provider}`, state, { httpOnly: true, secure: config.allowedOrigin.startsWith('https:'), sameSite: provider === 'apple' ? 'none' : 'lax', maxAge: 10 * 60 * 1000, path: `/auth/callback/${provider}` });
+        response.redirect(303, destination);
       } catch {
         authentication.recordEvent?.('external_provider_unavailable');
         response.redirect(303, '/login?error=provider_unavailable');
       }
-    });
+    };
+    app.get('/auth/start/:provider', startExternal);
+    app.post('/auth/start/:provider', startExternal);
     const externalCallback = async (
       request: express.Request,
       response: express.Response,
@@ -710,11 +730,21 @@ export function createApp(
           typeof source?.[key] === 'string' ? [[key, source[key]]] : [],
         ),
       ) as Record<string, string>;
+      const binding = readCookie(request.headers.cookie, `hansel_external_${provider}`);
+      response.clearCookie(`hansel_external_${provider}`, { path: `/auth/callback/${provider}`, httpOnly: true, secure: config.allowedOrigin.startsWith('https:'), sameSite: provider === 'apple' ? 'none' : 'lax' });
+      if (!binding || binding !== parameters.state) {
+        response.redirect(303, '/login?error=authentication_failed');
+        return;
+      }
       try {
         const result = await authentication.callbackExternal(
           provider,
           parameters,
         );
+        if (result.status === 'email-signup-required') {
+          response.redirect(303, '/onboarding?error=google_email_required');
+          return;
+        }
         if (result.status === 'rejected') {
           response.redirect(303, '/login?error=authentication_failed');
           return;

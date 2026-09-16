@@ -792,9 +792,10 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     async (provider) => {
       const authentication = {
         login: vi.fn(),
+        enabledProviders: ['google', 'microsoft', 'apple'] as const,
         startExternal: vi
           .fn()
-          .mockResolvedValue(`https://provider.example/${provider}`),
+          .mockResolvedValue(`https://provider.example/${provider}?state=state`),
         callbackExternal: vi.fn(),
       };
       const response = await request(
@@ -813,7 +814,7 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
         .get(`/auth/start/${provider}?intent=login`)
         .expect(303);
       expect(response.headers.location).toBe(
-        `https://provider.example/${provider}`,
+        `https://provider.example/${provider}?state=state`,
       );
       expect(authentication.startExternal).toHaveBeenCalledWith(
         provider,
@@ -843,10 +844,11 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
       undefined,
       undefined,
       undefined,
-      { login: vi.fn(), startExternal: vi.fn(), callbackExternal },
+      { login: vi.fn(), enabledProviders: ['google', 'apple'], startExternal: vi.fn(), callbackExternal },
     );
     const accepted = await request(externalApp)
       .get('/auth/callback/google?code=code&state=state')
+      .set('Cookie', 'hansel_external_google=state')
       .expect(303);
     expect(accepted.headers.location).toBe('/dashboard');
     expect(accepted.headers['set-cookie']).toEqual(
@@ -861,6 +863,7 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     });
     const rejected = await request(externalApp)
       .post('/auth/callback/apple')
+      .set('Cookie', 'hansel_external_apple=state')
       .type('form')
       .send({ error: 'access_denied', state: 'state' })
       .expect(303);
@@ -887,7 +890,7 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     expect(response.text).toContain('autocomplete="current-password"');
     expect(response.text.match(/class="auth-field"/g)).toHaveLength(2);
     for (const provider of ['google', 'microsoft', 'apple'])
-      expect(response.text).toContain(`/auth/start/${provider}?intent=login`);
+      expect(response.text).not.toContain(`/auth/start/${provider}?intent=login`);
     for (const provider of ['google', 'microsoft', 'apple'])
       expect(response.text).toContain(`src="/assets/${provider}-logo.svg"`);
     expect(response.text).toContain('data-testid="login-provider-divider"');
@@ -1135,6 +1138,7 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
       {
         login: vi.fn(),
         startExternal: vi.fn().mockRejectedValue(new Error('private detail')),
+        enabledProviders: ['google'],
         callbackExternal: vi
           .fn()
           .mockRejectedValue(new Error('private detail')),
@@ -1152,6 +1156,7 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
       (
         await request(external)
           .get('/auth/callback/google?code=code&state=state')
+          .set('Cookie', 'hansel_external_google=state')
           .expect(303)
       ).headers.location,
     ).toBe('/login?error=provider_unavailable');

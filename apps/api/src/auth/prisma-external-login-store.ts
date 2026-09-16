@@ -4,7 +4,9 @@ import type {
   ExternalAuthProvider,
   PrismaClient,
 } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { ExternalIntent, ExternalProvider } from './external-login.js';
+import { externalPolicyVersion } from './external-login.js';
 
 const providers: Record<ExternalProvider, ExternalAuthProvider> = {
   google: 'GOOGLE',
@@ -51,6 +53,8 @@ export function createPrismaExternalLoginStore(prisma: PrismaClient) {
       sealedSecrets: string;
       redirectUri: string;
       expiresAt: Date;
+      termsVersion?: string;
+      privacyVersion?: string;
     }): Promise<void> {
       await prisma.externalAuthorizationTransaction.create({
         data: {
@@ -84,6 +88,8 @@ export function createPrismaExternalLoginStore(prisma: PrismaClient) {
               where: { stateDigest: input.stateDigest },
               select: {
                 intent: true,
+                termsVersion: true,
+                privacyVersion: true,
                 redirectUri: true,
                 nonceDigest: true,
                 pkceVerifierDigest: true,
@@ -106,6 +112,10 @@ export function createPrismaExternalLoginStore(prisma: PrismaClient) {
     async completeIdentityLogin(input: {
       provider: ExternalProvider;
       subject: string;
+      intent?: ExternalIntent;
+      verifiedEmail?: string;
+      termsVersion?: string;
+      privacyVersion?: string;
       now: Date;
       accessCredentialDigest: string;
       accessExpiresAt: Date;
@@ -114,105 +124,165 @@ export function createPrismaExternalLoginStore(prisma: PrismaClient) {
       onboardingCredentialDigest: string;
       onboardingExpiresAt: Date;
     }) {
-      return prisma.$transaction(
-        async (transaction) => {
-          const identity = await transaction.externalIdentity.findUnique({
-            where: {
-              provider_subject: {
-                provider: providers[input.provider],
-                subject: input.subject,
+      return prisma
+        .$transaction(
+          async (transaction) => {
+            const identity = await transaction.externalIdentity.findUnique({
+              where: {
+                provider_subject: {
+                  provider: providers[input.provider],
+                  subject: input.subject,
+                },
               },
-            },
-            select: {
-              user: {
-                select: {
-                  id: true,
-                  emailVerifiedAt: true,
-                  journeys: {
-                    where: { entryPath: 'NEW_ORGANIZATION' },
-                    select: { currentStep: true, completedAt: true },
-                    take: 2,
-                  },
-                  memberships: { select: { tenantId: true }, take: 2 },
-                  sessionFamilies: {
-                    where: {
-                      revokedAt: null,
-                      absoluteExpiresAt: { gt: input.now },
+              select: {
+                user: {
+                  select: {
+                    id: true,
+                    emailVerifiedAt: true,
+                    journeys: {
+                      where: { entryPath: 'NEW_ORGANIZATION' },
+                      select: { currentStep: true, completedAt: true },
+                      take: 2,
                     },
-                    select: { id: true },
-                    orderBy: { createdAt: 'asc' },
+                    memberships: { select: { tenantId: true }, take: 2 },
+                    sessionFamilies: {
+                      where: {
+                        revokedAt: null,
+                        absoluteExpiresAt: { gt: input.now },
+                      },
+                      select: { id: true },
+                      orderBy: { createdAt: 'asc' },
+                    },
                   },
                 },
               },
-            },
-          });
-          const user = identity?.user;
-          const journey = user?.journeys[0];
-          if (!user?.emailVerifiedAt || user.journeys.length !== 1 || !journey)
-            return null;
-          if (!journey.completedAt) {
-            const destination = onboardingDestination(journey.currentStep);
-            if (!destination) return null;
-            await transaction.onboardingContinuation.upsert({
-              where: { userId: user.id },
-              create: {
+            });
+            if (
+              !identity &&
+              input.intent === 'onboarding' &&
+              input.termsVersion === externalPolicyVersion &&
+              input.privacyVersion === externalPolicyVersion
+            ) {
+              if (!input.verifiedEmail) return 'email-signup-required' as const;
+              // Nested creation is atomic; email and provider-subject uniqueness
+              // prevent linking, duplicate accounts and partial onboarding.
+              await transaction.user.create({
+                data: {
+                  email: input.verifiedEmail,
+                  emailVerifiedAt: input.now,
+                  externalIdentities: {
+                    create: {
+                      provider: providers[input.provider],
+                      subject: input.subject,
+                    },
+                  },
+                  consents: {
+                    create: {
+                      termsVersion: input.termsVersion,
+                      privacyVersion: input.privacyVersion,
+                      onboardingPath: 'new-organization',
+                      country: 'unknown',
+                      consentedAt: input.now,
+                    },
+                  },
+                  journeys: {
+                    create: {
+                      entryPath: 'NEW_ORGANIZATION',
+                      currentStep: 'PERSONAL_PROFILE',
+                    },
+                  },
+                  continuation: {
+                    create: {
+                      credentialDigest: input.onboardingCredentialDigest,
+                      expiresAt: input.onboardingExpiresAt,
+                    },
+                  },
+                },
+              });
+              return {
+                destination: '/onboarding/about-you' as const,
+                sessionKind: 'onboarding' as const,
+              };
+            }
+            const user = identity?.user;
+            const journey = user?.journeys[0];
+            if (
+              !user?.emailVerifiedAt ||
+              user.journeys.length !== 1 ||
+              !journey
+            )
+              return null;
+            if (!journey.completedAt) {
+              const destination = onboardingDestination(journey.currentStep);
+              if (!destination) return null;
+              await transaction.onboardingContinuation.upsert({
+                where: { userId: user.id },
+                create: {
+                  userId: user.id,
+                  credentialDigest: input.onboardingCredentialDigest,
+                  expiresAt: input.onboardingExpiresAt,
+                },
+                update: {
+                  credentialDigest: input.onboardingCredentialDigest,
+                  expiresAt: input.onboardingExpiresAt,
+                },
+              });
+              return { destination, sessionKind: 'onboarding' as const };
+            }
+            const [membership] = user.memberships;
+            if (
+              journey.currentStep !== 'COMPLETE' ||
+              user.memberships.length !== 1 ||
+              !membership
+            )
+              return null;
+            for (const family of user.sessionFamilies.slice(
+              0,
+              Math.max(0, user.sessionFamilies.length - 4),
+            ))
+              await transaction.applicationSessionFamily.update({
+                where: { id: family.id },
+                data: {
+                  revokedAt: input.now,
+                  revocationReason: 'active_family_limit',
+                },
+              });
+            await transaction.applicationSessionFamily.create({
+              data: {
                 userId: user.id,
-                credentialDigest: input.onboardingCredentialDigest,
-                expiresAt: input.onboardingExpiresAt,
-              },
-              update: {
-                credentialDigest: input.onboardingCredentialDigest,
-                expiresAt: input.onboardingExpiresAt,
+                tenantId: membership.tenantId,
+                absoluteExpiresAt: input.absoluteExpiresAt,
+                credentials: {
+                  create: [
+                    {
+                      kind: 'ACCESS',
+                      credentialDigest: input.accessCredentialDigest,
+                      expiresAt: input.accessExpiresAt,
+                    },
+                    {
+                      kind: 'REFRESH',
+                      credentialDigest: input.refreshCredentialDigest,
+                      expiresAt: input.absoluteExpiresAt,
+                    },
+                  ],
+                },
               },
             });
-            return { destination, sessionKind: 'onboarding' as const };
-          }
-          const [membership] = user.memberships;
+            return {
+              destination: '/dashboard' as const,
+              sessionKind: 'application' as const,
+            };
+          },
+          { isolationLevel: 'Serializable' },
+        )
+        .catch((error: unknown) => {
           if (
-            journey.currentStep !== 'COMPLETE' ||
-            user.memberships.length !== 1 ||
-            !membership
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            ['P2002', 'P2034'].includes(error.code)
           )
             return null;
-          for (const family of user.sessionFamilies.slice(
-            0,
-            Math.max(0, user.sessionFamilies.length - 4),
-          ))
-            await transaction.applicationSessionFamily.update({
-              where: { id: family.id },
-              data: {
-                revokedAt: input.now,
-                revocationReason: 'active_family_limit',
-              },
-            });
-          await transaction.applicationSessionFamily.create({
-            data: {
-              userId: user.id,
-              tenantId: membership.tenantId,
-              absoluteExpiresAt: input.absoluteExpiresAt,
-              credentials: {
-                create: [
-                  {
-                    kind: 'ACCESS',
-                    credentialDigest: input.accessCredentialDigest,
-                    expiresAt: input.accessExpiresAt,
-                  },
-                  {
-                    kind: 'REFRESH',
-                    credentialDigest: input.refreshCredentialDigest,
-                    expiresAt: input.absoluteExpiresAt,
-                  },
-                ],
-              },
-            },
-          });
-          return {
-            destination: '/dashboard' as const,
-            sessionKind: 'application' as const,
-          };
-        },
-        { isolationLevel: 'Serializable' },
-      );
+          throw error;
+        });
     },
   };
 }

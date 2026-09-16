@@ -82,7 +82,8 @@ label {
 }
 input,
 button,
-nav a {
+nav a,
+nav button {
   min-height: 40px;
   border: 1px solid #c7cdd4;
   border-radius: 6px;
@@ -140,10 +141,17 @@ nav a {
 .login-panel nav {
   gap: 14px;
 }
-.login-panel nav a {
+.login-panel nav a,
+.login-panel nav button {
   gap: 16px;
   border-color: #afaea7;
   font-weight: 400;
+}
+.login-panel nav button {
+  width: 100%;
+  background: #fff;
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 .provider-icon {
   display: flex;

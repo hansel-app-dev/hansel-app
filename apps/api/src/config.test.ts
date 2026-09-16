@@ -10,6 +10,22 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
     RESEND_FROM_EMAIL: 'Hansel <onboarding@hanselapp.io>',
   };
 
+  it('supports Google alone [google-local-auth REQ-001, REQ-006]', () => {
+    const config = loadConfig({
+      ...required,
+      EXTERNAL_AUTH_ENABLED: 'true',
+      EXTERNAL_AUTH_PROVIDERS: 'google',
+      EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+      GOOGLE_CLIENT_ID: 'google-id',
+      GOOGLE_CLIENT_SECRET: 'secret',
+    });
+    expect(config.externalAuth?.google?.callbackUri).toBe(
+      'http://localhost:5173/auth/callback/google',
+    );
+    expect(config.externalAuth?.apple).toBeUndefined();
+    expect(config.externalAuth?.microsoft).toBeUndefined();
+  });
+
   it('uses safe network defaults with explicit security configuration', () => {
     expect(loadConfig(required)).toEqual({
       allowedOrigin: 'http://localhost:5173',
@@ -43,6 +59,36 @@ describe('loadConfig [REQ-002, REQ-008; onboarding-welcome-email REQ-009, REQ-01
       resendFromEmail: 'Hansel <onboarding@hanselapp.io>',
       emailDeliveryMode: 'resend',
     });
+  });
+
+  it.each(['', 'unknown', 'google,google', 'google,'])(
+    'rejects invalid enabled providers %s [google-local-auth REQ-001]',
+    (providers) => {
+      expect(() =>
+        loadConfig({
+          ...required,
+          EXTERNAL_AUTH_ENABLED: 'true',
+          EXTERNAL_AUTH_PROVIDERS: providers,
+          EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+        }),
+      ).toThrow('EXTERNAL_AUTH_PROVIDERS');
+    },
+  );
+  it('rejects incomplete Google credentials and unregistered HTTP origins [google-local-auth REQ-001, REQ-006]', () => {
+    const values = {
+      ...required,
+      EXTERNAL_AUTH_ENABLED: 'true',
+      EXTERNAL_AUTH_PROVIDERS: 'google',
+      EXTERNAL_AUTH_TRANSACTION_KEY: 't'.repeat(32),
+      GOOGLE_CLIENT_ID: 'id',
+    };
+    expect(() => loadConfig(values)).toThrow('GOOGLE_CLIENT_SECRET');
+    expect(() =>
+      loadConfig({ ...values, ALLOWED_ORIGIN: 'http://127.0.0.1:5173' }),
+    ).toThrow('Only Google');
+    expect(() =>
+      loadConfig({ ...values, EXTERNAL_AUTH_PROVIDERS: 'microsoft' }),
+    ).toThrow('Only Google');
   });
 
   it('reads valid environment values', () => {

@@ -11,6 +11,24 @@ import { OnboardingStart } from './OnboardingStart.js';
 afterEach(cleanup);
 
 describe('OnboardingStart [REQ-005, REQ-016, REQ-023, REQ-049, REQ-056]', () => {
+  it('explains the verified-email fallback [google-local-auth REQ-004]', () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/onboarding?error=google_email_required',
+    );
+    try {
+      render(<OnboardingStart createAccount={vi.fn()} />);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Google didn’t provide a verified email',
+      );
+      expect(
+        screen.getByRole('button', { name: 'Create with email' }),
+      ).toBeEnabled();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
   it('renders the approved account choices and catches empty fields', async () => {
     const createAccount = vi.fn();
     render(<OnboardingStart createAccount={createAccount} />);

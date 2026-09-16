@@ -53,6 +53,87 @@ function dependencies() {
 }
 
 describe('external login [user-login REQ-013..REQ-015]', () => {
+  it('fails closed for disabled providers [google-local-auth REQ-001]', async () => {
+    const deps = dependencies();
+    const flow = createExternalLogin({ ...deps, providers: {} });
+    await expect(flow.start('google', 'login')).rejects.toThrow(
+      'Provider unavailable',
+    );
+    await expect(
+      flow.callback(
+        'google',
+        new URL('https://app.example/auth/callback/google?state=state'),
+      ),
+    ).resolves.toEqual({ status: 'rejected' });
+    expect(deps.createTransaction).not.toHaveBeenCalled();
+  });
+  it('requires current privacy consent and preserves the email signup fallback [google-local-auth REQ-003, REQ-004]', async () => {
+    const deps = dependencies();
+    const transaction = {
+      intent: 'onboarding',
+      termsVersion: '2026-08-27',
+      privacyVersion: 'old',
+      redirectUri: 'https://app.example/auth/callback/google',
+      nonceDigest: 'digest:nonce',
+      pkceVerifierDigest: 'digest:verifier',
+      sealedSecrets: 'sealed',
+    };
+    const callback = new URL(
+      'https://app.example/auth/callback/google?state=state&code=code',
+    );
+    deps.consumeTransaction.mockResolvedValueOnce(transaction);
+    await expect(
+      createExternalLogin(deps).callback('google', callback),
+    ).resolves.toEqual({ status: 'rejected' });
+    deps.consumeTransaction.mockResolvedValueOnce({
+      ...transaction,
+      privacyVersion: '2026-08-27',
+    });
+    deps.completeIdentityLogin.mockResolvedValueOnce('email-signup-required');
+    await expect(
+      createExternalLogin(deps).callback('google', callback),
+    ).resolves.toEqual({ status: 'email-signup-required' });
+  });
+  it('records policy consent for onboarding [google-local-auth REQ-003]', async () => {
+    const deps = dependencies();
+    await createExternalLogin(deps).start('google', 'onboarding');
+    expect(deps.createTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        termsVersion: '2026-08-27',
+        privacyVersion: '2026-08-27',
+      }),
+    );
+  });
+
+  it('passes validated onboarding identity and consent to atomic completion [google-local-auth REQ-003]', async () => {
+    const deps = dependencies();
+    deps.consumeTransaction.mockResolvedValueOnce({
+      intent: 'onboarding',
+      termsVersion: '2026-08-27',
+      privacyVersion: '2026-08-27',
+      redirectUri: 'https://app.example/auth/callback/google',
+      nonceDigest: 'digest:nonce',
+      pkceVerifierDigest: 'digest:verifier',
+      sealedSecrets: 'sealed',
+    });
+    deps.providers.google.exchange.mockResolvedValueOnce({
+      subject: 'new-subject',
+      verifiedEmail: 'new@example.com',
+    });
+    await createExternalLogin(deps).callback(
+      'google',
+      new URL('https://app.example/auth/callback/google?code=code&state=state'),
+    );
+    expect(deps.completeIdentityLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'onboarding',
+        subject: 'new-subject',
+        verifiedEmail: 'new@example.com',
+        termsVersion: '2026-08-27',
+        privacyVersion: '2026-08-27',
+      }),
+    );
+  });
   it('starts a short-lived login transaction and returns only the provider URL', async () => {
     const deps = dependencies();
     const externalLogin = createExternalLogin(deps);
