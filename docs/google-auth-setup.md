@@ -33,6 +33,20 @@ Automated verification (2026-09-16): backend and frontend type checks, lint, pro
 
 The Cloud project remains External/Testing. If Google requires a test-user entry, obtain approval before adding it; do not publish the audience to bypass this. No IAM grant is needed for end-user sign-in. Disable `EXTERNAL_AUTH_ENABLED` to roll back without removing account data.
 
+## Callback troubleshooting
+
+Callback troubleshooting: preserve Google's `iss` authorization-response parameter
+when forwarding the callback to the OpenID client. Google's discovery metadata
+requires this issuer value; dropping it causes `OAUTH_INVALID_RESPONSE` and a
+`provider_unavailable` redirect. Keep the client's issuer validation enabled.
+The native login page displays a generic retry message for provider failures.
+
+Live localhost verification after this fix reached Hansel's account checks
+(`authentication_failed`) instead of failing OpenID processing
+(`provider_unavailable`). This is not a completed sign-in: login requires an
+existing Google identity established through Google onboarding, and must not
+silently link an existing email/password account.
+
 ## Adding production later
 
 1. Confirm the production frontend origin and backend routing. Use HTTPS; do not guess the domain.

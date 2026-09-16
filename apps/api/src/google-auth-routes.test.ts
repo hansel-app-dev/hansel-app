@@ -32,6 +32,32 @@ describe('Google routes [google-local-auth REQ-001, REQ-003, REQ-005]', () => {
       .expect(200, { providers: ['google'] });
     await request(app).get('/auth/start/apple?intent=login').expect(404);
   });
+  it('preserves the issuer response parameter for OpenID validation', async () => {
+    const { app, auth } = setup();
+    await request(app)
+      .get('/auth/callback/google')
+      .query({
+        code: 'x',
+        state: 'browser-state',
+        iss: 'https://accounts.google.com',
+        ignored: 'extra',
+      })
+      .set('Cookie', 'hansel_external_google=browser-state')
+      .expect(303);
+    expect(auth.callbackExternal).toHaveBeenCalledWith('google', {
+      code: 'x',
+      state: 'browser-state',
+      iss: 'https://accounts.google.com',
+    });
+  });
+  it('shows a safe provider failure message on the native login page', async () => {
+    const { app } = setup();
+    const result = await request(app)
+      .get('/login?error=provider_unavailable')
+      .expect(200);
+    expect(result.text).toContain('role="alert"');
+    expect(result.text).toContain('temporarily unavailable');
+  });
   it('requires same-origin consent before onboarding and sets an HttpOnly binding', async () => {
     const { app, auth } = setup();
     await request(app)

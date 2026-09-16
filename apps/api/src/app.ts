@@ -726,7 +726,7 @@ export function createApp(
         request.method === 'POST' ? request.body : request.query
       ) as Record<string, unknown> | undefined;
       const parameters = Object.fromEntries(
-        ['code', 'state', 'error', 'error_description'].flatMap((key) =>
+        ['code', 'state', 'iss', 'error', 'error_description'].flatMap((key) =>
           typeof source?.[key] === 'string' ? [[key, source[key]]] : [],
         ),
       ) as Record<string, string>;
@@ -796,7 +796,11 @@ export function createApp(
         .send(
           renderLoginForm(
             {},
-            '',
+            request.query.error === 'provider_unavailable'
+              ? 'Login is temporarily unavailable. Please try again.'
+              : request.query.error === 'authentication_failed'
+                ? "We couldn't log you in. Check your details and try again."
+                : '',
             request.query.password_reset === 'success'
               ? 'Your password has been reset. Log in with your new password.'
               : '',

@@ -399,6 +399,7 @@ paths:
         - $ref: '#/components/parameters/ExternalProvider'
         - { name: code, in: query, schema: { type: string } }
         - { name: state, in: query, schema: { type: string } }
+        - { name: iss, in: query, schema: { type: string, format: uri } }
         - { name: error, in: query, schema: { type: string } }
       responses:
         '303': { $ref: '#/components/responses/ExternalCallbackRedirect' }
@@ -419,6 +420,7 @@ paths:
               properties:
                 code: { type: string }
                 state: { type: string }
+                iss: { type: string, format: uri }
                 error: { type: string }
                 error_description: { type: string }
       responses:
