@@ -1,7 +1,8 @@
 # Feature: Google login and onboarding on localhost
 
 - ID: `google-local-auth`
-- Status: draft
+- Status: approved
+- Approval: User approved implementation on 2026-09-16.
 - Owner: Hansel product
 - Technical owner: Hansel engineering
 - Last updated: 2026-09-16
