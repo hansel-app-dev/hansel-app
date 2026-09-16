@@ -1,12 +1,13 @@
 # Feature: Microsoft login and onboarding on localhost
 
 - ID: `microsoft-local-auth`
-- Status: `draft`
+- Status: `approved`
+- Approval: User explicitly approved this specification on 2026-09-16.
 - Owner: Hansel product
 - Technical owner: Hansel engineering
 - Last updated: 2026-09-16
 - Domain references: `CONTEXT.md` — User, Organization, Membership; `docs/domain/figjam-object-catalog.md` — Objects and data points (User, Organization), Known ambiguities 2, 3, 10. Microsoft directory membership does not grant Hansel Organization access.
-- Confirmed scope: Personal Microsoft and work/school accounts, login and onboarding, localhost only. User approved one-time Hansel email verification preserving the Microsoft identity and creation of a new Entra app registration. This draft still requires specification approval before implementation.
+- Confirmed scope: Personal Microsoft and work/school accounts, login and onboarding, localhost only. User approved one-time Hansel email verification preserving the Microsoft identity and creation of a new Entra app registration.
 
 ## Problem
 
