@@ -13,6 +13,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Move: Story = {};
 export const AddSign: Story = { args: { tool: 'add' } };
+export const Hand: Story = { args: { tool: 'hand' } };
 export const Viewer: Story = { args: { canAdd: false } };
 export const Saving: Story = { args: { disabled: true } };
 export const Interactive: Story = {

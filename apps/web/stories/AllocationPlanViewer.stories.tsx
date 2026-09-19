@@ -211,6 +211,39 @@ export const SignDrawer: Story = {
   },
 };
 export const ReadOnlySigns: Story = { args: { planSignsApi: signApi(true) } };
+/** @spec allocation-plan-hand-tool REQ-001..007 */
+export const HandTool: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('button', { name: 'Select sign SG.001' });
+    await userEvent.click(canvas.getByRole('button', { name: 'Hand' }));
+  },
+};
+export const HandOverflow: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('button', { name: 'Select sign SG.001' });
+    await userEvent.click(canvas.getByRole('button', { name: 'Hand' }));
+    for (let i = 0; i < 4; i++) await userEvent.click(canvas.getByRole('button', { name: 'Increase plan zoom' }));
+  },
+};
+export const HandGrabbing: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('button', { name: 'Select sign SG.001' });
+    await userEvent.click(canvas.getByRole('button', { name: 'Hand' }));
+    await userEvent.click(canvas.getByRole('button', { name: 'Increase plan zoom' }));
+    const viewport = canvas.getByLabelText('Plan viewport');
+    const box = viewport.getBoundingClientRect();
+    await userEvent.pointer([
+      { target: viewport, coords: { clientX: box.x + 100, clientY: box.y + 100 }, keys: '[MouseLeft>]' },
+      { target: viewport, coords: { clientX: box.x + 60, clientY: box.y + 60 } },
+    ]);
+  },
+};
 export const SignSaveFailure: Story = {
   args: {
     planSignsApi: {

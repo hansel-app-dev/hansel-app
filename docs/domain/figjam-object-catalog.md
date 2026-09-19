@@ -158,6 +158,8 @@ The approved `allocation-plan-multiple-files` amendment (2026-09-10) resolves Al
 
 ## How feature work must use this catalog
 
+The approved `allocation-plan-hand-tool` amendment (2026-09-19) enables Hand for all Site viewers. Hand pans only overflowing Allocation Plan content within scroll bounds, without changing Signs or persisted data. Move remains the default, Add sign remains explicit, and the other three tools remain disabled. This supersedes only the toolbar specification's Hand-disabled scope.
+
 The approved `allocation-plan-toolbar` specification (2026-09-19) makes Move the default Allocation Plan interaction: single-Sign selection and existing guarded movement. Explicit Add sign mode retains creation; the remaining four reference tools are disabled. This supersedes default drawing-click creation only, without introducing new domain objects or changing Sign ownership.
 
 The approved `sign-mounting-options` specification (2026-09-15) expands the Sign drawer's mounting attribute to Freestanding, Wall-mounted, Overhead and Cantilevered, with illustrated single-select options. It supersedes the original Wall-mounted-only restriction, retains that creation default, and does not change the Site's Sign Type grouping.

@@ -284,6 +284,10 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       setPointerCapture: vi.fn(),
       releasePointerCapture: vi.fn(),
     });
+    Object.defineProperties(viewport, {
+      clientWidth: { value: 400 }, clientHeight: { value: 300 },
+      scrollWidth: { value: 1000 }, scrollHeight: { value: 800 },
+    });
 
     fireEvent.pointerEnter(viewer);
     fireEvent.keyDown(window, { key: ' ', code: 'Space' });
@@ -293,7 +297,7 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       properties: Record<string, number>,
     ) => {
       const event = new Event(type, { bubbles: true });
-      Object.assign(event, properties);
+      Object.assign(event, { isPrimary: true }, properties);
       fireEvent(viewport, event);
     };
     dispatchPointer('pointerdown', {

@@ -40,12 +40,14 @@ export function PlanSignsSurface({
   fileId,
   panning,
   drawerHost,
+  onPanModeChange,
   children,
 }: {
   api: PlanSignsApi;
   fileId: string | null;
   panning: boolean;
   drawerHost: HTMLElement | null;
+  onPanModeChange?: (enabled: boolean) => void;
   children: ReactNode;
 }) {
   const service = useRef(api);
@@ -54,6 +56,10 @@ export function PlanSignsSurface({
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
   const [tool, setTool] = useState<PlanTool>('move');
+  useEffect(() => {
+    onPanModeChange?.(tool === 'hand');
+    return () => { onPanModeChange?.(false); };
+  }, [tool, onPanModeChange]);
   const [signs, setSigns] = useState<PlanSign[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [documentsEnabled, setDocumentsEnabled] = useState(false);
@@ -157,7 +163,7 @@ export function PlanSignsSurface({
     event: ReactPointerEvent<HTMLButtonElement>,
     sign: PlanSign,
   ) {
-    if (panning) return;
+    if (panning || tool === 'hand') return;
     event.stopPropagation();
     suppressClick.current = false;
     if (
@@ -190,7 +196,7 @@ export function PlanSignsSurface({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
   function updateMove(event: ReactPointerEvent<HTMLButtonElement>) {
-    if (panning) return;
+    if (panning || tool === 'hand') return;
     event.stopPropagation();
     setCursor(null);
     const current = drag.current;
@@ -782,6 +788,7 @@ export function PlanSignsSurface({
             }}
             onClick={(event) => {
               event.stopPropagation();
+              if (panning || tool === 'hand') return;
               if (suppressClick.current) {
                 suppressClick.current = false;
                 return;
@@ -791,7 +798,7 @@ export function PlanSignsSurface({
             style={{
               left: `${String((preview?.id === sign.id ? preview.x : sign.x) * 100)}%`,
               top: `${String((preview?.id === sign.id ? preview.y : sign.y) * 100)}%`,
-              cursor: tool === 'move' && canManage && !panning ? 'move' : 'pointer',
+              cursor: panning || tool === 'hand' ? 'inherit' : tool === 'move' && canManage ? 'move' : 'pointer',
               touchAction: tool === 'move' && canManage && !panning ? 'none' : 'auto',
             }}
             className={`absolute flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}

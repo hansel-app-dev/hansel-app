@@ -1,11 +1,11 @@
 /** @spec allocation-plan-toolbar REQ-001..002, REQ-007 */
-export type PlanTool = 'move' | 'add';
+export type PlanTool = 'move' | 'hand' | 'add';
 
 const tools = [
   { id: 'move', label: 'Move', path: 'M6 3 20 13 13 14 9 21Z' },
   {
     id: 'hand',
-    label: 'Hand (coming soon)',
+    label: 'Hand',
     path: 'M8 13V6a1.5 1.5 0 0 1 3 0v6-8a1.5 1.5 0 0 1 3 0v8-6a1.5 1.5 0 0 1 3 0v7-4a1.5 1.5 0 0 1 3 0v6c0 4-2 7-6 7-3 0-5-2-7-5l-3-4a1.5 1.5 0 0 1 2-2l2 2Z',
   },
   {
@@ -56,21 +56,28 @@ export function PlanToolbar({
           aria-label={item.label}
           title={item.label}
           aria-pressed={
-            item.id === 'move' || item.id === 'add'
+            item.id === 'move' || item.id === 'hand' || item.id === 'add'
               ? tool === item.id
               : undefined
           }
           disabled={
-            disabled || (item.id !== 'move' && (item.id !== 'add' || !canAdd))
+            disabled ||
+            (item.id !== 'move' &&
+              item.id !== 'hand' &&
+              (item.id !== 'add' || !canAdd))
           }
           onClick={
             item.id === 'move'
               ? () => {
                   onChange('move');
                 }
-              : () => {
-                  onChange('add');
-                }
+              : item.id === 'hand'
+                ? () => {
+                    onChange('hand');
+                  }
+                : () => {
+                    onChange('add');
+                  }
           }
           className={`grid size-[34px] shrink-0 place-items-center rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff] disabled:cursor-not-allowed ${tool === item.id ? 'bg-[#4096ff] text-white' : 'text-[#27272a] enabled:hover:bg-[#f4f4f5]'}`}
         >

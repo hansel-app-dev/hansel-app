@@ -72,6 +72,11 @@ export async function renderPlan(
   }
 }
 
+function scrollWithinPlan(element: HTMLDivElement, x: number, y: number) {
+  element.scrollLeft = Math.max(0, Math.min(x, element.scrollWidth - element.clientWidth));
+  element.scrollTop = Math.max(0, Math.min(y, element.scrollHeight - element.clientHeight));
+}
+
 export function AllocationPlanViewer({
   plan,
   loadContent,
@@ -101,12 +106,16 @@ export function AllocationPlanViewer({
   >({ status: 'loading' });
   const [pointerInside, setPointerInside] = useState(false);
   const [spaceArmed, setSpaceArmed] = useState(false);
+  const [handActive, setHandActive] = useState(false);
+  const panEnabled = spaceArmed || handActive;
+  const suppressPanClick = useRef(false);
   const [dragging, setDragging] = useState(false);
   const viewport = useRef<HTMLDivElement>(null);
   const pendingCenter = useRef<{ x: number; y: number } | undefined>(undefined);
   const drag = useRef<
     | {
         pointerId: number;
+        element: HTMLDivElement;
         clientX: number;
         clientY: number;
         scrollLeft: number;
@@ -175,16 +184,25 @@ export function AllocationPlanViewer({
   const stopDragging = useCallback(() => {
     const activeDrag = drag.current;
     if (activeDrag) {
-      const element = viewport.current;
-      if (element?.hasPointerCapture(activeDrag.pointerId))
-        element.releasePointerCapture(activeDrag.pointerId);
       drag.current = undefined;
+      if (activeDrag.element.hasPointerCapture(activeDrag.pointerId))
+        activeDrag.element.releasePointerCapture(activeDrag.pointerId);
     }
     setDragging(false);
   }, []);
+  const changePanMode = useCallback((enabled: boolean) => {
+    stopDragging();
+    setHandActive(enabled);
+  }, [stopDragging]);
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && drag.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        stopDragging();
+        return;
+      }
       if (
         event.code !== 'Space' ||
         event.altKey ||
@@ -207,11 +225,11 @@ export function AllocationPlanViewer({
       setSpaceArmed(false);
       stopDragging();
     };
-    window.addEventListener('keydown', keyDown);
+    window.addEventListener('keydown', keyDown, true);
     window.addEventListener('keyup', keyUp);
     window.addEventListener('blur', blur);
     return () => {
-      window.removeEventListener('keydown', keyDown);
+      window.removeEventListener('keydown', keyDown, true);
       window.removeEventListener('keyup', keyUp);
       window.removeEventListener('blur', blur);
       stopDragging();
@@ -274,7 +292,7 @@ export function AllocationPlanViewer({
     <section
       ref={setDrawerHost}
       aria-label={`${filename} preview`}
-      className={`relative ${planSignsApi ? 'h-[calc(100dvh-119px)]' : 'h-[calc(100dvh-151px)]'} min-h-[320px] bg-white ${dragging ? 'cursor-grabbing select-none' : spaceArmed ? 'cursor-grab select-none' : ''}`}
+      className={`relative ${planSignsApi ? 'h-[calc(100dvh-119px)]' : 'h-[calc(100dvh-151px)]'} min-h-[320px] bg-white ${dragging ? 'cursor-grabbing select-none' : panEnabled ? 'cursor-grab select-none' : ''}`}
       onKeyDown={(event) => {
         if (
           event.target instanceof HTMLElement &&
@@ -301,12 +319,40 @@ export function AllocationPlanViewer({
       <div
         className={`absolute inset-0 overflow-auto ${planSignsApi ? 'bottom-0' : 'bottom-10'}`}
         data-testid="plan-pan-viewport"
-        onPointerCancel={stopDragging}
-        onPointerDown={(event) => {
-          if (!spaceArmed || event.button !== 0) return;
+        tabIndex={0}
+        aria-label="Plan viewport"
+        onKeyDown={(event) => {
+          if (!handActive || event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+          const offsets: Record<string, [number, number]> = { ArrowLeft: [-40, 0], ArrowRight: [40, 0], ArrowUp: [0, -40], ArrowDown: [0, 40] };
+          const offset = offsets[event.key];
+          if (!offset) return;
           event.preventDefault();
+          event.stopPropagation();
+          scrollWithinPlan(event.currentTarget, event.currentTarget.scrollLeft + offset[0], event.currentTarget.scrollTop + offset[1]);
+        }}
+        style={{ touchAction: panEnabled ? 'none' : 'auto' }}
+        onClickCapture={(event) => {
+          // Portaled toolbar/drawer events still traverse this React ancestor.
+          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (!panEnabled && !suppressPanClick.current) return;
+          suppressPanClick.current = false;
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+        onPointerDownCapture={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (!drag.current && event.button === 0 && event.isPrimary) suppressPanClick.current = false;
+        }}
+        onPointerCancel={(event) => { if (drag.current?.pointerId === event.pointerId) stopDragging(); }}
+        onLostPointerCapture={(event) => { if (drag.current?.pointerId === event.pointerId) stopDragging(); }}
+        onPointerDown={(event) => {
+          if (!event.currentTarget.contains(event.target as Node)) return;
+          if (!panEnabled || event.button !== 0 || !event.isPrimary || drag.current) return;
+          event.preventDefault();
+          suppressPanClick.current = true;
           drag.current = {
             pointerId: event.pointerId,
+            element: event.currentTarget,
             clientX: event.clientX,
             clientY: event.clientY,
             scrollLeft: event.currentTarget.scrollLeft,
@@ -318,12 +364,11 @@ export function AllocationPlanViewer({
         onPointerMove={(event) => {
           const activeDrag = drag.current;
           if (activeDrag?.pointerId !== event.pointerId) return;
-          event.currentTarget.scrollLeft =
-            activeDrag.scrollLeft + activeDrag.clientX - event.clientX;
-          event.currentTarget.scrollTop =
-            activeDrag.scrollTop + activeDrag.clientY - event.clientY;
+          scrollWithinPlan(event.currentTarget,
+            activeDrag.scrollLeft + activeDrag.clientX - event.clientX,
+            activeDrag.scrollTop + activeDrag.clientY - event.clientY);
         }}
-        onPointerUp={stopDragging}
+        onPointerUp={(event) => { if (drag.current?.pointerId === event.pointerId) stopDragging(); }}
         ref={viewport}
       >
         {state.status === 'loading' ? (
@@ -366,8 +411,9 @@ export function AllocationPlanViewer({
                   key={`${plan.id}:${selectedId ?? 'legacy'}`}
                   api={planSignsApi}
                   fileId={selectedId ?? null}
-                  panning={spaceArmed || dragging}
+                  panning={panEnabled || dragging}
                   drawerHost={drawerHost}
+                  onPanModeChange={changePanMode}
                 >
                   {drawing}
                 </PlanSignsSurface>
