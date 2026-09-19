@@ -19,6 +19,7 @@ import { SignDocuments } from './SignDocuments.js';
 import { SignPhotos } from './SignPhotos.js';
 import { SignComments } from './SignComments.js';
 import { SignMountingSelect } from './SignMountingSelect.js';
+import { PlanToolbar, type PlanTool } from './PlanToolbar.js';
 
 const directions = [
   'left',
@@ -52,6 +53,7 @@ export function PlanSignsSurface({
   const active = useRef(true);
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
+  const [tool, setTool] = useState<PlanTool>('move');
   const [signs, setSigns] = useState<PlanSign[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [documentsEnabled, setDocumentsEnabled] = useState(false);
@@ -130,7 +132,7 @@ export function PlanSignsSurface({
     if (panning) cancelDrag();
   }, [panning]);
   function moveSign(sign: PlanSign, x: number, y: number) {
-    if (!canManage || panning || conflict || busy.current) return;
+    if (tool !== 'move' || !canManage || panning || conflict || busy.current) return;
     void mutate(
       async () => {
         const saved = await service.current.update(sign.id, {
@@ -161,6 +163,7 @@ export function PlanSignsSurface({
     if (
       event.button !== 0 ||
       !event.isPrimary ||
+      tool !== 'move' ||
       !canManage ||
       busy.current ||
       unsaved ||
@@ -307,7 +310,7 @@ export function PlanSignsSurface({
     }
   }
   function create(input: PlanSignCreate) {
-    if (!canManage || panning || !leave()) return;
+    if (tool !== 'add' || !canManage || panning || !leave()) return;
     void mutate(
       async () => {
         const sign = await service.current.create(input);
@@ -410,7 +413,7 @@ export function PlanSignsSurface({
       ? createPortal(
           <aside
             aria-label="Sign details"
-            className="absolute -right-8 top-0 bottom-10 z-20 flex w-[350px] max-w-full flex-col overflow-hidden border-l border-[#e2e2e7] bg-white text-[#27272a] shadow-[-8px_0_20px_#00000014] max-md:right-0"
+            className="absolute -right-8 top-0 bottom-0 z-20 flex w-[350px] max-w-full flex-col overflow-hidden border-l border-[#e2e2e7] bg-white text-[#27272a] shadow-[-8px_0_20px_#00000014] max-md:right-0 max-[1050px]:bottom-[134px]"
             onKeyDown={(event) => {
               if (event.key === 'Escape' && leave()) select(null);
             }}
@@ -610,18 +613,28 @@ export function PlanSignsSurface({
       : null;
   return (
     <>
+      {drawerHost && createPortal(
+        <div className="absolute -left-[14px] bottom-5 z-30 max-w-full max-md:left-0">
+          <PlanToolbar tool={tool} canAdd={canManage} disabled={pending || !!preview || !!deleteTarget} onChange={next => {
+            if (next === tool || drag.current || !leave()) return;
+            if (unsaved) select(null);
+            setCursor(null);
+            setTool(next);
+          }} />
+        </div>, drawerHost,
+      )}
       <div
         aria-label="Plan drawing"
         ref={drawing}
         data-can-manage-signs={canManage}
         tabIndex={canManage ? 0 : -1}
-        className={`relative outline-offset-2 ${canManage && !panning ? 'cursor-crosshair' : ''}`}
+        className={`relative outline-offset-2 ${canManage && !panning && tool === 'add' ? 'cursor-crosshair' : ''}`}
         onPointerDown={(event) => {
           suppressClick.current = false;
           down.current = { x: event.clientX, y: event.clientY };
         }}
         onPointerMove={(event) => {
-          if (!canManage || panning) return;
+          if (tool !== 'add' || !canManage || panning) return;
           const box = event.currentTarget.getBoundingClientRect();
           setCursor({
             x: (event.clientX - box.left) / box.width,
@@ -654,6 +667,10 @@ export function PlanSignsSurface({
             return;
           const box = event.currentTarget.getBoundingClientRect();
           if (!box.width || !box.height) return;
+          if (tool === 'move') {
+            if (leave()) select(null);
+            return;
+          }
           const x = (event.clientX - box.left) / box.width,
             y = (event.clientY - box.top) / box.height;
           if (x >= 0 && x <= 1 && y >= 0 && y <= 1)
@@ -662,6 +679,11 @@ export function PlanSignsSurface({
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget || !canManage || panning)
             return;
+          if (event.key === 'Escape') {
+            setCursor(null);
+            if (leave()) select(null);
+          }
+          if (tool !== 'add') return;
           if (event.key.startsWith('Arrow')) {
             event.preventDefault();
             setCursor((current) => ({
@@ -700,10 +722,6 @@ export function PlanSignsSurface({
               idempotencyKey: crypto.randomUUID(),
             });
           }
-          if (event.key === 'Escape') {
-            setCursor(null);
-            if (leave()) select(null);
-          }
         }}
       >
         {children}
@@ -732,7 +750,7 @@ export function PlanSignsSurface({
                 return;
               event.preventDefault();
               event.stopPropagation();
-              if (unsaved || busy.current || !canManage || panning || conflict)
+              if (tool !== 'move' || unsaved || busy.current || !canManage || panning || conflict)
                 return;
               moveSign(
                 sign,
@@ -773,8 +791,8 @@ export function PlanSignsSurface({
             style={{
               left: `${String((preview?.id === sign.id ? preview.x : sign.x) * 100)}%`,
               top: `${String((preview?.id === sign.id ? preview.y : sign.y) * 100)}%`,
-              cursor: canManage && !panning ? 'move' : 'pointer',
-              touchAction: canManage && !panning ? 'none' : 'auto',
+              cursor: tool === 'move' && canManage && !panning ? 'move' : 'pointer',
+              touchAction: tool === 'move' && canManage && !panning ? 'none' : 'auto',
             }}
             className={`absolute flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}
           >
@@ -789,7 +807,7 @@ export function PlanSignsSurface({
             </span>
           </button>
         ))}
-        {cursor && canManage && !panning && !pending && (
+        {tool === 'add' && cursor && canManage && !panning && !pending && (
           <span
             aria-hidden="true"
             style={{
@@ -806,7 +824,7 @@ export function PlanSignsSurface({
         message &&
         drawerHost &&
         createPortal(
-          <div className="absolute bottom-12 left-2 z-20 rounded bg-white p-2 shadow">
+          <div className="absolute bottom-20 left-2 z-20 rounded bg-white p-2 shadow">
             {notice}
           </div>,
           drawerHost,

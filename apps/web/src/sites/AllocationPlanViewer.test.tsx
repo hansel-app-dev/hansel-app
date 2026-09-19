@@ -38,6 +38,19 @@ const plan = {
 };
 
 describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]', () => {
+  it('allocation-plan-toolbar REQ-001, REQ-005: replaces help strip and resets Move on file change', async () => {
+    const files = ['Ground.png', 'First.png'].map((filename, index) => ({ id: String(index), filename, mediaType: 'image/png' as const, byteSize: 3 }));
+    const api = { load: vi.fn().mockResolvedValue({ signs: [], canManageSigns: true }), create: vi.fn(), update: vi.fn(), remove: vi.fn() };
+    render(<AllocationPlanViewer plan={{ ...plan, files }} planSignsApi={api} loadContent={() => Promise.resolve(new Blob())} render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })} />);
+    await waitFor(() => { expect(screen.getByRole('button', { name: 'Add sign' })).toBeEnabled(); });
+    expect(screen.queryByLabelText('Plan viewing controls')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add sign' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'First.png' }));
+    await screen.findByRole('img', { name: 'First.png' });
+    expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Plan zoom')).toBeVisible();
+  });
   it('switches ordered files and resets zoom [allocation-details-design AC-001]', async () => {
     const files = ['Ground.png', 'First.png'].map((filename, index) => ({
       id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,

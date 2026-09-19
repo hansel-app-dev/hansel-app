@@ -158,6 +158,8 @@ The approved `allocation-plan-multiple-files` amendment (2026-09-10) resolves Al
 
 ## How feature work must use this catalog
 
+The approved `allocation-plan-toolbar` specification (2026-09-19) makes Move the default Allocation Plan interaction: single-Sign selection and existing guarded movement. Explicit Add sign mode retains creation; the remaining four reference tools are disabled. This supersedes default drawing-click creation only, without introducing new domain objects or changing Sign ownership.
+
 The approved `sign-mounting-options` specification (2026-09-15) expands the Sign drawer's mounting attribute to Freestanding, Wall-mounted, Overhead and Cantilevered, with illustrated single-select options. It supersedes the original Wall-mounted-only restriction, retains that creation default, and does not change the Site's Sign Type grouping.
 
 The approved `sign-comments` specification (2026-09-15) explicitly accepts Sign-owned root comments and one-level replies, uploader-private draft attachments (PNG/JPEG/PDF, 5 MiB), membership mentions restricted to current Site access without notifications, and desired-state emoji reactions. This is an accepted implementation scope, not an inference from FigJam proximity. It does not introduce Allocation Plan comments, a media library, or synchronization with Site Activity or the Signage Schedule comment cell.

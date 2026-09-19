@@ -299,7 +299,7 @@ export function AllocationPlanViewer({
       tabIndex={0}
     >
       <div
-        className="absolute inset-0 bottom-10 overflow-auto"
+        className={`absolute inset-0 overflow-auto ${planSignsApi ? 'bottom-0' : 'bottom-10'}`}
         data-testid="plan-pan-viewport"
         onPointerCancel={stopDragging}
         onPointerDown={(event) => {
@@ -363,7 +363,7 @@ export function AllocationPlanViewer({
             >
               {planSignsApi ? (
                 <PlanSignsSurface
-                  key={selectedId ?? plan.id}
+                  key={`${plan.id}:${selectedId ?? 'legacy'}`}
                   api={planSignsApi}
                   fileId={selectedId ?? null}
                   panning={spaceArmed || dragging}
@@ -476,7 +476,7 @@ export function AllocationPlanViewer({
       {planSignsApi && (
         <div
           aria-label="Plan zoom"
-          className="absolute bottom-[60px] right-3 z-10 flex h-[38px] items-center rounded-full border border-[#e2e2e7] bg-white px-2 text-xs text-[#72727e] [section:has(aside)_&]:right-[338px] max-md:[section:has(aside)_&]:hidden"
+          className="absolute bottom-[60px] -right-3 z-10 flex h-[38px] items-center rounded-full border border-[#e2e2e7] bg-white px-2 text-xs text-[#72727e] [section:has(aside)_&]:right-[338px] [section:has(aside)_&]:bottom-20 max-md:right-0 max-md:bottom-20 max-[1050px]:[section:has(aside)_&]:bottom-[88px] max-[1050px]:[section:has(aside)_&]:right-3 max-[1050px]:[section:has(aside)_&]:z-30"
         >
           <button
             type="button"
@@ -501,7 +501,7 @@ export function AllocationPlanViewer({
           </button>
         </div>
       )}
-      <div
+      {!planSignsApi && <div
         aria-label="Plan viewing controls"
         className="absolute -left-8 -right-8 bottom-0 flex h-10 items-center border-t border-[#e2e2e7] bg-[#fafafa] px-8 text-[10px] leading-[14px] tracking-[0.2px] text-[#72727e] max-md:-left-5 max-md:-right-5 max-md:px-5"
       >
@@ -573,31 +573,7 @@ export function AllocationPlanViewer({
           SPACEBAR
         </kbd>
         <span className="ml-1 whitespace-nowrap">Hold to navigate</span>
-        {planSignsApi && (
-          <span className="ml-6 hidden items-center gap-1 whitespace-nowrap [section:has([data-can-manage-signs=true])_&]:inline-flex">
-            <svg
-              aria-hidden="true"
-              width="16"
-              height="24"
-              viewBox="0 0 16 24"
-              fill="none"
-            >
-              <rect
-                x="1"
-                y="1"
-                width="14"
-                height="22"
-                rx="7"
-                stroke="#e2e2e7"
-                fill="white"
-              />
-              <path d="M8 1a7 7 0 0 0-7 7v3h7Z" fill="#a1a1aa" />
-              <path d="M8 1v10h7M1 11h7" stroke="#e2e2e7" />
-            </svg>
-            Add sign
-          </span>
-        )}
-      </div>
+      </div>}
       <span aria-live="polite" className="sr-only">
         Zoom {zoom}%
       </span>
