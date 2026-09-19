@@ -1,7 +1,8 @@
 # Feature: Allocation Plan toolbar and Move tool
 
 - ID: `allocation-plan-toolbar`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved in conversation on 2026-09-19.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-19`
