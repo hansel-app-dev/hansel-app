@@ -64,8 +64,8 @@ export function SignMountingSelect({
                 event.key === 'Home'
                   ? 0
                   : event.key === 'End'
-                    ? 3
-                    : (index + (event.key === 'ArrowDown' ? 1 : 3)) % 4,
+                    ? signMountingOptions.length - 1
+                    : (index + (event.key === 'ArrowDown' ? 1 : signMountingOptions.length - 1)) % signMountingOptions.length,
               );
           } else if ((event.key === 'Enter' || event.key === ' ') && open) {
             event.preventDefault();
@@ -124,12 +124,13 @@ export function SignMountingSelect({
   );
 }
 
-function SignMountingIcon({ value }: { value: SignMounting }) {
+export function SignMountingIcon({ value }: { value: SignMounting }) {
   const icons: Record<SignMounting, string> = {
     Freestanding: '/assets/sign-freestanding.png',
     'Wall-mounted': '/assets/sign-wall-mounted.png',
     Overhead: '/assets/sign-overhead.png',
     Cantilevered: '/assets/sign-cantilevered.png',
+    Floor: '/assets/sign-floor.svg',
   };
   return (
     <img

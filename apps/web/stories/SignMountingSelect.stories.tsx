@@ -32,6 +32,7 @@ export const WallMounted: Story = {};
 export const Freestanding: Story = { args: { value: 'Freestanding' } };
 export const Overhead: Story = { args: { value: 'Overhead' } };
 export const Cantilevered: Story = { args: { value: 'Cantilevered' } };
+export const Floor: Story = { args: { value: 'Floor' } };
 export const Disabled: Story = { args: { disabled: true } };
 export const Open: Story = {
   play: async ({ canvasElement }) => {

@@ -54,6 +54,7 @@ collection:
               x: { type: number, minimum: 0, maximum: 1 }
               y: { type: number, minimum: 0, maximum: 1 }
               idempotencyKey: { type: string, format: uuid }
+              mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor], default: Wall-mounted }
     responses:
       '201':
         {
@@ -111,7 +112,7 @@ item:
               y: { type: number, minimum: 0, maximum: 1 }
               code: { type: string, minLength: 1, maxLength: 40 }
               content: { type: string, maxLength: 200 }
-              mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered] }
+              mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor] }
               function: { const: Wayfinder }
               colour: { const: Red }
               orientation:
@@ -207,7 +208,7 @@ sign:
     code: { type: string, minLength: 1, maxLength: 40 }
     content: { type: string, maxLength: 200 }
     updatedAt: { type: string, format: date-time }
-    mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered] }
+    mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor] }
     function: { const: Wayfinder }
     colour: { const: Red }
     orientation:

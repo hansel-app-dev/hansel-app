@@ -414,6 +414,7 @@ export function AllocationPlanViewer({
                   panning={panEnabled || dragging}
                   drawerHost={drawerHost}
                   onPanModeChange={changePanMode}
+                  viewScale={zoom}
                 >
                   {drawing}
                 </PlanSignsSurface>

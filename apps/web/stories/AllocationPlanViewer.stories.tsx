@@ -133,6 +133,7 @@ function signApi(readonly = false): PlanSignsApi {
         fileId: input.fileId,
         x: input.x,
         y: input.y,
+        mounting: input.mounting ?? 'Wall-mounted',
         code: `SG.${String(signs.length + 1).padStart(3, '0')}`,
         updatedAt: new Date().toISOString(),
       };
@@ -148,6 +149,7 @@ function signApi(readonly = false): PlanSignsApi {
         y: input.y ?? current.y,
         code: input.code ?? current.code,
         content: input.content ?? current.content,
+        mounting: input.mounting ?? current.mounting,
         orientation: input.orientation ?? current.orientation,
         updatedAt: new Date().toISOString(),
       };
@@ -161,6 +163,30 @@ function signApi(readonly = false): PlanSignsApi {
   };
 }
 export const PopulatedSigns: Story = { args: { planSignsApi: signApi() } };
+/** @spec allocation-plan-add-sign-tool REQ-001..008 */
+const openAddMenu = async (canvasElement: HTMLElement, edge = false) => {
+  const canvas = within(canvasElement);
+  await canvas.findByRole('button', { name: 'Select sign SG.001' });
+  await userEvent.click(canvas.getByRole('button', { name: 'Add sign' }));
+  const drawing = canvas.getByLabelText('Plan drawing');
+  const box = drawing.getBoundingClientRect();
+  await userEvent.pointer({ target: drawing, keys: '[MouseLeft]', coords: { clientX: edge ? box.right - 10 : box.left + box.width * 0.65, clientY: edge ? box.bottom - 10 : box.top + box.height * 0.45 } });
+};
+export const AddSignCursor: Story = { args: { planSignsApi: signApi() }, play: async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  await canvas.findByRole('button', { name: 'Select sign SG.001' });
+  await userEvent.click(canvas.getByRole('button', { name: 'Add sign' }));
+} };
+export const AddSignMenu: Story = { args: { planSignsApi: signApi() }, play: async ({ canvasElement }) => { await openAddMenu(canvasElement); } };
+export const AddSignMenuEdge: Story = { args: { planSignsApi: signApi() }, play: async ({ canvasElement }) => { await openAddMenu(canvasElement, true); } };
+export const AddSignPending: Story = { args: { planSignsApi: { ...signApi(), create: () => new Promise(() => undefined) } }, play: async ({ canvasElement }) => {
+  await openAddMenu(canvasElement);
+  await userEvent.click(within(canvasElement).getByRole('menuitem', { name: 'Floor' }));
+} };
+export const AddSignFailure: Story = { args: { planSignsApi: { ...signApi(), create: () => Promise.reject(new Error('unavailable')) } }, play: async ({ canvasElement }) => {
+  await openAddMenu(canvasElement);
+  await userEvent.click(within(canvasElement).getByRole('menuitem', { name: 'Floor' }));
+} };
 export const DeletePending: Story = {
   args: {
     planSignsApi: { ...signApi(), remove: () => new Promise(() => undefined) },

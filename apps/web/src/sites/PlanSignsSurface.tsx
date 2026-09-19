@@ -1,5 +1,6 @@
 /** @spec allocation-plan-signs REQ-001..002, REQ-005..013 */
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -20,6 +21,7 @@ import { SignPhotos } from './SignPhotos.js';
 import { SignComments } from './SignComments.js';
 import { SignMountingSelect } from './SignMountingSelect.js';
 import { PlanToolbar, type PlanTool } from './PlanToolbar.js';
+import { AddSignMenu } from './AddSignMenu.js';
 
 const directions = [
   'left',
@@ -41,6 +43,7 @@ export function PlanSignsSurface({
   panning,
   drawerHost,
   onPanModeChange,
+  viewScale,
   children,
 }: {
   api: PlanSignsApi;
@@ -48,6 +51,7 @@ export function PlanSignsSurface({
   panning: boolean;
   drawerHost: HTMLElement | null;
   onPanModeChange?: (enabled: boolean) => void;
+  viewScale?: number;
   children: ReactNode;
 }) {
   const service = useRef(api);
@@ -79,6 +83,17 @@ export function PlanSignsSurface({
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const down = useRef<{ x: number; y: number } | null>(null);
   const drawing = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<{
+    x: number; y: number;
+    point: { x: number; y: number };
+    bounds: { left: number; top: number; right: number; bottom: number };
+  } | null>(null);
+  const dismissPlacement = useCallback(() => {
+    setPlacement(null);
+    drawing.current?.focus({ preventScroll: true });
+  }, []);
+  useEffect(() => { if (panning) setPlacement(null); }, [panning]);
+  useEffect(() => { setPlacement(null); }, [viewScale, fileId]);
   const drag = useRef<{
     sign: PlanSign;
     pointerId: number;
@@ -104,6 +119,7 @@ export function PlanSignsSurface({
     !busy.current &&
     (!unsaved || window.confirm('Discard unsaved Sign changes?'));
   function select(sign: PlanSign | null) {
+    setPlacement(null);
     if (sign?.id !== selected?.id) setSection('General');
     setSelected(sign);
     setCode(sign?.code ?? '');
@@ -326,11 +342,23 @@ export function PlanSignsSurface({
           sign,
         ]);
         select(sign);
+        setTool('move');
       },
       () => {
         create(input);
       },
     );
+  }
+  function offerPlacement(x: number, y: number) {
+    if (tool !== 'add' || !canManage || panning || !leave() || !drawing.current) return;
+    const box = drawing.current.getBoundingClientRect();
+    const viewport = drawing.current.closest('[data-testid="plan-pan-viewport"]')?.getBoundingClientRect();
+    select(null);
+    setPlacement({ x, y, point: { x: box.left + x * box.width, y: box.top + y * box.height }, bounds: {
+      // Keep the file selector and bottom toolbar/zoom bands unobstructed.
+      left: Math.max(0, viewport?.left ?? 0), top: Math.max(0, viewport?.top ?? 0) + 60,
+      right: Math.min(window.innerWidth, viewport?.right ?? window.innerWidth), bottom: Math.min(window.innerHeight, viewport?.bottom ?? window.innerHeight) - 140,
+    } });
   }
   function save(changes: Omit<PlanSignPatch, 'expectedUpdatedAt'>) {
     if (!selected || !canManage || conflict) return;
@@ -625,6 +653,7 @@ export function PlanSignsSurface({
             if (next === tool || drag.current || !leave()) return;
             if (unsaved) select(null);
             setCursor(null);
+            setPlacement(null);
             setTool(next);
           }} />
         </div>, drawerHost,
@@ -634,7 +663,8 @@ export function PlanSignsSurface({
         ref={drawing}
         data-can-manage-signs={canManage}
         tabIndex={canManage ? 0 : -1}
-        className={`relative outline-offset-2 ${canManage && !panning && tool === 'add' ? 'cursor-crosshair' : ''}`}
+        className="relative outline-offset-2"
+        style={{ cursor: canManage && !panning && tool === 'add' ? 'url("/assets/add-sign-cursor.svg") 4 4, crosshair' : undefined }}
         onPointerDown={(event) => {
           suppressClick.current = false;
           down.current = { x: event.clientX, y: event.clientY };
@@ -680,7 +710,7 @@ export function PlanSignsSurface({
           const x = (event.clientX - box.left) / box.width,
             y = (event.clientY - box.top) / box.height;
           if (x >= 0 && x <= 1 && y >= 0 && y <= 1)
-            create({ x, y, fileId, idempotencyKey: crypto.randomUUID() });
+            offerPlacement(x, y);
         }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget || !canManage || panning)
@@ -721,12 +751,7 @@ export function PlanSignsSurface({
           }
           if (event.key === 'Enter') {
             event.preventDefault();
-            create({
-              x: cursor?.x ?? 0.5,
-              y: cursor?.y ?? 0.5,
-              fileId,
-              idempotencyKey: crypto.randomUUID(),
-            });
+            offerPlacement(cursor?.x ?? 0.5, cursor?.y ?? 0.5);
           }
         }}
       >
@@ -814,19 +839,11 @@ export function PlanSignsSurface({
             </span>
           </button>
         ))}
-        {tool === 'add' && cursor && canManage && !panning && !pending && (
-          <span
-            aria-hidden="true"
-            style={{
-              left: `${String(cursor.x * 100)}%`,
-              top: `${String(cursor.y * 100)}%`,
-            }}
-            className="pointer-events-none absolute ml-1 mt-1 whitespace-nowrap rounded-full bg-[#64748b] px-3 py-1 text-xs text-white"
-          >
-            Add new
-          </span>
-        )}
       </div>
+      {placement && drawerHost && createPortal(<AddSignMenu point={placement.point} bounds={placement.bounds} onDismiss={dismissPlacement} onChoose={mounting => {
+        setPlacement(null);
+        create({ x: placement.x, y: placement.y, fileId, mounting, idempotencyKey: crypto.randomUUID() });
+      }} />, drawerHost)}
       {!selected &&
         message &&
         drawerHost &&

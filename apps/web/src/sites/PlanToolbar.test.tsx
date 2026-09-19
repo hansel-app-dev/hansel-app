@@ -103,11 +103,12 @@ it('REQ-004..005: Add sign enables creation but not movement; Move restores drag
   fireEvent.keyDown(marker, { key: 'ArrowRight', altKey: true });
   expect(api.update).not.toHaveBeenCalled();
   fireEvent.click(drawing, { clientX: 250, clientY: 200 });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Wall-mounted' }));
   await screen.findByRole('button', { name: 'Select sign SG.003' });
   expect(api.create).toHaveBeenCalledWith(
     expect.objectContaining({ x: 0.25, y: 0.25 }),
   );
-  expect(screen.getByRole('button', { name: 'Add sign' })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -202,6 +203,7 @@ it('REQ-005: guards tool changes against unsaved edits and in-flight writes', as
   expect(screen.queryByLabelText('Sign details')).not.toBeInTheDocument();
   api.create.mockReturnValue(new Promise(() => undefined));
   fireEvent.keyDown(screen.getByLabelText('Plan drawing'), { key: 'Enter' });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Wall-mounted' }));
   expect(screen.getByRole('button', { name: 'Move' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Add sign' })).toBeDisabled();
 });

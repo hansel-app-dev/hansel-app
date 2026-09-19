@@ -157,6 +157,8 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
             fileId: input.fileId,
             x: input.x,
             y: input.y,
+            // Preserve digests for legacy/default Wall-mounted requests.
+            ...(input.mounting && input.mounting !== 'Wall-mounted' ? { mounting: input.mounting } : {}),
           }),
         )
         .digest('hex');
@@ -223,6 +225,7 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
             signTypeId: group.id,
             code,
             normalizedCode: code.toLowerCase(),
+            mounting: input.mounting ?? 'Wall-mounted',
           },
         });
         const placement = await db.signPlacement.create({

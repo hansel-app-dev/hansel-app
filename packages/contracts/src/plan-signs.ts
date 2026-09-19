@@ -22,6 +22,7 @@ export const signMountingOptions = [
   'Wall-mounted',
   'Overhead',
   'Cantilevered',
+  'Floor',
 ] as const;
 export const signMountingSchema = z.enum(signMountingOptions);
 export type SignMounting = z.infer<typeof signMountingSchema>;
@@ -37,6 +38,7 @@ export const planSignCreateSchema = z
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
     idempotencyKey: z.uuid(),
+    mounting: signMountingSchema.optional(),
   })
   .strict();
 export const planSignPatchSchema = z
