@@ -1,7 +1,8 @@
 # Feature: Sign Function options
 
 - ID: `sign-function-options`
-- Status: `draft`
+- Status: `approved`
+- Approval: User approved implementation in conversation on 2026-09-22.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-22`
@@ -24,7 +25,7 @@ Editors can select and persist each of the four requested Function values. Exist
 - REQ-001: General → Function MUST be single-select with exactly Identification, Directional, Informational, and Regulatory/Statutory, in that order and with that spelling.
 - REQ-002: Selecting a value MUST save through the existing shared Sign update flow and remain selected after reload. Preserve concurrency checks, pending/error states, and recovery behavior without changing other attributes.
 - REQ-003: Client and server MUST accept each of the four exact values and reject unsupported values for writes. Shared read contracts MUST support all four values.
-- REQ-004: Proposed for approval: migrate existing Wayfinder values to Directional and use Directional as the default for new Signs, including database and application defaults. Preserve Sign IDs, ownership, placement, and all other attributes. Migration MUST NOT create user-edit Activity entries. Readers MUST tolerate legacy Wayfinder during deployment; new writes MUST use the four supported values.
+- REQ-004: Migrate existing Wayfinder values to Directional and use Directional as the default for new Signs, including database and application defaults. Preserve Sign IDs, ownership, placement, and all other attributes. Migration MUST NOT create user-edit Activity entries. Readers MUST tolerate legacy Wayfinder during deployment; new writes MUST use the four supported values.
 - REQ-005: Preserve the labelled, keyboard-accessible select, visible focus, selected state, and disabled state for users without editing permission. Storybook MUST demonstrate each supported selected value and the disabled control.
 
 ## Acceptance scenarios
@@ -78,4 +79,4 @@ Use the existing allocation-plan-signs flag. Deploy compatible readers and updat
 
 ## Open questions
 
-- None beyond approval of the explicitly proposed legacy mapping and default in REQ-004.
+- None.
