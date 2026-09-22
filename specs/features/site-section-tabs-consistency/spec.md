@@ -1,7 +1,7 @@
 # Feature: Consistent Site section tabs
 
 - ID: `site-section-tabs-consistency`
-- Status: approved
+- Status: `approved`
 - Approval: User approved implementation on 2026-09-15.
 - Owner: Hansel product
 - Technical owner: Hansel engineering

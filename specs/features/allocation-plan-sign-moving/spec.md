@@ -9,11 +9,15 @@
 - Domain references: `CONTEXT.md — Sign, Allocation Plan, Site Access, Organization Role; docs/domain/figjam-object-catalog.md — Objects and data points (Sign and Allocation Plan), Nesting map, Organization roles and permissions, Known ambiguities 10`
 - Design authority: User-supplied `Plan_ Plan dropdown.png` and request to show a move cursor and allow moving a Sign.
 
-## Problem and outcome
+## Problem
 
 Placed Signs cannot currently be repositioned. Authorized users must be able to move an existing Sign without creating another Sign or changing its schedule data.
 
-## Amendment and non-goals
+## Outcome and success metrics
+
+Authorized users can reposition the same Sign and recover its saved location after reload, without creating another Sign or changing its schedule data.
+
+## Non-goals
 
 Upon approval, supersedes only the marker-dragging exclusion in `allocation-plan-signs`. Existing creation, selection, drawer, sharing, deletion and permission requirements remain unchanged. No cross-file moves, marker resizing, rotation by dragging, bulk moves or new Signs.
 
@@ -29,17 +33,45 @@ Upon approval, supersedes only the marker-dragging exclusion in `allocation-plan
 
 ## Acceptance scenarios
 
-- AC-001 [REQ-001..004]: Given a manager and a placed Sign, dragging its icon/badge shows the move cursor and moves that same Sign; after release and reload its new position persists and the schedule still contains the same unchanged record.
-- AC-002 [REQ-002..005]: Given zoom, scroll or Space-pan, dragging keeps the correct drawing-relative position, never creates a Sign, respects bounds, and cancellation restores the original location. A plain click still opens the drawer.
-- AC-003 [REQ-005..007]: Given a Viewer, foreign tenant, stale updatedAt or failed request, movement is rejected or rolled back safely. Authorized keyboard moves persist through the same API.
+### AC-001 — Move and persist [REQ-001, REQ-002, REQ-003, REQ-004]
 
-## API and data
+Given a manager and a placed Sign, dragging its icon/badge shows the move cursor and moves that same Sign; after release and reload its new position persists and the schedule still contains the same unchanged record.
 
-Extend the existing plan Sign PATCH contract with paired x/y coordinates: both or neither must be supplied. Update placement and shared Sign timestamp in one transaction. No database migration or separate Sign records are needed. Update OpenAPI alongside implementation.
+### AC-002 — Coordinates and cancellation [REQ-002, REQ-003, REQ-004, REQ-005]
 
-## UX, testing and rollout
+Given zoom, scroll or Space-pan, dragging keeps the correct drawing-relative position, never creates a Sign, respects bounds, and cancellation restores the original location. A plain click still opens the drawer.
 
-Add Storybook draggable, dragging, read-only and failure states. Test pointer threshold, cursor, drag offset, zoom/pan, bounds, cancellation, keyboard, persistence, concurrency and tenant/role checks before production code. Run affected unit/integration/browser tests, types, lint and builds. Use the existing allocationPlanSignsEnabled flag; disabling it remains the rollback path without deleting data.
+### AC-003 — Guarded movement [REQ-005, REQ-006, REQ-007]
+
+Given a Viewer, foreign tenant, stale updatedAt or failed request, movement is rejected or rolled back safely. Authorized keyboard moves persist through the same API.
+
+## API and integrations
+
+Extend the existing plan Sign PATCH contract with paired x/y coordinates: both or neither must be supplied. Update placement and shared Sign timestamp in one transaction. Update OpenAPI alongside implementation.
+
+## Data and migration
+
+No database migration or separate Sign records are needed. Placement and the shared Sign timestamp update atomically; other Sign attributes remain unchanged.
+
+## UX and accessibility
+
+Preserve click selection, show the authorized move cursor and live preview, and support Alt+arrow movement on a focused Sign. Announce failures accessibly. Add Storybook draggable, dragging, read-only and failure states.
+
+## Security and privacy
+
+Reuse session-derived tenant, Site Access, plan/file/Sign ownership, MANAGE_SIGNS, exact Origin and private/no-store controls. Reject unauthorized moves without altering data.
+
+## Reliability and observability
+
+Prevent overlapping writes. Cancel unsaved drags safely; failed saves restore the saved location with retry, while conflicts require reload. Retain categorical logging.
+
+## Test strategy
+
+Test pointer threshold, cursor, drag offset, zoom/pan, bounds, cancellation, keyboard, persistence, concurrency and tenant/role checks before production code. Run affected unit/integration/browser tests, types, lint and builds.
+
+## Rollout and rollback
+
+Use the existing allocationPlanSignsEnabled flag; disabling it remains the rollback path without deleting data.
 
 ## Open questions
 
