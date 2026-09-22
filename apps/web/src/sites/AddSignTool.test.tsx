@@ -54,7 +54,7 @@ async function setup() {
         code: 'SG.001',
         mounting: input.mounting,
         content: '',
-        function: 'Wayfinder',
+        function: 'Directional',
         colour: 'Red',
         orientation: 'down',
         updatedAt: new Date().toISOString(),

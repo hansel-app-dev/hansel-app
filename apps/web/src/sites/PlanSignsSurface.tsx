@@ -10,6 +10,8 @@ import {
 import { createPortal } from 'react-dom';
 import {
   planSignPatchSchema,
+  signFunctionOptions,
+  signFunctionSchema,
   type PlanSign,
   type PlanSignCreate,
   type PlanSignPatch,
@@ -551,11 +553,11 @@ export function PlanSignsSurface({
                       className={`${control} mt-2`}
                       disabled={!canManage || pending}
                       value={selected.function}
-                      onChange={() => {
-                        save({ function: 'Wayfinder' });
+                      onChange={(event) => {
+                        save({ function: signFunctionSchema.parse(event.target.value) });
                       }}
                     >
-                      <option>Wayfinder</option>
+                      {signFunctionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
                     </select>
                   </label>
                   <label className="block">

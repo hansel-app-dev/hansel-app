@@ -109,7 +109,7 @@ export const SpacePanArmed: Story = {
   },
 };
 
-function signApi(readonly = false): PlanSignsApi {
+function signApi(readonly = false, signFunction: PlanSign['function'] = 'Directional'): PlanSignsApi {
   const initial: PlanSign = {
     id: '00000000-0000-4000-8000-000000000011',
     fileId: null,
@@ -118,7 +118,7 @@ function signApi(readonly = false): PlanSignsApi {
     code: 'SG.001',
     content: '',
     mounting: 'Wall-mounted',
-    function: 'Wayfinder',
+    function: signFunction,
     colour: 'Red',
     orientation: 'down',
     updatedAt: '2026-09-14T00:00:00.000Z',
@@ -150,6 +150,7 @@ function signApi(readonly = false): PlanSignsApi {
         code: input.code ?? current.code,
         content: input.content ?? current.content,
         mounting: input.mounting ?? current.mounting,
+        function: input.function ?? current.function,
         orientation: input.orientation ?? current.orientation,
         updatedAt: new Date().toISOString(),
       };
@@ -291,3 +292,10 @@ export const EmptySigns: Story = {
     },
   },
 };
+
+/** @spec sign-function-options REQ-001, REQ-005 */
+export const FunctionIdentification: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Identification') } };
+export const FunctionDirectional: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Directional') } };
+export const FunctionInformational: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Informational') } };
+export const FunctionRegulatory: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Regulatory/Statutory') } };
+export const FunctionReadOnly: Story = { ...SignDrawer, args: { planSignsApi: signApi(true, 'Regulatory/Statutory') } };

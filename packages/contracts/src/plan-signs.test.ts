@@ -129,7 +129,7 @@ describe('allocation-plan-signs REQ-001,007,012 contracts', () => {
         planSignPatchSchema.safeParse({
           expectedUpdatedAt: new Date().toISOString(),
           mounting: 'Wall-mounted',
-          function: 'Wayfinder',
+          function: 'Directional',
           colour: 'Red',
           orientation,
         }).success,

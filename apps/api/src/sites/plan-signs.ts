@@ -226,6 +226,7 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
             code,
             normalizedCode: code.toLowerCase(),
             mounting: input.mounting ?? 'Wall-mounted',
+            function: 'Directional',
           },
         });
         const placement = await db.signPlacement.create({

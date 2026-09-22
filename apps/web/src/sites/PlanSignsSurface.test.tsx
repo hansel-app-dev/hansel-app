@@ -11,7 +11,7 @@ it('allocation-plan-signs REQ-002: viewers cannot create and disabled tabs remai
     code: 'SG.001',
     content: '',
     mounting: 'Wall-mounted' as const,
-    function: 'Wayfinder' as const,
+    function: 'Directional' as const,
     colour: 'Red' as const,
     orientation: 'down' as const,
     updatedAt: new Date().toISOString(),

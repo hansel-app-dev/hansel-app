@@ -559,7 +559,7 @@ model Sign {
   comments       String     @default("") @db.VarChar(1000)
   status         SignStatus @default(UNSPECIFIED)
   mounting       String     @default("Wall-mounted") @db.VarChar(32)
-  function       String     @default("Wayfinder") @db.VarChar(32)
+  function       String     @default("Directional") @db.VarChar(32)
   colour         String     @default("Red") @db.VarChar(32)
   orientation    String     @default("down") @db.VarChar(16)
   placement      SignPlacement?

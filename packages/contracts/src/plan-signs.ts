@@ -26,9 +26,17 @@ export const signMountingOptions = [
 ] as const;
 export const signMountingSchema = z.enum(signMountingOptions);
 export type SignMounting = z.infer<typeof signMountingSchema>;
+/** @spec sign-function-options REQ-001, REQ-003, REQ-004 */
+export const signFunctionOptions = [
+  'Identification',
+  'Directional',
+  'Informational',
+  'Regulatory/Statutory',
+] as const;
+export const signFunctionSchema = z.enum(signFunctionOptions);
 const appearance = {
   mounting: signMountingSchema,
-  function: z.literal('Wayfinder'),
+  function: signFunctionSchema,
   colour: z.literal('Red'),
   orientation: planSignOrientationSchema,
 };
@@ -75,6 +83,11 @@ export const planSignSchema = z
     content: text(200),
     updatedAt: z.iso.datetime(),
     ...appearance,
+    // Normalize legacy storage/response values without accepting legacy writes.
+    function: z.union([
+      signFunctionSchema,
+      z.literal('Wayfinder').transform(() => 'Directional' as const),
+    ]),
   })
   .strict();
 export const planSignsResponseSchema = z

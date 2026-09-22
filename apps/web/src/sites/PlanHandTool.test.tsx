@@ -16,7 +16,7 @@ const sign: PlanSign = {
   code: 'SG.001',
   content: '',
   mounting: 'Wall-mounted',
-  function: 'Wayfinder',
+  function: 'Directional',
   colour: 'Red',
   orientation: 'down',
   updatedAt: '2026-09-19T00:00:00.000Z',

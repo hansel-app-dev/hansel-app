@@ -158,6 +158,8 @@ The approved `allocation-plan-multiple-files` amendment (2026-09-10) resolves Al
 
 ## How feature work must use this catalog
 
+The approved `sign-function-options` amendment (2026-09-22) replaces the original Wayfinder-only Function restriction with Identification, Directional, Informational, and Regulatory/Statutory in that order. Existing Wayfinder values migrate to Directional, which is also the new Sign default. Legacy reads normalize to Directional during rollout. Function remains an attribute of the shared Sign, distinct from mounting and Site Sign Type grouping; these values are an explicit product decision, not FigJam-derived categories.
+
 The approved `allocation-plan-add-sign-tool` amendment (2026-09-19) changes Add mode to open a mounting-choice menu before creating a Sign. Choosing Freestanding, Wall-mounted, Overhead, Cantilevered or Floor creates at the captured point, opens General and switches to Move. Floor is also available in General; omitted API mounting still defaults to Wall-mounted. New type remains disabled. These are mounting values, not Site Sign Type groups; shared Sign ownership and permissions are unchanged.
 
 The approved `allocation-plan-hand-tool` amendment (2026-09-19) enables Hand for all Site viewers. Hand pans only overflowing Allocation Plan content within scroll bounds, without changing Signs or persisted data. Move remains the default, Add sign remains explicit, and the other three tools remain disabled. This supersedes only the toolbar specification's Hand-disabled scope.

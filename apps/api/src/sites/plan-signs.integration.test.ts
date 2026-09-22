@@ -53,6 +53,9 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
       expect(one.id).toBe(retry.id);
       expect(one.code).toBe('SG.001');
       expect(one.mounting).toBe('Wall-mounted');
+      // sign-function-options REQ-004: new Signs default to Directional.
+      expect(one.function).toBe('Directional');
+      expect((await db.sign.findUniqueOrThrow({ where: { id: one.id } })).function).toBe('Directional');
       // REQ-005,006: explicit default replays old requests; different mounting conflicts.
       expect((await feature.create(principal, siteId, plan.id, { ...input, mounting: 'Wall-mounted' })).id).toBe(one.id);
       await expect(feature.create(principal, siteId, plan.id, { ...input, mounting: 'Floor' })).rejects.toThrow();
@@ -134,6 +137,17 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
         expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === two.id)?.mounting).toBe(mounting);
         expect((await db.sign.findUniqueOrThrow({ where: { id: two.id } })).signTypeId).toBe(originalGroup.signTypeId);
       }
+      // sign-function-options REQ-002..004: every Function persists, with guarded updates.
+      for (const value of ['Identification', 'Directional', 'Informational', 'Regulatory/Statutory'] as const) {
+        const before = await db.sign.findUniqueOrThrow({ where: { id: two.id } });
+        await expect(feature.update({ ...principal, roleId: 'viewer' }, siteId, plan.id, two.id, { expectedUpdatedAt: current.updatedAt, function: value })).rejects.toThrow();
+        await expect(feature.update(principal, siteId, plan.id, two.id, { expectedUpdatedAt: one.updatedAt, function: value })).rejects.toThrow();
+        current = await feature.update(principal, siteId, plan.id, two.id, { expectedUpdatedAt: current.updatedAt, function: value });
+        expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === two.id)?.function).toBe(value);
+        expect(await db.sign.findUniqueOrThrow({ where: { id: two.id } })).toEqual({ ...before, function: value, updatedAt: new Date(current.updatedAt) });
+      }
+      await db.sign.update({ where: { id: two.id }, data: { function: 'Wayfinder' } });
+      expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === two.id)?.function).toBe('Directional');
       await feature.remove(
         principal,
         siteId,

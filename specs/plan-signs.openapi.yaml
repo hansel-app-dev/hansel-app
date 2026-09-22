@@ -39,7 +39,7 @@ collection:
   post:
     operationId: createPlanSign
     summary: Atomically create a Sign and placement; requires MANAGE_SIGNS and exact Origin
-    description: Tenant-scoped idempotency key retries return the same Sign. Changed payload conflicts. Generated Site-wide code is editable; defaults to Plan signs group.
+    description: Tenant-scoped idempotency key retries return the same Sign. Changed payload conflicts. Generated Site-wide code is editable; defaults to Plan signs group and Directional Function. Legacy stored Wayfinder values are read as Directional.
     security: [{ applicationAccess: [] }]
     requestBody:
       required: true
@@ -54,7 +54,12 @@ collection:
               x: { type: number, minimum: 0, maximum: 1 }
               y: { type: number, minimum: 0, maximum: 1 }
               idempotencyKey: { type: string, format: uuid }
-              mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor], default: Wall-mounted }
+              mounting:
+                {
+                  enum:
+                    [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor],
+                  default: Wall-mounted,
+                }
     responses:
       '201':
         {
@@ -112,8 +117,21 @@ item:
               y: { type: number, minimum: 0, maximum: 1 }
               code: { type: string, minLength: 1, maxLength: 40 }
               content: { type: string, maxLength: 200 }
-              mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor] }
-              function: { const: Wayfinder }
+              mounting:
+                {
+                  enum:
+                    [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor],
+                }
+              function:
+                {
+                  enum:
+                    [
+                      Identification,
+                      Directional,
+                      Informational,
+                      Regulatory/Statutory,
+                    ],
+                }
               colour: { const: Red }
               orientation:
                 {
@@ -208,8 +226,13 @@ sign:
     code: { type: string, minLength: 1, maxLength: 40 }
     content: { type: string, maxLength: 200 }
     updatedAt: { type: string, format: date-time }
-    mounting: { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor] }
-    function: { const: Wayfinder }
+    mounting:
+      { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor] }
+    function:
+      {
+        enum:
+          [Identification, Directional, Informational, Regulatory/Statutory],
+      }
     colour: { const: Red }
     orientation:
       {

@@ -210,7 +210,7 @@ export function AllocationPlanViewer({
         event.metaKey ||
         !pointerInside ||
         (event.target instanceof HTMLElement &&
-          !!event.target.closest('button, input, textarea, [role="menu"]'))
+          !!event.target.closest('button, input, textarea, select, [role="menu"]'))
       )
         return;
       event.preventDefault();
