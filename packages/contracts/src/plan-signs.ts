@@ -23,6 +23,9 @@ export const signMountingOptions = [
   'Overhead',
   'Cantilevered',
   'Floor',
+  'Safety Decal',
+  'Privacy Decal',
+  'Environmental',
 ] as const;
 export const signMountingSchema = z.enum(signMountingOptions);
 export type SignMounting = z.infer<typeof signMountingSchema>;

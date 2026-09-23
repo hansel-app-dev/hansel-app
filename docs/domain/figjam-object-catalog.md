@@ -186,3 +186,5 @@ Before drafting or implementing a feature:
 6. Update this catalog when the source board changes or an approved product decision resolves one of its ambiguities.
 
 The approved `sign-attribute-custom-dropdowns` amendment (2026-09-23) replaces native Function and Colour selects in the Sign General drawer with custom listboxes matching Type. The four Function values and Red-only Colour option, shared Sign ownership, permissions and persistence remain unchanged. This is an accepted presentation decision, not a new FigJam-derived attribute or option set.
+
+The approved `sign-additional-type-options` amendment (2026-09-23) appends Safety Decal, Privacy Decal and Environmental to General Type and Add sign menus, using the supplied icons. These remain values of the shared Sign.mounting attribute, distinct from Site Sign Type groups. Existing five values and the Wall-mounted default remain valid; no special behavior is inferred from these user-provided labels.

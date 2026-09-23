@@ -12,7 +12,7 @@ function Preview({
 }) {
   const [selected, setSelected] = useState(value);
   return (
-    <div className="w-[350px] bg-white p-6">
+    <div className="w-[min(350px,100vw)] bg-white p-6">
       <SignMountingSelect
         value={selected}
         disabled={disabled}
@@ -44,4 +44,16 @@ export const Keyboard: Story = {
     await userEvent.click(within(canvasElement).getByRole('combobox'));
     await userEvent.keyboard('{ArrowDown}');
   },
+};
+
+/** @spec sign-additional-type-options REQ-002,006 */
+export const SafetyDecal: Story = { args: { value: 'Safety Decal' } };
+export const PrivacyDecal: Story = { args: { value: 'Privacy Decal' } };
+export const Environmental: Story = { args: { value: 'Environmental' } };
+export const DisabledEnvironmental: Story = {
+  args: { value: 'Environmental', disabled: true },
+};
+export const Constrained: Story = {
+  ...Open,
+  parameters: { viewport: { defaultViewport: 'mobile1' } },
 };

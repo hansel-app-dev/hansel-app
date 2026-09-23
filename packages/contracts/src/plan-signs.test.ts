@@ -1,13 +1,37 @@
+/** @spec sign-additional-type-options REQ-001..REQ-006 */
 import { describe, expect, it } from 'vitest';
 import { planSignCreateSchema, planSignPatchSchema } from './plan-signs.js';
 it('allocation-plan-add-sign-tool REQ-006 accepts chosen mounting on create and Floor on update', () => {
-  const input = { fileId: null, x: 0.2, y: 0.4, idempotencyKey: crypto.randomUUID() };
-  for (const mounting of ['Freestanding', 'Wall-mounted', 'Overhead', 'Cantilevered', 'Floor']) {
-    expect(planSignCreateSchema.parse({ ...input, mounting }).mounting).toBe(mounting);
-    expect(planSignPatchSchema.safeParse({ expectedUpdatedAt: new Date().toISOString(), mounting }).success).toBe(true);
+  const input = {
+    fileId: null,
+    x: 0.2,
+    y: 0.4,
+    idempotencyKey: crypto.randomUUID(),
+  };
+  for (const mounting of [
+    'Freestanding',
+    'Wall-mounted',
+    'Overhead',
+    'Cantilevered',
+    'Floor',
+    'Safety Decal',
+    'Privacy Decal',
+    'Environmental',
+  ]) {
+    expect(planSignCreateSchema.parse({ ...input, mounting }).mounting).toBe(
+      mounting,
+    );
+    expect(
+      planSignPatchSchema.safeParse({
+        expectedUpdatedAt: new Date().toISOString(),
+        mounting,
+      }).success,
+    ).toBe(true);
   }
   expect(planSignCreateSchema.safeParse(input).success).toBe(true);
-  expect(planSignCreateSchema.safeParse({ ...input, mounting: 'Other' }).success).toBe(false);
+  expect(
+    planSignCreateSchema.safeParse({ ...input, mounting: 'Other' }).success,
+  ).toBe(false);
 });
 it('sign-mounting-options REQ-004 accepts all four mounting values', () => {
   for (const mounting of [

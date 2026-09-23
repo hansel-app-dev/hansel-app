@@ -57,7 +57,16 @@ collection:
               mounting:
                 {
                   enum:
-                    [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor],
+                    [
+                      Freestanding,
+                      Wall-mounted,
+                      Overhead,
+                      Cantilevered,
+                      Floor,
+                      Safety Decal,
+                      Privacy Decal,
+                      Environmental,
+                    ],
                   default: Wall-mounted,
                 }
     responses:
@@ -120,7 +129,16 @@ item:
               mounting:
                 {
                   enum:
-                    [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor],
+                    [
+                      Freestanding,
+                      Wall-mounted,
+                      Overhead,
+                      Cantilevered,
+                      Floor,
+                      Safety Decal,
+                      Privacy Decal,
+                      Environmental,
+                    ],
                 }
               function:
                 {
@@ -227,7 +245,19 @@ sign:
     content: { type: string, maxLength: 200 }
     updatedAt: { type: string, format: date-time }
     mounting:
-      { enum: [Freestanding, Wall-mounted, Overhead, Cantilevered, Floor] }
+      {
+        enum:
+          [
+            Freestanding,
+            Wall-mounted,
+            Overhead,
+            Cantilevered,
+            Floor,
+            Safety Decal,
+            Privacy Decal,
+            Environmental,
+          ],
+      }
     function:
       {
         enum:

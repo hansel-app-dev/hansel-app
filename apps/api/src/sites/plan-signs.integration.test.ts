@@ -1,3 +1,4 @@
+/** @spec sign-additional-type-options REQ-001..REQ-006 */
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { expect, it } from 'vitest';
@@ -55,10 +56,24 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
       expect(one.mounting).toBe('Wall-mounted');
       // sign-function-options REQ-004: new Signs default to Directional.
       expect(one.function).toBe('Directional');
-      expect((await db.sign.findUniqueOrThrow({ where: { id: one.id } })).function).toBe('Directional');
+      expect(
+        (await db.sign.findUniqueOrThrow({ where: { id: one.id } })).function,
+      ).toBe('Directional');
       // REQ-005,006: explicit default replays old requests; different mounting conflicts.
-      expect((await feature.create(principal, siteId, plan.id, { ...input, mounting: 'Wall-mounted' })).id).toBe(one.id);
-      await expect(feature.create(principal, siteId, plan.id, { ...input, mounting: 'Floor' })).rejects.toThrow();
+      expect(
+        (
+          await feature.create(principal, siteId, plan.id, {
+            ...input,
+            mounting: 'Wall-mounted',
+          })
+        ).id,
+      ).toBe(one.id);
+      await expect(
+        feature.create(principal, siteId, plan.id, {
+          ...input,
+          mounting: 'Floor',
+        }),
+      ).rejects.toThrow();
       expect(await db.sign.count({ where: { siteId } })).toBe(1);
       await expect(
         feature.create(principal, siteId, plan.id, { ...input, x: 0.2 }),
@@ -121,33 +136,120 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
       });
       // allocation-plan-add-sign-tool REQ-004,006: chosen mounting is atomic.
       expect(two.mounting).toBe('Floor');
-      for (const mounting of ['Freestanding', 'Wall-mounted', 'Overhead', 'Cantilevered', 'Floor'] as const) {
+      for (const mounting of [
+        'Freestanding',
+        'Wall-mounted',
+        'Overhead',
+        'Cantilevered',
+        'Floor',
+        'Safety Decal',
+        'Privacy Decal',
+        'Environmental',
+      ] as const) {
         const request = { ...input, mounting, idempotencyKey: randomUUID() };
-        const created = await feature.create(principal, siteId, plan.id, request);
+        const created = await feature.create(
+          principal,
+          siteId,
+          plan.id,
+          request,
+        );
         expect(created.mounting).toBe(mounting);
-        expect((await feature.create(principal, siteId, plan.id, request)).id).toBe(created.id);
-        expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === created.id)?.mounting).toBe(mounting);
-        await feature.remove(principal, siteId, plan.id, created.id, created.updatedAt);
+        expect(
+          (await feature.create(principal, siteId, plan.id, request)).id,
+        ).toBe(created.id);
+        expect(
+          (await feature.load(principal, siteId, plan.id, null)).signs.find(
+            (sign) => sign.id === created.id,
+          )?.mounting,
+        ).toBe(mounting);
+        await feature.remove(
+          principal,
+          siteId,
+          plan.id,
+          created.id,
+          created.updatedAt,
+        );
       }
       // sign-mounting-options REQ-003,004: all options persist and read back without changing grouping.
       let current = two;
-      const originalGroup = await db.sign.findUniqueOrThrow({ where: { id: two.id } });
-      for (const mounting of ['Freestanding', 'Wall-mounted', 'Overhead', 'Cantilevered', 'Floor'] as const) {
-        current = await feature.update(principal, siteId, plan.id, two.id, { expectedUpdatedAt: current.updatedAt, mounting });
-        expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === two.id)?.mounting).toBe(mounting);
-        expect((await db.sign.findUniqueOrThrow({ where: { id: two.id } })).signTypeId).toBe(originalGroup.signTypeId);
+      const originalGroup = await db.sign.findUniqueOrThrow({
+        where: { id: two.id },
+      });
+      for (const mounting of [
+        'Freestanding',
+        'Wall-mounted',
+        'Overhead',
+        'Cantilevered',
+        'Floor',
+        'Safety Decal',
+        'Privacy Decal',
+        'Environmental',
+      ] as const) {
+        current = await feature.update(principal, siteId, plan.id, two.id, {
+          expectedUpdatedAt: current.updatedAt,
+          mounting,
+        });
+        expect(
+          (await feature.load(principal, siteId, plan.id, null)).signs.find(
+            (sign) => sign.id === two.id,
+          )?.mounting,
+        ).toBe(mounting);
+        expect(
+          (await db.sign.findUniqueOrThrow({ where: { id: two.id } }))
+            .signTypeId,
+        ).toBe(originalGroup.signTypeId);
       }
       // sign-function-options REQ-002..004: every Function persists, with guarded updates.
-      for (const value of ['Identification', 'Directional', 'Informational', 'Regulatory/Statutory'] as const) {
-        const before = await db.sign.findUniqueOrThrow({ where: { id: two.id } });
-        await expect(feature.update({ ...principal, roleId: 'viewer' }, siteId, plan.id, two.id, { expectedUpdatedAt: current.updatedAt, function: value })).rejects.toThrow();
-        await expect(feature.update(principal, siteId, plan.id, two.id, { expectedUpdatedAt: one.updatedAt, function: value })).rejects.toThrow();
-        current = await feature.update(principal, siteId, plan.id, two.id, { expectedUpdatedAt: current.updatedAt, function: value });
-        expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === two.id)?.function).toBe(value);
-        expect(await db.sign.findUniqueOrThrow({ where: { id: two.id } })).toEqual({ ...before, function: value, updatedAt: new Date(current.updatedAt) });
+      for (const value of [
+        'Identification',
+        'Directional',
+        'Informational',
+        'Regulatory/Statutory',
+      ] as const) {
+        const before = await db.sign.findUniqueOrThrow({
+          where: { id: two.id },
+        });
+        await expect(
+          feature.update(
+            { ...principal, roleId: 'viewer' },
+            siteId,
+            plan.id,
+            two.id,
+            { expectedUpdatedAt: current.updatedAt, function: value },
+          ),
+        ).rejects.toThrow();
+        await expect(
+          feature.update(principal, siteId, plan.id, two.id, {
+            expectedUpdatedAt: one.updatedAt,
+            function: value,
+          }),
+        ).rejects.toThrow();
+        current = await feature.update(principal, siteId, plan.id, two.id, {
+          expectedUpdatedAt: current.updatedAt,
+          function: value,
+        });
+        expect(
+          (await feature.load(principal, siteId, plan.id, null)).signs.find(
+            (sign) => sign.id === two.id,
+          )?.function,
+        ).toBe(value);
+        expect(
+          await db.sign.findUniqueOrThrow({ where: { id: two.id } }),
+        ).toEqual({
+          ...before,
+          function: value,
+          updatedAt: new Date(current.updatedAt),
+        });
       }
-      await db.sign.update({ where: { id: two.id }, data: { function: 'Wayfinder' } });
-      expect((await feature.load(principal, siteId, plan.id, null)).signs.find(sign => sign.id === two.id)?.function).toBe('Directional');
+      await db.sign.update({
+        where: { id: two.id },
+        data: { function: 'Wayfinder' },
+      });
+      expect(
+        (await feature.load(principal, siteId, plan.id, null)).signs.find(
+          (sign) => sign.id === two.id,
+        )?.function,
+      ).toBe('Directional');
       await feature.remove(
         principal,
         siteId,

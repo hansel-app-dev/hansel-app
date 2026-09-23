@@ -1,3 +1,4 @@
+/** @spec sign-additional-type-options REQ-001..REQ-006 */
 /** @spec allocation-plan-add-sign-tool REQ-001..008 */
 import {
   cleanup,
@@ -34,7 +35,7 @@ it('REQ-003,007,008: menu flips inside bounds, supports reverse navigation and d
   fireEvent.click(menu);
   fireEvent.scroll(menu);
   fireEvent.keyDown(menu, { key: 'ArrowUp' });
-  expect(screen.getByRole('menuitem', { name: 'Floor' })).toHaveFocus();
+  expect(screen.getByRole('menuitem', { name: 'Environmental' })).toHaveFocus();
   fireEvent.keyDown(menu, { key: 'Home' });
   expect(screen.getByRole('menuitem', { name: 'Freestanding' })).toHaveFocus();
   fireEvent.keyDown(menu, { key: 'Tab' });
@@ -93,6 +94,9 @@ it('REQ-002,004,006: chooses Floor before creating at the captured point and ret
     'Overhead',
     'Cantilevered',
     'Floor',
+    'Safety Decal',
+    'Privacy Decal',
+    'Environmental',
     '+New type',
   ]);
   expect(screen.getByRole('menuitem', { name: /New type/ })).toBeDisabled();
@@ -115,7 +119,7 @@ it('REQ-003,007: keyboard navigation and dismissal never create a Sign', async (
   const menu = screen.getByRole('menu');
   expect(screen.getByRole('menuitem', { name: 'Freestanding' })).toHaveFocus();
   fireEvent.keyDown(menu, { key: 'End' });
-  expect(screen.getByRole('menuitem', { name: 'Floor' })).toHaveFocus();
+  expect(screen.getByRole('menuitem', { name: 'Environmental' })).toHaveFocus();
   fireEvent.keyDown(menu, { key: 'ArrowDown' });
   expect(screen.getByRole('menuitem', { name: 'Freestanding' })).toHaveFocus();
   fireEvent.keyDown(menu, { key: 'Escape' });
@@ -152,7 +156,16 @@ it('REQ-005: failed creation retains placement and mounting for idempotent retry
     expect.objectContaining({ x: 0.6, y: 0.5, mounting: 'Overhead' }),
   );
 });
-it.each(['Freestanding', 'Wall-mounted', 'Overhead', 'Cantilevered', 'Floor'])(
+it.each([
+  'Freestanding',
+  'Wall-mounted',
+  'Overhead',
+  'Cantilevered',
+  'Floor',
+  'Safety Decal',
+  'Privacy Decal',
+  'Environmental',
+])(
   'REQ-004,008: %s placement keeps fixed controls clear and saves once',
   async (mounting) => {
     const { api, drawing } = await setup();

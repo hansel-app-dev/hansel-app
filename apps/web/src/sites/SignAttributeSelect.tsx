@@ -22,7 +22,7 @@ export function SignAttributeSelect({
   options: readonly string[];
   onChange: (value: string) => void;
   disabled?: boolean;
-  icon?: ReactNode;
+  icon?: ReactNode | ((value: string) => ReactNode);
 }) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -160,7 +160,7 @@ export function SignAttributeSelect({
           } else if (event.key === 'Tab') setAnchor(null);
         }}
       >
-        {icon}
+        {typeof icon === 'function' ? icon(value) : icon}
         <span className="min-w-0 flex-1 truncate">{value}</span>
         <svg
           aria-hidden="true"
@@ -204,7 +204,7 @@ export function SignAttributeSelect({
                   choose(option);
                 }}
               >
-                {icon}
+                {typeof icon === 'function' ? icon(option) : icon}
                 <span className="min-w-0 break-words">{option}</span>
               </div>
             ))}
