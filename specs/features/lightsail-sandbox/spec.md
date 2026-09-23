@@ -1,11 +1,13 @@
 # Feature: Low-cost Lightsail sandbox
 
 - ID: `lightsail-sandbox`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
 - Domain references: `CONTEXT.md: Organization, User, Membership, Site Access, Allocation Plan, Sign, Document, Image, Sign Comment, Allocation Plan Comment; docs/domain/figjam-object-catalog.md: Objects and data points, Organization roles and permissions. These domain rules remain unchanged; hosting does not introduce new product behavior.`
+
+Approval: User approved this specification and authorized use of current AWS credentials for sandbox provisioning on 2026-09-23. Production deployment remains prohibited.
 
 ## Problem
 
