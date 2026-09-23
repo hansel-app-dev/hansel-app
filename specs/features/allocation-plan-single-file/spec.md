@@ -1,12 +1,13 @@
 # Feature: Single-file Allocation Plans and plan switching
 
 - ID: `allocation-plan-single-file`
-- Status: `draft`
+- Status: `approved`
+- Approval: `User approved this published specification in the Codex task on 2026-09-23.`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
 - Domain references: `CONTEXT.md — Allocation Plan, Site, Site Access, Sign, Activity; docs/domain/figjam-object-catalog.md — Objects and data points (Allocation Plan and Site), Nesting map, Known ambiguities 7, 8 and 10, Current implementation alignment (multiple-file amendment)`
-- Product decisions: `On 2026-09-23 the user clarified that the Allocation Details dropdown lists different allocations and each allocation has one file. The user then confirmed splitting existing multi-file allocations while preserving every file and its Signs. Full specification approval remains pending.`
+- Product decisions: `On 2026-09-23 the user clarified that the Allocation Details dropdown lists different allocations and each allocation has one file. The user then confirmed splitting existing multi-file allocations while preserving every file and its Signs. Full specification approved on 2026-09-23.`
 - Supersedes on approval and implementation: `allocation-plan-multiple-files cardinality, multi-file creation and related acceptance scenarios; allocation-details-design file-switching semantics; references to the file selector in allocation-plan-signs, allocation-plan-toolbar and allocation-plan-hand-tool. Other approved behavior remains authoritative.`
 
 ## Problem
@@ -97,4 +98,4 @@ Commit and push this draft separately and obtain explicit approval before implem
 
 ## Open questions
 
-- None. The user accepted splitting existing allocations; naming, compatibility and rollout details above are proposed for full specification approval.
+- None. The user approved the complete specification, including naming, compatibility and rollout details.
