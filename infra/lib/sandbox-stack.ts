@@ -109,16 +109,23 @@ export class SandboxStack extends cdk.Stack {
     const runtime = new iam.User(this, 'RuntimeUser', {
       userName: 'hansel-sandbox-storage',
     });
-    for (const prefix of [
-      'quarantine',
-      'plans',
-      'sign-documents',
-      'sign-photos',
-      'sign-comments',
-      'plan-comments',
-      'covers',
-    ])
-      uploads.grantReadWrite(runtime, `${prefix}/*`);
+    new iam.ManagedPolicy(this, 'RuntimeStoragePolicy', {
+      users: [runtime],
+      statements: [
+        new iam.PolicyStatement({
+          actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+          resources: [
+            'quarantine',
+            'plans',
+            'sign-documents',
+            'sign-photos',
+            'sign-comments',
+            'plan-comments',
+            'covers',
+          ].map((prefix) => uploads.arnForObjects(`${prefix}/*`)),
+        }),
+      ],
+    });
     const backupUser = new iam.User(this, 'BackupUser', {
       userName: 'hansel-sandbox-backups',
     });

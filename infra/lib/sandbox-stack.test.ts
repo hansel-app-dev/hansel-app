@@ -88,7 +88,13 @@ describe('Lightsail sandbox [lightsail-sandbox REQ-001–009]', () => {
         CostFilters: { TagKeyValue: ['user:Project$HanselSandbox'] },
       }),
     });
-    const policies = JSON.stringify(output.findResources('AWS::IAM::Policy'));
+    output.resourceCountIs('AWS::IAM::ManagedPolicy', 1);
+    const policies = JSON.stringify(
+      output.findResources('AWS::IAM::ManagedPolicy'),
+    );
+    output.hasResourceProperties('AWS::IAM::ManagedPolicy', {
+      Users: [{ Ref: 'RuntimeUser11191F24' }],
+    });
     expect(policies).toContain('plan-comments/*');
     expect(policies).not.toContain('s3:*');
   });
