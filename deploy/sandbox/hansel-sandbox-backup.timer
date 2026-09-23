@@ -1,0 +1,7 @@
+[Unit]
+Description=Daily Hansel sandbox PostgreSQL backup
+[Timer]
+OnCalendar=*-*-* 14:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target

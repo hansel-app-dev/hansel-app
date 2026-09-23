@@ -1,0 +1,3 @@
+FROM caddy:2.11.4-alpine
+COPY apps/web/dist /srv
+COPY deploy/sandbox/Caddyfile /etc/caddy/Caddyfile

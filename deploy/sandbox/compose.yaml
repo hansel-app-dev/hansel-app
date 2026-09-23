@@ -1,0 +1,66 @@
+name: hansel-sandbox
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: /etc/hansel-sandbox/postgres.env
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hansel -d hansel']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging: *logging
+  api:
+    image: ${API_IMAGE:?Use a verified release.env}
+    restart: unless-stopped
+    env_file: /etc/hansel-sandbox/api.env
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      DB_HOST: postgres
+      DB_PORT: '5432'
+      DB_NAME: hansel
+      DB_USERNAME: hansel
+      EXTERNAL_AUTH_ENABLED: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging: *logging
+  web:
+    image: ${WEB_IMAGE:?Use a verified release.env}
+    restart: unless-stopped
+    environment:
+      SANDBOX_ADDRESS: ${SANDBOX_ADDRESS:?Use the AWS static IPv4 address}
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+volumes:
+  database:
+  caddy-data:
+  caddy-config:

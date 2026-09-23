@@ -1,0 +1,7 @@
+[Unit]
+Description=Hansel sandbox PostgreSQL backup
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/hansel-sandbox/current/backup.sh

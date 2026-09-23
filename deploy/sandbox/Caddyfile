@@ -1,0 +1,23 @@
+{
+	default_sni {$SANDBOX_ADDRESS}
+}
+
+https://{$SANDBOX_ADDRESS} {
+	tls {
+		issuer acme https://acme-v02.api.letsencrypt.org/directory {
+			profile shortlived
+			disable_tlsalpn_challenge
+		}
+	}
+	header X-Robots-Tag "noindex, nofollow"
+	@api path /api /api/* /login /forgot-password /reset-password /auth/* /onboarding/about-you /onboarding/plan-selection /onboarding/organization-profile /onboarding/discovery
+	handle @api {
+		reverse_proxy api:3000
+	}
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		header /index.html Cache-Control "no-cache"
+		file_server
+	}
+}
