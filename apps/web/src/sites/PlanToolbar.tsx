@@ -1,5 +1,5 @@
 /** @spec allocation-plan-toolbar REQ-001..002, REQ-007 */
-export type PlanTool = 'move' | 'hand' | 'add';
+export type PlanTool = 'move' | 'hand' | 'add' | 'area';
 
 /** @spec allocation-plan-toolbar-icons REQ-001..REQ-004 */
 const tools = [
@@ -7,8 +7,8 @@ const tools = [
   { id: 'hand', label: 'Hand', icon: '/assets/hand_toolbar.png' },
   { id: 'add', label: 'Add sign', icon: '/assets/add_sign_toolbar.png' },
   {
-    id: 'rectangle',
-    label: 'Rectangle (coming soon)',
+    id: 'area',
+    label: 'Add area',
     icon: '/assets/add_area_toolbar.png',
   },
   {
@@ -26,11 +26,13 @@ const tools = [
 export function PlanToolbar({
   tool,
   canAdd,
+  canAddArea = false,
   disabled = false,
   onChange,
 }: {
   tool: PlanTool;
   canAdd: boolean;
+  canAddArea?: boolean;
   disabled?: boolean;
   onChange: (tool: PlanTool) => void;
 }) {
@@ -53,7 +55,10 @@ export function PlanToolbar({
           aria-label={item.label}
           title={item.label}
           aria-pressed={
-            item.id === 'move' || item.id === 'hand' || item.id === 'add'
+            item.id === 'move' ||
+            item.id === 'hand' ||
+            item.id === 'add' ||
+            item.id === 'area'
               ? tool === item.id
               : undefined
           }
@@ -61,7 +66,7 @@ export function PlanToolbar({
             disabled ||
             (item.id !== 'move' &&
               item.id !== 'hand' &&
-              (item.id !== 'add' || !canAdd))
+              (item.id === 'area' ? !canAddArea : item.id !== 'add' || !canAdd))
           }
           onClick={
             item.id === 'move'
@@ -73,7 +78,7 @@ export function PlanToolbar({
                     onChange('hand');
                   }
                 : () => {
-                    onChange('add');
+                    onChange(item.id === 'area' ? 'area' : 'add');
                   }
           }
           className={`grid size-[34px] shrink-0 place-items-center rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff] disabled:cursor-not-allowed ${tool === item.id ? 'bg-[#4096ff] text-white' : 'text-[#27272a] enabled:hover:bg-[#f4f4f5]'}`}

@@ -54,6 +54,10 @@ _Avoid_: Property, Location when referring to the whole managed object
 A named plan for a Site with exactly one uploaded PDF or Image that organizes the Signs associated with that file. The Allocation Details dropdown switches between Allocation Plans within the Site.
 _Avoid_: Floor Plan when the plan is not necessarily a floor
 
+**Area**:
+A rectangular annotation owned by one Allocation Plan and its file, separate from a Sign and the Signage Schedule. The approved Add area scope uses Floor, Environmental and Blue, with its own code, content, orientation and geometry.
+_Avoid_: Sign when referring to an Area annotation
+
 **Sign**:
 A managed signage record identified by a code and described by its type and state.
 _Avoid_: Marker, Pin

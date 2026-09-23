@@ -1,6 +1,20 @@
+import {
+  planAreaCreateSchema,
+  planAreaPatchSchema,
+  planAreaDeleteSchema,
+  planAreaSchema,
+  planAreasResponseSchema,
+  type PlanArea,
+  type PlanAreaCreate,
+  type PlanAreaPatch,
+  type PlanAreasResponse,
+} from '@hansel/contracts';
 import compression from 'compression';
 import { externalAuthenticationFailureMessage } from '@hansel/contracts';
-import { microsoftPendingCookie, registerMicrosoftSignupRoutes } from './auth/microsoft-signup-routes.js';
+import {
+  microsoftPendingCookie,
+  registerMicrosoftSignupRoutes,
+} from './auth/microsoft-signup-routes.js';
 import { registerSignDocumentRoutes } from './sites/sign-document-routes.js';
 import { registerSignPhotoRoutes } from './sites/sign-photo-routes.js';
 import { registerSignCommentRoutes } from './sites/sign-comment-routes.js';
@@ -235,7 +249,9 @@ export interface DashboardModule {
 }
 
 export interface AuthenticationModule {
-  microsoftSignup?: Parameters<typeof registerMicrosoftSignupRoutes>[1]['signup'];
+  microsoftSignup?: Parameters<
+    typeof registerMicrosoftSignupRoutes
+  >[1]['signup'];
   createOnboardingCsrfProof?(credential: string): string;
   login(input: LoginRequest): Promise<PasswordLoginResult>;
   requestPasswordRecovery?(
@@ -243,7 +259,10 @@ export interface AuthenticationModule {
   ): Promise<PasswordRecoveryRequestResponse>;
   resetPassword?(input: PasswordResetRequest): Promise<PasswordResetResponse>;
   enabledProviders?: readonly ExternalProvider[];
-  startExternal?(provider: ExternalProvider, intent: 'login' | 'onboarding'): Promise<string>;
+  startExternal?(
+    provider: ExternalProvider,
+    intent: 'login' | 'onboarding',
+  ): Promise<string>;
   callbackExternal?(
     provider: ExternalProvider,
     parameters: Record<string, string>,
@@ -252,8 +271,14 @@ export interface AuthenticationModule {
 }
 
 export interface SitesModule {
-  signPhotos?: Omit<Parameters<typeof registerSignPhotoRoutes>[1], 'enabled' | 'allowedOrigin'>;
-  signComments?: Omit<Parameters<typeof registerSignCommentRoutes>[1], 'enabled' | 'allowedOrigin'>;
+  signPhotos?: Omit<
+    Parameters<typeof registerSignPhotoRoutes>[1],
+    'enabled' | 'allowedOrigin'
+  >;
+  signComments?: Omit<
+    Parameters<typeof registerSignCommentRoutes>[1],
+    'enabled' | 'allowedOrigin'
+  >;
   signDocuments?: Omit<
     Parameters<typeof registerSignDocumentRoutes>[1],
     'enabled' | 'allowedOrigin'
@@ -306,6 +331,34 @@ export interface SitesModule {
     accessCredential: string,
     siteId: string,
   ): Promise<SignageScheduleResponse | null>;
+  planAreas?: {
+    load(
+      credential: string,
+      siteId: string,
+      planId: string,
+      fileId: string | null,
+    ): Promise<PlanAreasResponse | null>;
+    create(
+      credential: string,
+      siteId: string,
+      planId: string,
+      input: PlanAreaCreate,
+    ): Promise<PlanArea | null>;
+    update(
+      credential: string,
+      siteId: string,
+      planId: string,
+      areaId: string,
+      input: PlanAreaPatch,
+    ): Promise<PlanArea | null>;
+    remove(
+      credential: string,
+      siteId: string,
+      planId: string,
+      areaId: string,
+      updatedAt: string,
+    ): Promise<boolean>;
+  };
   planSigns?: {
     load(
       credential: string,
@@ -611,7 +664,19 @@ export function createApp(
     response.json(healthResponseSchema.parse({ status: 'ok' }));
   });
   if (authentication) {
-    const renderLoginForm = (values: Record<string, unknown> = {}, error = '', status = '') => renderLoginFormHtml(values, error, status, config.externalAuthEnabled === true ? authentication.enabledProviders ?? [] : []);
+    const renderLoginForm = (
+      values: Record<string, unknown> = {},
+      error = '',
+      status = '',
+    ) =>
+      renderLoginFormHtml(
+        values,
+        error,
+        status,
+        config.externalAuthEnabled === true
+          ? (authentication.enabledProviders ?? [])
+          : [],
+      );
     const secure = config.allowedOrigin.startsWith('https://');
     const writeAuthenticationCookies = (
       response: express.Response,
@@ -669,43 +734,99 @@ export function createApp(
         );
       }
     };
-    if (config.externalAuthEnabled && authentication.microsoftSignup && authentication.createOnboardingCsrfProof) {
-      const csrf = authentication.createOnboardingCsrfProof.bind(authentication);
-      registerMicrosoftSignupRoutes(app, { signup: authentication.microsoftSignup, allowedOrigin: config.allowedOrigin, complete: (response, credential) => { writeAuthenticationCookies(response, { status: 'accepted', destination: '/onboarding/about-you', onboardingSession: { onboardingCredential: credential, csrfProof: csrf(credential) } }); } });
+    if (
+      config.externalAuthEnabled &&
+      authentication.microsoftSignup &&
+      authentication.createOnboardingCsrfProof
+    ) {
+      const csrf =
+        authentication.createOnboardingCsrfProof.bind(authentication);
+      registerMicrosoftSignupRoutes(app, {
+        signup: authentication.microsoftSignup,
+        allowedOrigin: config.allowedOrigin,
+        complete: (response, credential) => {
+          writeAuthenticationCookies(response, {
+            status: 'accepted',
+            destination: '/onboarding/about-you',
+            onboardingSession: {
+              onboardingCredential: credential,
+              csrfProof: csrf(credential),
+            },
+          });
+        },
+      });
     }
     const isExternalProvider = (value: string): value is ExternalProvider =>
-      externalProviders.some((provider) => provider === value) && Boolean(authentication.enabledProviders?.some((provider) => provider === value));
+      externalProviders.some((provider) => provider === value) &&
+      Boolean(
+        authentication.enabledProviders?.some((provider) => provider === value),
+      );
     app.get('/api/auth/providers', (_request, response) => {
       preventRecoveryResponseReuse(response);
-      response.json({ providers: config.externalAuthEnabled === true ? authentication.enabledProviders ?? [] : [] });
+      response.json({
+        providers:
+          config.externalAuthEnabled === true
+            ? (authentication.enabledProviders ?? [])
+            : [],
+      });
     });
-    const startExternal = async (request: express.Request, response: express.Response) => {
+    const startExternal = async (
+      request: express.Request,
+      response: express.Response,
+    ) => {
       preventRecoveryResponseReuse(response);
       response.vary('Cookie');
       const provider = request.params.provider;
-      const intent: unknown = request.method === 'POST' ? (request.body as Record<string, unknown> | undefined)?.intent : request.query.intent;
+      const intent: unknown =
+        request.method === 'POST'
+          ? (request.body as Record<string, unknown> | undefined)?.intent
+          : request.query.intent;
       if (
         config.externalAuthEnabled !== true ||
         !authentication.startExternal ||
-        typeof provider !== 'string' || !isExternalProvider(provider) ||
-        (intent !== 'login' && intent !== 'onboarding') || (intent === 'onboarding' && request.method !== 'POST') || (request.method === 'POST' && intent !== 'onboarding')
+        typeof provider !== 'string' ||
+        !isExternalProvider(provider) ||
+        (intent !== 'login' && intent !== 'onboarding') ||
+        (intent === 'onboarding' && request.method !== 'POST') ||
+        (request.method === 'POST' && intent !== 'onboarding')
       ) {
         response.status(404).send('Not found');
         return;
       }
-      if (intent === 'onboarding' && (!hasAllowedFormOrigin(request, config.allowedOrigin) || (request.body as Record<string, unknown> | undefined)?.acceptsTerms !== 'true')) {
-        response.status(403).send('Consent and same-origin initiation required');
+      if (
+        intent === 'onboarding' &&
+        (!hasAllowedFormOrigin(request, config.allowedOrigin) ||
+          (request.body as Record<string, unknown> | undefined)
+            ?.acceptsTerms !== 'true')
+      ) {
+        response
+          .status(403)
+          .send('Consent and same-origin initiation required');
         return;
       }
-      if (intent === 'onboarding' && Object.keys(request.body as Record<string, unknown>).some((key) => !['intent', 'acceptsTerms'].includes(key))) {
+      if (
+        intent === 'onboarding' &&
+        Object.keys(request.body as Record<string, unknown>).some(
+          (key) => !['intent', 'acceptsTerms'].includes(key),
+        )
+      ) {
         response.status(400).send('Invalid request');
         return;
       }
       try {
-        const destination = await authentication.startExternal(provider, intent);
+        const destination = await authentication.startExternal(
+          provider,
+          intent,
+        );
         const state = new URL(destination).searchParams.get('state');
         if (!state) throw new Error('Missing transaction state');
-        response.cookie(`hansel_external_${provider}`, state, { httpOnly: true, secure: config.allowedOrigin.startsWith('https:'), sameSite: provider === 'apple' ? 'none' : 'lax', maxAge: 10 * 60 * 1000, path: `/auth/callback/${provider}` });
+        response.cookie(`hansel_external_${provider}`, state, {
+          httpOnly: true,
+          secure: config.allowedOrigin.startsWith('https:'),
+          sameSite: provider === 'apple' ? 'none' : 'lax',
+          maxAge: 10 * 60 * 1000,
+          path: `/auth/callback/${provider}`,
+        });
         response.redirect(303, destination);
       } catch {
         authentication.recordEvent?.('external_provider_unavailable');
@@ -738,8 +859,16 @@ export function createApp(
           typeof source?.[key] === 'string' ? [[key, source[key]]] : [],
         ),
       ) as Record<string, string>;
-      const binding = readCookie(request.headers.cookie, `hansel_external_${provider}`);
-      response.clearCookie(`hansel_external_${provider}`, { path: `/auth/callback/${provider}`, httpOnly: true, secure: config.allowedOrigin.startsWith('https:'), sameSite: provider === 'apple' ? 'none' : 'lax' });
+      const binding = readCookie(
+        request.headers.cookie,
+        `hansel_external_${provider}`,
+      );
+      response.clearCookie(`hansel_external_${provider}`, {
+        path: `/auth/callback/${provider}`,
+        httpOnly: true,
+        secure: config.allowedOrigin.startsWith('https:'),
+        sameSite: provider === 'apple' ? 'none' : 'lax',
+      });
       if (!binding || binding !== parameters.state) {
         response.redirect(303, '/login?error=authentication_failed');
         return;
@@ -750,7 +879,13 @@ export function createApp(
           parameters,
         );
         if (result.status === 'microsoft-email-required') {
-          response.cookie(microsoftPendingCookie, result.pendingCredential, { httpOnly: true, sameSite: 'lax', secure, maxAge: 30 * 60_000, path: '/' });
+          response.cookie(microsoftPendingCookie, result.pendingCredential, {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure,
+            maxAge: 30 * 60_000,
+            path: '/',
+          });
           response.redirect(303, '/onboarding/microsoft-email');
           return;
         }
@@ -1401,8 +1536,20 @@ export function createApp(
         return response.status(409).json({ error: 'signage_conflict' });
       return response.status(503).json({ error: 'signage_unavailable' });
     };
-    if (sites.signPhotos) registerSignPhotoRoutes(app, { ...sites.signPhotos, enabled: !!config.signPhotosEnabled && !!config.allocationPlanSignsEnabled, allowedOrigin: config.allowedOrigin });
-    if (sites.signComments) registerSignCommentRoutes(app, { ...sites.signComments, enabled: !!config.signCommentsEnabled && !!config.allocationPlanSignsEnabled, allowedOrigin: config.allowedOrigin });
+    if (sites.signPhotos)
+      registerSignPhotoRoutes(app, {
+        ...sites.signPhotos,
+        enabled:
+          !!config.signPhotosEnabled && !!config.allocationPlanSignsEnabled,
+        allowedOrigin: config.allowedOrigin,
+      });
+    if (sites.signComments)
+      registerSignCommentRoutes(app, {
+        ...sites.signComments,
+        enabled:
+          !!config.signCommentsEnabled && !!config.allocationPlanSignsEnabled,
+        allowedOrigin: config.allowedOrigin,
+      });
     if (sites.signDocuments)
       registerSignDocumentRoutes(app, {
         ...sites.signDocuments,
@@ -1410,6 +1557,101 @@ export function createApp(
           !!config.signDocumentsEnabled && !!config.allocationPlanSignsEnabled,
         allowedOrigin: config.allowedOrigin,
       });
+    app.all(
+      [
+        '/api/sites/:siteId/allocation-plans/:planId/areas',
+        '/api/sites/:siteId/allocation-plans/:planId/areas/:areaId',
+      ],
+      async (request, response) => {
+        preparePrivateSiteResponse(response);
+        if (!config.allocationPlanSignsEnabled || !sites.planAreas)
+          return response.status(404).json({ error: 'not_found' });
+        const credential = readApplicationCredential(request);
+        if (!credential)
+          return response
+            .status(401)
+            .json({ error: 'authentication_required' });
+        const uuid = createSiteResponseSchema.shape.siteId;
+        const siteId = uuid.safeParse(request.params.siteId);
+        const planId = uuid.safeParse(request.params.planId);
+        const areaId = uuid.safeParse(request.params.areaId);
+        if (!siteId.success || !planId.success)
+          return response.status(400).json({ error: 'invalid_request' });
+        if (
+          request.method !== 'GET' &&
+          request.headers.origin !== config.allowedOrigin
+        )
+          return response.status(403).json({ error: 'invalid_origin' });
+        try {
+          let result: unknown;
+          if (request.method === 'GET' && !request.params.areaId) {
+            const fileId =
+              request.query.fileId === undefined
+                ? null
+                : uuid.safeParse(request.query.fileId);
+            if (fileId !== null && !fileId.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            const loaded = await sites.planAreas.load(
+              credential,
+              siteId.data,
+              planId.data,
+              fileId?.data ?? null,
+            );
+            result = loaded && planAreasResponseSchema.parse(loaded);
+          } else if (request.method === 'POST' && !request.params.areaId) {
+            const input = planAreaCreateSchema.safeParse(request.body);
+            if (!input.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            const created = await sites.planAreas.create(
+              credential,
+              siteId.data,
+              planId.data,
+              input.data,
+            );
+            result = created && planAreaSchema.parse(created);
+          } else if (request.method === 'PATCH' && areaId.success) {
+            const input = planAreaPatchSchema.safeParse(request.body);
+            if (!input.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            const updated = await sites.planAreas.update(
+              credential,
+              siteId.data,
+              planId.data,
+              areaId.data,
+              input.data,
+            );
+            result = updated && planAreaSchema.parse(updated);
+          } else if (request.method === 'DELETE' && areaId.success) {
+            const input = planAreaDeleteSchema.safeParse(request.body);
+            if (!input.success)
+              return response.status(400).json({ error: 'invalid_request' });
+            result = (await sites.planAreas.remove(
+              credential,
+              siteId.data,
+              planId.data,
+              areaId.data,
+              input.data.expectedUpdatedAt,
+            ))
+              ? { deleted: true }
+              : null;
+          } else
+            return response.status(405).json({ error: 'method_not_allowed' });
+          sites.recordEvent?.(
+            `plan_area_${request.method.toLowerCase()}_success`,
+          );
+          return result
+            ? response
+                .status(request.method === 'POST' ? 201 : 200)
+                .json(result)
+            : response.status(401).json({ error: 'authentication_required' });
+        } catch (error) {
+          sites.recordEvent?.(
+            `plan_area_${request.method.toLowerCase()}_failure`,
+          );
+          return signageResponse(response, error);
+        }
+      },
+    );
     app.all(
       [
         '/api/sites/:siteId/allocation-plans/:planId/signs',

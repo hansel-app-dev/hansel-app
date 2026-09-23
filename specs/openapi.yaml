@@ -3,6 +3,10 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /api/sites/{siteId}/allocation-plans/{planId}/areas:
+    $ref: './plan-areas.openapi.yaml#/collection'
+  /api/sites/{siteId}/allocation-plans/{planId}/areas/{areaId}:
+    $ref: './plan-areas.openapi.yaml#/item'
   /api/auth/microsoft/signup:
     $ref: './microsoft-signup.openapi.yaml#/state'
   /api/auth/microsoft/signup/send:

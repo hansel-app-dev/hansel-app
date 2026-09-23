@@ -579,6 +579,8 @@ model Sign {
 }
 
 model AllocationPlan {
+  areas PlanArea[]
+  areaRequests PlanAreaRequest[]
   id             String                @id @default(uuid()) @db.Uuid
   tenantId       String                @db.Uuid
   siteId         String                @db.Uuid
@@ -625,6 +627,7 @@ model AllocationPlanUploadBatch {
 }
 
 model AllocationPlanUpload {
+  areas PlanArea[]
   id               String                     @id @default(uuid()) @db.Uuid
   batchId          String                     @db.Uuid
   tenantId         String                     @db.Uuid
@@ -915,4 +918,38 @@ model AllocationPlanFileSplit {
   resultPlanId String @db.Uuid
   originalPosition Int
   createdAt DateTime @default(now())
+}
+
+model PlanArea {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  planId String @db.Uuid
+  fileId String? @db.Uuid
+  code String @db.VarChar(40)
+  normalizedCode String @db.VarChar(40)
+  x Float
+  y Float
+  width Float
+  height Float
+  content String @default("") @db.VarChar(200)
+  orientation String @default("down") @db.VarChar(16)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  plan AllocationPlan @relation(fields:[planId,tenantId,siteId], references:[id,tenantId,siteId], onDelete:Cascade)
+  file AllocationPlanUpload? @relation(fields:[fileId,tenantId,siteId,planId],references:[id,tenantId,siteId,groupedPlanId],onDelete:Cascade)
+  @@unique([tenantId,planId,normalizedCode])
+  @@index([tenantId,siteId,planId,fileId,createdAt,id])
+}
+model PlanAreaRequest {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  planId String @db.Uuid
+  key String @db.Uuid
+  digest String @db.VarChar(64)
+  areaId String @db.Uuid
+  createdAt DateTime @default(now())
+  plan AllocationPlan @relation(fields:[planId,tenantId,siteId],references:[id,tenantId,siteId],onDelete:Cascade)
+  @@unique([tenantId,key])
 }

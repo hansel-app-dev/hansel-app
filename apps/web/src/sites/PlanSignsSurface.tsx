@@ -1,3 +1,4 @@
+import { PlanAreas, type PlanAreasHandle } from './PlanAreas.js';
 /** @spec allocation-plan-signs REQ-001..002, REQ-005..013 */
 import {
   useCallback,
@@ -57,6 +58,8 @@ export function PlanSignsSurface({
   viewScale?: number;
   children: ReactNode;
 }) {
+  const areaRef = useRef<PlanAreasHandle>(null);
+  const [areaBusy, setAreaBusy] = useState(false);
   const service = useRef(api);
   service.current = api;
   const active = useRef(true);
@@ -125,10 +128,13 @@ export function PlanSignsSurface({
   const dirty =
     !!selected && (code !== selected.code || content !== selected.content);
   const unsaved = dirty || commentDirty || (!!selected && retry !== null);
-  const leave = () =>
+  const leaveSign = () =>
     !busy.current &&
+    !areaBusy &&
     (!unsaved || window.confirm('Discard unsaved Sign changes?'));
+  const leave = () => leaveSign() && (areaRef.current?.leave() ?? true);
   function select(sign: PlanSign | null) {
+    if (sign) areaRef.current?.clear();
     setPlacement(null);
     if (sign?.id !== selected?.id) setSection('General');
     setSelected(sign);
@@ -199,6 +205,8 @@ export function PlanSignsSurface({
       tool !== 'move' ||
       !canManage ||
       busy.current ||
+      areaBusy ||
+      areaRef.current?.blocked() ||
       unsaved ||
       conflict
     )
@@ -318,7 +326,7 @@ export function PlanSignsSurface({
     };
   }, [unsaved, pending]);
   async function mutate(action: () => Promise<void>, again: () => void) {
-    if (busy.current) return;
+    if (busy.current || areaBusy) return;
     busy.current = true;
     setPending(true);
     setMessage('Saving…');
@@ -484,7 +492,10 @@ export function PlanSignsSurface({
                 aria-label="Close sign details"
                 disabled={pending}
                 onClick={() => {
-                  if (leave()) select(null);
+                  if (leave()) {
+                    select(null);
+                    areaRef.current?.clear();
+                  }
                 }}
                 className="mb-4 grid size-5 place-items-center text-2xl leading-5 text-[#72727e]"
               >
@@ -688,7 +699,8 @@ export function PlanSignsSurface({
             <PlanToolbar
               tool={tool}
               canAdd={canManage}
-              disabled={pending || !!preview || !!deleteTarget}
+              canAddArea={canManage && !!api.areas}
+              disabled={pending || areaBusy || !!preview || !!deleteTarget}
               onChange={(next) => {
                 if (next === tool || drag.current || !leave()) return;
                 if (unsaved) select(null);
@@ -751,7 +763,10 @@ export function PlanSignsSurface({
           const box = event.currentTarget.getBoundingClientRect();
           if (!box.width || !box.height) return;
           if (tool === 'move') {
-            if (leave()) select(null);
+            if (leave()) {
+              select(null);
+              areaRef.current?.clear();
+            }
             return;
           }
           const x = (event.clientX - box.left) / box.width,
@@ -763,7 +778,14 @@ export function PlanSignsSurface({
             return;
           if (event.key === 'Escape') {
             setCursor(null);
-            if (leave()) select(null);
+            if (leave()) {
+              select(null);
+              areaRef.current?.clear();
+            }
+          }
+          if (tool === 'area') {
+            areaRef.current?.keyDown(event);
+            return;
           }
           if (tool !== 'add') return;
           if (event.key.startsWith('Arrow')) {
@@ -802,6 +824,24 @@ export function PlanSignsSurface({
         }}
       >
         {children}
+        {api.areas && (
+          <PlanAreas
+            ref={areaRef}
+            api={api.areas}
+            fileId={fileId}
+            tool={tool}
+            panning={panning}
+            externalBusy={pending}
+            drawerHost={drawerHost}
+            viewScale={viewScale}
+            onBusyChange={setAreaBusy}
+            beforeSelect={() => {
+              if (!leaveSign()) return false;
+              select(null);
+              return true;
+            }}
+          />
+        )}
         {signs.map((sign) => (
           <button
             type="button"
@@ -831,6 +871,8 @@ export function PlanSignsSurface({
                 tool !== 'move' ||
                 unsaved ||
                 busy.current ||
+                areaBusy ||
+                areaRef.current?.blocked() ||
                 !canManage ||
                 panning ||
                 conflict
@@ -885,7 +927,7 @@ export function PlanSignsSurface({
               touchAction:
                 tool === 'move' && canManage && !panning ? 'none' : 'auto',
             }}
-            className={`absolute flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}
+            className={`absolute z-10 flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}
           >
             <span className="grid size-6 shrink-0 place-items-center rounded-full border border-white bg-[#f45b00] shadow-sm">
               {arrows[directions.indexOf(sign.orientation)]}

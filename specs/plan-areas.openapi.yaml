@@ -1,0 +1,194 @@
+# @spec allocation-plan-add-area REQ-001,004,007..010
+collection:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: planId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  get:
+    operationId: listPlanAreas
+    summary: Read separate Area annotations on an accessible plan file
+    parameters:
+      - { name: fileId, in: query, schema: { type: string, format: uuid } }
+    responses:
+      '200':
+        description: Private, no-store Areas and edit capability
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [areas, canManageAreas]
+              properties:
+                canManageAreas: { type: boolean }
+                areas:
+                  { type: array, maxItems: 5000, items: { $ref: '#/area' } }
+      '401': { description: Authentication required }
+      '404': { description: Inaccessible plan/file or feature disabled }
+  post:
+    operationId: createPlanArea
+    summary: Atomically create an independent Area; requires exact Origin and MANAGE_SIGNS
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [fileId, x, y, width, height, idempotencyKey]
+            properties:
+              fileId: { type: [string, 'null'], format: uuid }
+              x: { type: number, minimum: 0, maximum: 1 }
+              y: { type: number, minimum: 0, maximum: 1 }
+              width: { type: number, exclusiveMinimum: 0, maximum: 1 }
+              height: { type: number, exclusiveMinimum: 0, maximum: 1 }
+              idempotencyKey: { type: string, format: uuid }
+            description: All numbers finite; x+width and y+height must not exceed 1. Same key/content replays the original Area; deleted Areas are never recreated by replay.
+    responses:
+      '201':
+        {
+          description: Created or replayed Area,
+          content: { application/json: { schema: { $ref: '#/area' } } },
+        }
+      '400': { description: Invalid request }
+      '401': { description: Authentication required }
+      '403': { description: Invalid Origin or insufficient permission }
+      '404': { description: Inaccessible parent/file or deleted replay target }
+      '409':
+        {
+          description: Conflicting idempotency key or capacity/concurrency conflict,
+        }
+item:
+  parameters:
+    - {
+        name: siteId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: planId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    - {
+        name: areaId,
+        in: path,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+  patch:
+    operationId: updatePlanArea
+    summary: Update metadata or move an Area with optimistic concurrency
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [expectedUpdatedAt]
+            minProperties: 2
+            dependentRequired: { x: [y], y: [x] }
+            properties:
+              expectedUpdatedAt: { type: string, format: date-time }
+              x: { type: number, minimum: 0, maximum: 1 }
+              y: { type: number, minimum: 0, maximum: 1 }
+              code: { type: string, minLength: 1, maxLength: 40 }
+              content: { type: string, maxLength: 200 }
+              orientation: { $ref: '#/orientation' }
+            description: Code/content trimmed and NFC-normalized; whole rectangle must remain in bounds. Width and height are immutable.
+    responses:
+      '200':
+        {
+          description: Updated Area,
+          content: { application/json: { schema: { $ref: '#/area' } } },
+        }
+      '400': { description: Invalid request }
+      '401': { description: Authentication required }
+      '403': { description: Invalid Origin or insufficient permission }
+      '404': { description: Inaccessible Area }
+      '409':
+        {
+          description: Stale timestamp,
+          duplicate code or out-of-bounds rectangle,
+        }
+  delete:
+    operationId: deletePlanArea
+    summary: Delete only the Area, retaining its idempotency tombstone
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [expectedUpdatedAt]
+            properties:
+              expectedUpdatedAt: { type: string, format: date-time }
+    responses:
+      '200':
+        {
+          description: Deleted,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      required: [deleted],
+                      properties: { deleted: { const: true } },
+                    },
+                },
+            },
+        }
+      '400': { description: Invalid request }
+      '401': { description: Authentication required }
+      '403': { description: Invalid Origin or insufficient permission }
+      '404': { description: Inaccessible Area }
+      '409': { description: Stale timestamp }
+orientation:
+  enum: [left, up-left, up, up-right, right, down-right, down, down-left]
+area:
+  type: object
+  additionalProperties: false
+  required:
+    [
+      id,
+      fileId,
+      x,
+      y,
+      width,
+      height,
+      code,
+      content,
+      orientation,
+      type,
+      function,
+      colour,
+      updatedAt,
+    ]
+  properties:
+    id: { type: string, format: uuid }
+    fileId: { type: [string, 'null'], format: uuid }
+    x: { type: number, minimum: 0, maximum: 1 }
+    y: { type: number, minimum: 0, maximum: 1 }
+    width: { type: number, exclusiveMinimum: 0, maximum: 1 }
+    height: { type: number, exclusiveMinimum: 0, maximum: 1 }
+    code: { type: string, minLength: 1, maxLength: 40 }
+    content: { type: string, maxLength: 200 }
+    orientation: { $ref: '#/orientation' }
+    type: { const: Floor }
+    function: { const: Environmental }
+    colour: { const: Blue }
+    updatedAt: { type: string, format: date-time }

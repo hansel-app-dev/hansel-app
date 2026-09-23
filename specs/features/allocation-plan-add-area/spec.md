@@ -6,7 +6,7 @@
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
-- Domain references: `CONTEXT.md — Allocation Plan, Sign, Site, Site Access, Organization Role; docs/domain/figjam-object-catalog.md — Objects and data points (Allocation Plan and Sign), Nesting map, Organization roles and permissions, Known ambiguities 7 and 10, Current implementation alignment, How feature work must use this catalog (allocation-plan-toolbar, allocation-plan-hand-tool, allocation-plan-single-file and allocation-plan-toolbar-icons amendments)`
+- Domain references: `CONTEXT.md — Area, Allocation Plan, Sign, Site, Site Access, Organization Role; docs/domain/figjam-object-catalog.md — Objects and data points (Allocation Plan and Sign), Nesting map, Organization roles and permissions, Known ambiguities 7 and 10, Current implementation alignment, How feature work must use this catalog (allocation-plan-toolbar, allocation-plan-hand-tool, allocation-plan-single-file and allocation-plan-toolbar-icons and allocation-plan-add-area amendments)`
 - Design authority: `User-supplied references/on-click.png and references/applied.png, plus explicit clarification: Area is a separate annotation, creation is click → choose Floor → drag rectangle, and Environmental/Blue are fixed for now.`
 - Supersedes on approval: `The fourth toolbar tool being disabled. No change to Sign type/function/colour options, Sign ownership or Signage Schedule behavior.`
 

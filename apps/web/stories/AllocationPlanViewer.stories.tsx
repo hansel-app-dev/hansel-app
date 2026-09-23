@@ -1,3 +1,4 @@
+import { areaFixture } from './area-fixture.js';
 /** @spec site-allocation-plan-preview REQ-006..REQ-013 @figma supplied 03.png */
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
@@ -415,4 +416,9 @@ export const ColourDropdown: Story = {
     );
     await userEvent.click(canvas.getByRole('combobox', { name: 'Colour' }));
   },
+};
+
+/** @spec allocation-plan-add-area REQ-006,012 */
+export const AreasAndSigns: Story = {
+  args: { planSignsApi: { ...signApi(), areas: areaFixture() } },
 };

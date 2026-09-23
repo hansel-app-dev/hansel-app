@@ -23,3 +23,6 @@ export const Interactive: Story = {
     return <PlanToolbar {...args} tool={tool} onChange={setTool} />;
   },
 };
+
+/** @spec allocation-plan-add-area REQ-002,012 */
+export const AddArea: Story = { args: { tool: 'area', canAddArea: true } };

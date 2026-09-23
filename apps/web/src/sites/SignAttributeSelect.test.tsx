@@ -122,3 +122,17 @@ it('REQ-001,003: follows scroll and zoom, fits above a low field and dismisses o
     styles.mockRestore();
   }
 });
+
+it('allocation-plan-add-area REQ-007 supports display-only custom fields without a mutation callback', () => {
+  render(
+    <SignAttributeSelect
+      label="Fixed value"
+      value="Floor"
+      options={['Floor', 'Preview']}
+    />,
+  );
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByRole('option', { name: 'Preview' }));
+  expect(screen.getByRole('combobox')).toHaveTextContent('Floor');
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+});

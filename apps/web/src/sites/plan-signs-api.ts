@@ -1,3 +1,4 @@
+import { createPlanAreasApi, type PlanAreasApi } from './plan-areas-api.js';
 import {
   planSignSchema,
   planSignsResponseSchema,
@@ -9,7 +10,10 @@ import {
   type SignDocumentsApi,
 } from './sign-documents-api.js';
 import { createSignPhotosApi, type SignPhotosApi } from './sign-photos-api.js';
-import { createSignCommentsApi, type SignCommentsApi } from './sign-comments-api.js';
+import {
+  createSignCommentsApi,
+  type SignCommentsApi,
+} from './sign-comments-api.js';
 
 export class PlanSignRequestError extends Error {
   constructor(public status: number) {
@@ -38,6 +42,7 @@ export function createPlanSignsApi(
     return (await response.json()) as unknown;
   }
   return {
+    areas: createPlanAreasApi(siteId, planId, baseUrl),
     documents: createSignDocumentsApi(siteId, baseUrl),
     photos: createSignPhotosApi(siteId, baseUrl),
     comments: createSignCommentsApi(siteId, baseUrl),
@@ -56,5 +61,10 @@ export function createPlanSignsApi(
 }
 export type PlanSignsApi = Omit<
   ReturnType<typeof createPlanSignsApi>,
-  'documents' | 'photos' | 'comments'
-> & { documents?: SignDocumentsApi; photos?: SignPhotosApi; comments?: SignCommentsApi };
+  'documents' | 'photos' | 'comments' | 'areas'
+> & {
+  areas?: PlanAreasApi;
+  documents?: SignDocumentsApi;
+  photos?: SignPhotosApi;
+  comments?: SignCommentsApi;
+};

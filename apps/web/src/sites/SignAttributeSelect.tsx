@@ -20,7 +20,7 @@ export function SignAttributeSelect({
   label: string;
   value: string;
   options: readonly string[];
-  onChange: (value: string) => void;
+  onChange?: (value: string) => void;
   disabled?: boolean;
   icon?: ReactNode | ((value: string) => ReactNode);
 }) {
@@ -43,7 +43,7 @@ export function SignAttributeSelect({
   function choose(option: string) {
     setAnchor(null);
     trigger.current?.focus();
-    if (option !== value) onChange(option);
+    if (option !== value) onChange?.(option);
   }
   useEffect(() => {
     if (disabled) setAnchor(null);

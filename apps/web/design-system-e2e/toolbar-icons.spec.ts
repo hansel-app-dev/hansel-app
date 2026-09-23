@@ -22,12 +22,16 @@ for (const [width, zoom] of [
     const images = toolbar.locator('img');
     await expect(images).toHaveCount(6);
     for (const img of await images.all()) {
-      expect(
-        await img.evaluate(
-          (el: HTMLImageElement) =>
-            el.complete && el.naturalWidth === 102 && el.naturalHeight === 102,
-        ),
-      ).toBe(true);
+      await expect
+        .poll(() =>
+          img.evaluate(
+            (el: HTMLImageElement) =>
+              el.complete &&
+              el.naturalWidth === 102 &&
+              el.naturalHeight === 102,
+          ),
+        )
+        .toBe(true);
       await expect(img).toHaveCSS('width', '34px');
       await expect(img).toHaveCSS('height', '34px');
       await expect(img).toBeInViewport();

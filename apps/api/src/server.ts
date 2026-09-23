@@ -1,3 +1,4 @@
+import { createPlanAreasFeature } from './sites/plan-areas.js';
 import { PrismaClient } from '@prisma/client';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { Resend } from 'resend';
@@ -231,8 +232,22 @@ const authentication: AuthenticationModule = {
     logger.error(name, { correlationId: randomUUID() });
   },
 };
-const microsoftSignup = createMicrosoftSignup({ prisma, digestKey: config.verificationDigestKey, sendVerificationCode, now: () => new Date(), recordEvent: name => { logger.info(name, { correlationId: randomUUID() }); } });
-const cleanupMicrosoftSignup = () => { void microsoftSignup.cleanup().catch(() => { logger.error('microsoft_signup_cleanup_failed', { correlationId: randomUUID() }); }); };
+const microsoftSignup = createMicrosoftSignup({
+  prisma,
+  digestKey: config.verificationDigestKey,
+  sendVerificationCode,
+  now: () => new Date(),
+  recordEvent: (name) => {
+    logger.info(name, { correlationId: randomUUID() });
+  },
+});
+const cleanupMicrosoftSignup = () => {
+  void microsoftSignup.cleanup().catch(() => {
+    logger.error('microsoft_signup_cleanup_failed', {
+      correlationId: randomUUID(),
+    });
+  });
+};
 cleanupMicrosoftSignup();
 const microsoftCleanup = setInterval(cleanupMicrosoftSignup, 60 * 60_000);
 microsoftCleanup.unref();
@@ -243,7 +258,8 @@ if (config.externalAuthEnabled && config.externalAuth) {
   const { google, microsoft, apple } = config.externalAuth;
   if (microsoft) {
     authentication.microsoftSignup = microsoftSignup;
-    authentication.createOnboardingCsrfProof = credential => security.createOnboardingCsrfProof(credential);
+    authentication.createOnboardingCsrfProof = (credential) =>
+      security.createOnboardingCsrfProof(credential);
   }
   const callbackUri = (provider: ExternalProvider): string => {
     const uri = config.externalAuth?.[provider]?.callbackUri;
@@ -251,7 +267,13 @@ if (config.externalAuthEnabled && config.externalAuth) {
     return uri;
   };
   const externalLogin = createExternalLogin({
-    ...(microsoft ? { startMicrosoftSignup: (input: Parameters<typeof microsoftSignup.start>[0]) => microsoftSignup.start(input) } : {}),
+    ...(microsoft
+      ? {
+          startMicrosoftSignup: (
+            input: Parameters<typeof microsoftSignup.start>[0],
+          ) => microsoftSignup.start(input),
+        }
+      : {}),
     ...externalSecurity,
     ...createPrismaExternalLoginStore(prisma),
     providers: {
@@ -479,14 +501,35 @@ const signageScheduleFeature = createSignageScheduleFeature(
   config.siteActivityEnabled,
 );
 const siteActivityFeature = createSiteActivityFeature(prisma);
+const planAreasFeature = createPlanAreasFeature(prisma);
 const planSignsFeature = createPlanSignsFeature(prisma);
 const signCommentsFeature = createSignCommentsFeature(prisma);
 // Keep draft cleanup active even when the discussion feature is rolled back.
-const commentAttachments = createSignCommentAttachments(prisma, createS3AllocationPlanObjectStore({ bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled' }));
-const commentCleanup = setInterval(() => { void commentAttachments.cleanup().catch(() => { logger.error('sign_comment_cleanup_failed', { correlationId: randomUUID() }); }); }, 60_000);
+const commentAttachments = createSignCommentAttachments(
+  prisma,
+  createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+);
+const commentCleanup = setInterval(() => {
+  void commentAttachments.cleanup().catch(() => {
+    logger.error('sign_comment_cleanup_failed', {
+      correlationId: randomUUID(),
+    });
+  });
+}, 60_000);
 commentCleanup.unref();
-const signPhotosFeature = createSignPhotosFeature(prisma, createS3AllocationPlanObjectStore({ bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled' }));
-const photoCleanup = setInterval(() => { void signPhotosFeature.cleanup().catch(() => { logger.error('sign_photo_cleanup_failed', { correlationId: randomUUID() }); }); }, 60_000);
+const signPhotosFeature = createSignPhotosFeature(
+  prisma,
+  createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+);
+const photoCleanup = setInterval(() => {
+  void signPhotosFeature.cleanup().catch(() => {
+    logger.error('sign_photo_cleanup_failed', { correlationId: randomUUID() });
+  });
+}, 60_000);
 photoCleanup.unref();
 const signDocumentsFeature = createSignDocumentsFeature(
   prisma,
@@ -509,13 +552,48 @@ const resolveSitePrincipal = (credential: string) =>
     new Date(),
   );
 const sites: SitesModule = {
-  signComments: { feature: signCommentsFeature, attachments: commentAttachments, resolve: resolveSitePrincipal, record: (name) => { logger.info(name, { correlationId: randomUUID() }); } },
-  signPhotos: { feature: signPhotosFeature, resolve: resolveSitePrincipal, record: (name) => { logger.info(name, { correlationId: randomUUID() }); } },
+  signComments: {
+    feature: signCommentsFeature,
+    attachments: commentAttachments,
+    resolve: resolveSitePrincipal,
+    record: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  },
+  signPhotos: {
+    feature: signPhotosFeature,
+    resolve: resolveSitePrincipal,
+    record: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  },
   signDocuments: {
     feature: signDocumentsFeature,
     resolve: resolveSitePrincipal,
     record: (name) => {
       logger.info(name, { correlationId: randomUUID() });
+    },
+  },
+  planAreas: {
+    async load(credential, siteId, planId, fileId) {
+      const p = await resolveSitePrincipal(credential);
+      return p ? planAreasFeature.load(p, siteId, planId, fileId) : null;
+    },
+    async create(credential, siteId, planId, input) {
+      const p = await resolveSitePrincipal(credential);
+      return p ? planAreasFeature.create(p, siteId, planId, input) : null;
+    },
+    async update(credential, siteId, planId, areaId, input) {
+      const p = await resolveSitePrincipal(credential);
+      return p
+        ? planAreasFeature.update(p, siteId, planId, areaId, input)
+        : null;
+    },
+    async remove(credential, siteId, planId, areaId, updatedAt) {
+      const p = await resolveSitePrincipal(credential);
+      if (!p) return false;
+      await planAreasFeature.remove(p, siteId, planId, areaId, updatedAt);
+      return true;
     },
   },
   planSigns: {
