@@ -1,13 +1,13 @@
 /** @spec allocation-plan-tool-cursors REQ-001..004
- * Hotspots use source PNG pixels: arrow tip, fingertip, plus center and bubble tail.
+ * Images are 3× assets; hotspots use rounded CSS pixels: arrow tip, fingertip, plus center and bubble tail.
  */
 export const planToolCursors = {
-  move: 'url("/assets/move_cursor.png") 24 17, default',
-  hand: 'url("/assets/hand_cursor.png") 35 12, grab',
-  add: 'url("/assets/add_sign_cursor.png") 20 20, crosshair',
-  area: 'url("/assets/add_area_cursor.png") 20 20, crosshair',
-  line: 'url("/assets/add_linear_cursor.png") 20 20, crosshair',
-  comment: 'url("/assets/comment_cursor.png") 10 72, crosshair',
+  move: 'image-set(url("/assets/move_cursor.png") 3x) 8 6, default',
+  hand: 'image-set(url("/assets/hand_cursor.png") 3x) 12 4, grab',
+  add: 'image-set(url("/assets/add_sign_cursor.png") 3x) 7 7, crosshair',
+  area: 'image-set(url("/assets/add_area_cursor.png") 3x) 7 7, crosshair',
+  line: 'image-set(url("/assets/add_linear_cursor.png") 3x) 7 7, crosshair',
+  comment: 'image-set(url("/assets/comment_cursor.png") 3x) 3 24, crosshair',
 } as const;
 export function planCursor(
   tool: keyof typeof planToolCursors,

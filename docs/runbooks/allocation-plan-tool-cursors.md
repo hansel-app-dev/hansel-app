@@ -2,7 +2,7 @@
 
 Feature: `allocation-plan-tool-cursors`; specification `c616550`, approval `6a29710` (2026-09-23).
 
-The Allocation Plan drawing uses the six supplied PNG cursor images without resizing, recolouring or changes to their bytes. Move, Hand, Add sign and Add area use their corresponding artwork. Linear and Comment remain disabled in the product; their assets appear in the Storybook cursor gallery only. Toolbar icons are unchanged.
+The Allocation Plan drawing uses the six supplied PNG cursor images without recolouring or changes to their bytes. Following the user’s 3×-asset clarification, CSS image-set declares 3× density and renders each cursor at one-third of its source dimensions. Move, Hand, Add sign and Add area use their corresponding artwork. Linear and Comment remain disabled in the product; their assets appear in the Storybook cursor gallery only. Toolbar icons are unchanged.
 
 ## Mapping and precedence
 
@@ -15,9 +15,13 @@ The Allocation Plan drawing uses the six supplied PNG cursor images without resi
 | Add linear | 85 × 84     | 20, 20         | crosshair       |
 | Comment    | 78 × 82     | 10, 72         | crosshair       |
 
-Hotspots use source pixels at the arrow tip, fingertip, plus intersection or bubble tail. Pointer event coordinates are not modified. Native browser cursor handling provides the supplied image or its fallback; no pointer-following overlay is created.
+Hotspots use rounded display pixels (source coordinates divided by three) at the arrow tip, fingertip, plus intersection or bubble tail. Pointer event coordinates are not modified. Native browser cursor handling provides the supplied image or its fallback; no pointer-following overlay is created.
 
 Hand and Space-pan override the drawing and annotation cursors during hover and dragging. Releasing Space restores the selected tool. The existing automatic Move transition after creation/Area selection also updates the cursor. Area resize handles retain directional cursors. Cursor styling is confined to drawing surfaces so drawers, menus and text inputs retain native control cursors. Read-only annotation controls retain their non-editable pointer treatment.
+
+## Density correction validation
+
+Seven focused unit tests and both cursor browser tests pass. Browser assertions verify 3× image density and one-third artwork dimensions; the original PNG byte checks still pass.
 
 ## Validation
 

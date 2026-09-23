@@ -6,6 +6,10 @@ function CursorGallery() {
     <div className="grid max-w-5xl grid-cols-2 gap-4 p-6">
       {Object.entries(planToolCursors).map(([tool, cursor]) => {
         const src = cursor.split('"')[1];
+        const width =
+          ({ move: 77, hand: 70, add: 86, area: 84, line: 85, comment: 78 }[
+            tool
+          ] ?? 84) / 3;
         return (
           <section
             key={tool}
@@ -28,14 +32,14 @@ function CursorGallery() {
             </h2>
             <div className="flex gap-4">
               <div className="grid h-28 w-28 place-items-center bg-white">
-                <img src={src} alt="Cursor artwork on white" />
+                <img width={width} src={src} alt="Cursor artwork on white" />
               </div>
               <div className="grid h-28 w-28 place-items-center bg-[#27272a]">
-                <img src={src} alt="Cursor artwork on dark" />
+                <img width={width} src={src} alt="Cursor artwork on dark" />
               </div>
             </div>
             <p className="mt-3 text-sm">
-              Hover to preview. Original size and transparency preserved.
+              Hover to preview. 3× artwork displayed at one-third size.
             </p>
           </section>
         );

@@ -9,7 +9,7 @@ test('supplied cursors follow tools, auto-Move and temporary pan without replaci
   );
   const drawing = page.getByLabel('Plan drawing', { exact: true });
   const areaDrawing = page.getByLabel('Area drawing', { exact: true });
-  await expect(drawing).toHaveCSS('cursor', /move_cursor\.png.*24 17, default/);
+  await expect(drawing).toHaveCSS('cursor', /move_cursor\.png.*8 6, default/);
   for (const [name, asset] of [
     ['Hand', 'hand'],
     ['Add sign', 'add_sign'],
@@ -79,7 +79,7 @@ test('all six original images load in previews and remain available at 200% zoom
   const previews = page.getByRole('region');
   await expect(previews).toHaveCount(6);
   for (const preview of await previews.all()) {
-    await expect(preview).toHaveCSS('cursor', /_cursor\.png/);
+    await expect(preview).toHaveCSS('cursor', /image-set.*_cursor\.png.*3dppx/);
     for (const img of await preview.getByRole('img').all()) {
       await expect
         .poll(() =>
@@ -89,6 +89,11 @@ test('all six original images load in previews and remain available at 200% zoom
           ),
         )
         .toBe(true);
+      const displayed = await img.evaluate((el: HTMLImageElement) => ({
+        width: el.getBoundingClientRect().width,
+        source: el.naturalWidth,
+      }));
+      expect(displayed.width).toBeCloseTo(displayed.source / 3, 1);
     }
   }
   await page.screenshot({
