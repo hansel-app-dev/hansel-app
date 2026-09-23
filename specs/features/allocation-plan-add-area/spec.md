@@ -18,6 +18,8 @@ The fourth toolbar button is disabled. Users need to mark a rectangular floor ar
 
 An authorized user creates a blue rectangular Area annotation, sees its code and drawer, and reloads the same saved geometry and metadata. Creation, editing and deletion never create or modify a Sign or Signage Schedule row.
 
+The approved `allocation-plan-area-transform` follow-up supersedes the resizing exclusion, Move-only transformation and immutable dimensions restrictions below.
+
 ## Non-goals
 
 - Polygon/freehand shapes, lines, measurement or calculated floor area, resizing existing rectangles, rotation of geometry, multi-selection, bulk changes or cross-plan movement.

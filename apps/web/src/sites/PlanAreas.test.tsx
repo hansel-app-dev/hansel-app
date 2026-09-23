@@ -50,6 +50,8 @@ function setup(initial: PlanArea[] = [], canManageAreas = true) {
         orientation: input.orientation ?? area.orientation,
         x: input.x ?? area.x,
         y: input.y ?? area.y,
+        width: input.width ?? area.width,
+        height: input.height ?? area.height,
         updatedAt: '2026-09-23T00:00:01.000Z',
       };
       data = [saved];
@@ -171,6 +173,9 @@ it('Viewers inspect fixed and read-only details without mutation', async () => {
     screen.queryByRole('button', { name: 'Delete area' }),
   ).not.toBeInTheDocument();
   expect(api.update).not.toHaveBeenCalled();
+  expect(
+    screen.queryByRole('button', { name: /^Resize area/ }),
+  ).not.toBeInTheDocument();
 });
 
 it('retries failed creation with the same key and blocks duplicate writes', async () => {
@@ -441,4 +446,139 @@ it('scrolls an offscreen drawing into view before opening the keyboard menu', as
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Floor' }));
   expect(screen.getByRole('status')).toHaveTextContent('Drag to draw');
   expect(api.create).not.toHaveBeenCalled();
+});
+
+/** @spec allocation-plan-area-transform REQ-001..005 */
+it('drags immediately in Add area and resizes selected Areas using pointer and keyboard handles', async () => {
+  const { api } = setup([area]);
+  const button = await screen.findByRole('button', {
+    name: 'Select area Ar.01',
+  });
+  const drawing = screen.getByLabelText('Area drawing');
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  pointer(button, 'pointerdown', 150, 200);
+  pointer(button, 'pointermove', 200, 240);
+  pointer(button, 'pointerup', 200, 240);
+  await waitFor(() => {
+    expect(api.update).toHaveBeenCalledTimes(1);
+  });
+  await waitFor(() => expect(screen.getByLabelText('Area code')).toBeEnabled());
+  const handle = screen.getByRole('button', {
+    name: 'Resize area bottom-right',
+  });
+  pointer(handle, 'pointerdown', 450, 560);
+  pointer(handle, 'pointermove', 550, 640);
+  pointer(handle, 'pointerup', 550, 640);
+  await waitFor(() => {
+    expect(api.update).toHaveBeenCalledTimes(2);
+  });
+  expect(api.update).toHaveBeenLastCalledWith(
+    area.id,
+    expect.objectContaining({
+      width: expect.closeTo(0.4),
+      height: expect.closeTo(0.5),
+    }),
+  );
+  await waitFor(() => expect(screen.getByLabelText('Area code')).toBeEnabled());
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  fireEvent.keyDown(handle, { key: 'ArrowRight' });
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  await waitFor(() => {
+    expect(api.update).toHaveBeenCalledTimes(3);
+  });
+});
+
+/** @spec allocation-plan-area-transform REQ-002..005 */
+it('cancels resize gestures, prevents no-op writes and retries failed resize without changing identity', async () => {
+  const { api, view, props } = setup([area]);
+  const button = await screen.findByRole('button', {
+    name: 'Select area Ar.01',
+  });
+  const drawing = screen.getByLabelText('Area drawing');
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  fireEvent.click(button);
+  const handle = screen.getByRole('button', {
+    name: 'Resize area right',
+  });
+  pointer(handle, 'pointerdown', 400, 320);
+  pointer(handle, 'pointerup', 400, 320);
+  expect(api.update).not.toHaveBeenCalled();
+  for (const reason of [
+    'pointercancel',
+    'lostpointercapture',
+    'scroll',
+    'blur',
+  ]) {
+    pointer(handle, 'pointerdown', 400, 320);
+    pointer(handle, 'pointermove', 500, 320);
+    if (reason === 'scroll' || reason === 'blur')
+      fireEvent(window, new Event(reason));
+    else fireEvent(handle, new Event(reason, { bubbles: true }));
+    pointer(handle, 'pointerup', 500, 320);
+    expect(api.update).not.toHaveBeenCalled();
+  }
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  fireEvent.keyDown(handle, { key: 'ArrowRight' });
+  fireEvent.keyDown(handle, { key: 'Tab' });
+  expect(api.update).not.toHaveBeenCalled();
+  api.update.mockRejectedValueOnce(new Error('offline'));
+  pointer(handle, 'pointerdown', 400, 320);
+  pointer(handle, 'pointermove', 500, 320);
+  pointer(handle, 'pointerup', 500, 320);
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry area' }));
+  await waitFor(() => expect(screen.getByLabelText('Area code')).toBeEnabled());
+  expect(api.update.mock.calls[0]).toEqual(api.update.mock.calls[1]);
+  expect(screen.getAllByRole('button', { name: /^Select area/ })).toHaveLength(
+    1,
+  );
+  view.rerender(<PlanAreas {...props} tool="hand" />);
+  expect(
+    screen.queryByRole('button', { name: /^Resize area/ }),
+  ).not.toBeInTheDocument();
+});
+
+/** @spec allocation-plan-area-transform REQ-002,005 */
+it('resizes with every keyboard handle and keeps the opposite edges fixed', async () => {
+  const { api } = setup([area]);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Select area Ar.01' }),
+  );
+  vi.spyOn(
+    screen.getByLabelText('Area drawing'),
+    'getBoundingClientRect',
+  ).mockReturnValue(new DOMRect(0, 0, 1000, 800));
+  for (const [name, key] of [
+    ['top-left', 'ArrowLeft'],
+    ['top', 'ArrowUp'],
+    ['top-right', 'ArrowRight'],
+    ['right', 'ArrowRight'],
+    ['bottom-right', 'ArrowDown'],
+    ['bottom', 'ArrowDown'],
+    ['bottom-left', 'ArrowLeft'],
+    ['left', 'ArrowLeft'],
+  ] as const) {
+    const handle = screen.getByRole('button', {
+      name: `Resize area ${name}`,
+    });
+    const count = api.update.mock.calls.length;
+    fireEvent.keyDown(handle, { key: ' ' });
+    fireEvent.keyDown(handle, { key });
+    fireEvent.keyDown(handle, { key: 'Enter' });
+    await waitFor(() => {
+      expect(api.update).toHaveBeenCalledTimes(count + 1);
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText('Area code')).toBeEnabled(),
+    );
+    expect(api.update.mock.lastCall?.[1]).toMatchObject({
+      x: expect.any(Number),
+      y: expect.any(Number),
+      width: expect.any(Number),
+      height: expect.any(Number),
+    });
+  }
 });

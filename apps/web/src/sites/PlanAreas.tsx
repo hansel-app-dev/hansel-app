@@ -1,5 +1,6 @@
 /** @spec allocation-plan-add-area REQ-001..REQ-012 */
 import {
+  Fragment,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -20,6 +21,9 @@ import { PlanAreaRequestError, type PlanAreasApi } from './plan-areas-api.js';
 import { AddSignMenu } from './AddSignMenu.js';
 import { AreaDetails } from './AreaDetails.js';
 import {
+  resizeArea,
+  areaResizeHandles,
+  type AreaResizeHandle,
   areaPoint,
   areaRectangle,
   moveArea,
@@ -33,6 +37,16 @@ export interface PlanAreasHandle {
   blocked: () => boolean;
   keyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
+const handleNames: Record<AreaResizeHandle, string> = {
+  nw: 'top-left',
+  n: 'top',
+  ne: 'top-right',
+  e: 'right',
+  se: 'bottom-right',
+  s: 'bottom',
+  sw: 'bottom-left',
+  w: 'left',
+};
 interface Gesture {
   pointerId: number;
   element: HTMLElement;
@@ -41,6 +55,7 @@ interface Gesture {
   client: AreaPoint;
   area: PlanArea | null;
   moved: boolean;
+  handle?: AreaResizeHandle;
 }
 export function PlanAreas({
   api,
@@ -91,7 +106,13 @@ export function PlanAreas({
     epoch = useRef(0),
     suppress = useRef(false),
     keyboardCreate = useRef(false);
+  const keyboardResize = useRef<{
+    area: PlanArea;
+    handle: AreaResizeHandle;
+    delta: AreaPoint;
+  } | null>(null);
   const placementVersion = useRef(0);
+  const editableTool = tool === 'move' || (tool === 'area' && !armed);
   const dirty =
     !!selected && (code !== selected.code || content !== selected.content);
   function clear() {
@@ -119,6 +140,7 @@ export function PlanAreas({
   }
   const cancel = useCallback(() => {
     placementVersion.current++;
+    keyboardResize.current = null;
     const g = gesture.current;
     gesture.current = null;
     if (g?.element.hasPointerCapture(g.pointerId))
@@ -178,14 +200,17 @@ export function PlanAreas({
       cancel();
     };
     const escape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && (gesture.current || armed || corner)) {
+      if (
+        e.key === 'Escape' &&
+        (gesture.current || keyboardResize.current || armed || corner)
+      ) {
         e.preventDefault();
         e.stopPropagation();
         cancel();
       }
     };
     const scroll = () => {
-      if (gesture.current) cancel();
+      if (gesture.current || keyboardResize.current) cancel();
     };
     window.addEventListener('scroll', scroll, true);
     window.addEventListener('blur', dismissGesture);
@@ -275,6 +300,7 @@ export function PlanAreas({
   function update(
     area: PlanArea,
     changes: Omit<PlanAreaPatch, 'expectedUpdatedAt'>,
+    focusAfterSave?: HTMLElement,
   ) {
     const input = planAreaPatchSchema.safeParse({
       expectedUpdatedAt: area.updatedAt,
@@ -295,9 +321,14 @@ export function PlanAreas({
           current.map((a) => (a.id === saved.id ? saved : a)),
         );
         choose(saved);
+        if (focusAfterSave)
+          requestAnimationFrame(() => {
+            if (version === epoch.current && focusAfterSave.isConnected)
+              focusAfterSave.focus({ preventScroll: true });
+          });
       },
       () => {
-        update(area, changes);
+        update(area, changes, focusAfterSave);
       },
     );
   }
@@ -362,7 +393,11 @@ export function PlanAreas({
       ? areaPoint(e.clientX, e.clientY, box)
       : null;
   }
-  function begin(e: ReactPointerEvent<HTMLElement>, area: PlanArea | null) {
+  function begin(
+    e: ReactPointerEvent<HTMLElement>,
+    area: PlanArea | null,
+    handle?: AreaResizeHandle,
+  ) {
     if (panning || tool === 'hand') return;
     e.stopPropagation();
     if (
@@ -372,7 +407,7 @@ export function PlanAreas({
       busy.current ||
       externalBusy ||
       conflict ||
-      (area ? tool !== 'move' : !armed) ||
+      (area ? !editableTool : !armed) ||
       !leave() ||
       !beforeSelect()
     )
@@ -380,6 +415,8 @@ export function PlanAreas({
     const at = point(e);
     if (!at) return;
     e.preventDefault();
+    keyboardResize.current = null;
+    if (area) choose(area);
     suppress.current = false;
     gesture.current = {
       pointerId: e.pointerId,
@@ -389,6 +426,7 @@ export function PlanAreas({
       client: { x: e.clientX, y: e.clientY },
       area,
       moved: false,
+      ...(handle ? { handle } : {}),
     };
     e.currentTarget.setPointerCapture(e.pointerId);
     setMoving(area?.id ?? null);
@@ -407,11 +445,16 @@ export function PlanAreas({
     g.last = at;
     g.moved ||= Math.hypot(e.clientX - g.client.x, e.clientY - g.client.y) > 3;
     if (g.area) {
-      const next = moveArea(
-        g.area,
-        g.area.x + at.x - g.start.x,
-        g.area.y + at.y - g.start.y,
-      );
+      const next = g.handle
+        ? resized(g.area, g.handle, {
+            x: at.x - g.start.x,
+            y: at.y - g.start.y,
+          })
+        : moveArea(
+            g.area,
+            g.area.x + at.x - g.start.x,
+            g.area.y + at.y - g.start.y,
+          );
       setPreview({ ...g.area, ...next });
     } else setPreview(areaRectangle(g.start, at));
   }
@@ -429,12 +472,18 @@ export function PlanAreas({
     setMoving(null);
     if (g.area) {
       if (g.moved) {
-        const next = moveArea(
-          g.area,
-          g.area.x + g.last.x - g.start.x,
-          g.area.y + g.last.y - g.start.y,
-        );
-        update(g.area, next);
+        const next = g.handle
+          ? resized(g.area, g.handle, {
+              x: g.last.x - g.start.x,
+              y: g.last.y - g.start.y,
+            })
+          : moveArea(
+              g.area,
+              g.area.x + g.last.x - g.start.x,
+              g.area.y + g.last.y - g.start.y,
+            );
+        if (geometryChanged(g.area, { ...g.area, ...next }))
+          update(g.area, next);
       }
       return;
     }
@@ -443,6 +492,78 @@ export function PlanAreas({
     if (rect.width * box.width < 4 || rect.height * box.height < 4) return;
     setArmed(false);
     create({ ...rect, fileId, idempotencyKey: crypto.randomUUID() });
+  }
+  function resized(area: PlanArea, handle: AreaResizeHandle, delta: AreaPoint) {
+    const box = canvas.current?.getBoundingClientRect();
+    return resizeArea(area, handle, delta, {
+      x: 4 / Math.max(1, box?.width ?? 1),
+      y: 4 / Math.max(1, box?.height ?? 1),
+    });
+  }
+  function geometryChanged(
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number },
+  ) {
+    return (
+      Math.abs(a.x - b.x) > 1e-10 ||
+      Math.abs(a.y - b.y) > 1e-10 ||
+      Math.abs(a.width - b.width) > 1e-10 ||
+      Math.abs(a.height - b.height) > 1e-10
+    );
+  }
+  function resizeKeyDown(
+    e: ReactKeyboardEvent<HTMLElement>,
+    area: PlanArea,
+    handle: AreaResizeHandle,
+  ) {
+    e.stopPropagation();
+    if (e.key === 'Tab') {
+      if (keyboardResize.current) cancel();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel();
+      return;
+    }
+    if (
+      !editableTool ||
+      panning ||
+      !canManage ||
+      busy.current ||
+      externalBusy ||
+      conflict
+    )
+      return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const session = keyboardResize.current;
+      if (session) {
+        const next = resized(session.area, session.handle, session.delta);
+        cancel();
+        if (geometryChanged(session.area, next))
+          update(session.area, next, e.currentTarget);
+      } else if (leave() && beforeSelect()) {
+        keyboardResize.current = { area, handle, delta: { x: 0, y: 0 } };
+        setMoving(area.id);
+        setPreview(area);
+        setMessage('Use arrows to resize. Enter saves; Escape or Tab cancels.');
+      }
+      return;
+    }
+    const session = keyboardResize.current;
+    if (session && e.key.startsWith('Arrow')) {
+      e.preventDefault();
+      session.delta = {
+        x:
+          session.delta.x +
+          (e.key === 'ArrowRight' ? 0.01 : e.key === 'ArrowLeft' ? -0.01 : 0),
+        y:
+          session.delta.y +
+          (e.key === 'ArrowDown' ? 0.01 : e.key === 'ArrowUp' ? -0.01 : 0),
+      };
+      setPreview(resized(session.area, session.handle, session.delta));
+    }
   }
   function keyDown(e: ReactKeyboardEvent<HTMLElement>) {
     if (
@@ -573,99 +694,146 @@ export function PlanAreas({
         {areas.map((a) => {
           const rect = moving === a.id && preview ? preview : a;
           return (
-            <button
-              id={`area-${a.id}`}
-              key={a.id}
-              type="button"
-              aria-label={`Select area ${a.code}`}
-              className="pointer-events-auto absolute border border-dashed border-[#4096ff] bg-[#4096ff]/[0.28] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff]"
-              style={{
-                ...shape(rect),
-                cursor:
-                  panning || tool === 'hand'
-                    ? 'inherit'
-                    : tool === 'move' && canManage
-                      ? 'move'
-                      : 'pointer',
-                touchAction:
-                  tool === 'move' && canManage && !panning ? 'none' : 'auto',
-              }}
-              onPointerDown={(e) => {
-                begin(e, a);
-              }}
-              onPointerMove={move}
-              onPointerUp={finish}
-              onPointerCancel={cancel}
-              onLostPointerCapture={() => {
-                if (gesture.current) cancel();
-              }}
-              onDragStart={(e) => {
-                e.preventDefault();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (panning || tool === 'hand') return;
-                if (suppress.current) {
-                  suppress.current = false;
-                  return;
-                }
-                if (leave() && beforeSelect()) {
-                  cancel();
-                  choose(a);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (
-                  e.altKey &&
-                  ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
-                    e.key,
-                  )
-                ) {
+            <Fragment key={a.id}>
+              <button
+                id={`area-${a.id}`}
+                type="button"
+                aria-label={`Select area ${a.code}`}
+                className="pointer-events-auto absolute border border-dashed border-[#4096ff] bg-[#4096ff]/[0.28] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff]"
+                style={{
+                  ...shape(rect),
+                  cursor:
+                    panning || tool === 'hand'
+                      ? 'inherit'
+                      : editableTool && canManage
+                        ? 'move'
+                        : 'pointer',
+                  touchAction:
+                    editableTool && canManage && !panning ? 'none' : 'auto',
+                }}
+                onPointerDown={(e) => {
+                  begin(e, a);
+                }}
+                onPointerMove={move}
+                onPointerUp={finish}
+                onPointerCancel={cancel}
+                onLostPointerCapture={() => {
+                  if (gesture.current) cancel();
+                }}
+                onDragStart={(e) => {
                   e.preventDefault();
+                }}
+                onClick={(e) => {
                   e.stopPropagation();
+                  if (panning || tool === 'hand') return;
+                  if (suppress.current) {
+                    suppress.current = false;
+                    return;
+                  }
+                  if (leave() && beforeSelect()) {
+                    cancel();
+                    choose(a);
+                  }
+                }}
+                onKeyDown={(e) => {
                   if (
-                    tool === 'move' &&
-                    canManage &&
-                    !panning &&
-                    !busy.current &&
-                    !externalBusy &&
-                    !dirty &&
-                    !conflict &&
-                    beforeSelect()
-                  )
-                    update(
-                      a,
-                      moveArea(
+                    e.altKey &&
+                    [
+                      'ArrowLeft',
+                      'ArrowRight',
+                      'ArrowUp',
+                      'ArrowDown',
+                    ].includes(e.key)
+                  ) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (
+                      editableTool &&
+                      canManage &&
+                      !panning &&
+                      !busy.current &&
+                      !externalBusy &&
+                      !dirty &&
+                      !conflict &&
+                      beforeSelect()
+                    )
+                      update(
                         a,
-                        a.x +
-                          (e.key === 'ArrowRight'
-                            ? 0.01
-                            : e.key === 'ArrowLeft'
-                              ? -0.01
-                              : 0),
-                        a.y +
-                          (e.key === 'ArrowDown'
-                            ? 0.01
-                            : e.key === 'ArrowUp'
-                              ? -0.01
-                              : 0),
-                      ),
-                    );
-                } else e.stopPropagation();
-              }}
-            >
-              <span
-                className="absolute top-0 max-w-[180px] truncate whitespace-nowrap rounded-sm bg-[#1677cc] px-2 text-sm leading-6 text-white"
-                style={
-                  rect.x + rect.width > 0.85
-                    ? { right: 0, top: 'auto', bottom: '100%' }
-                    : { left: '100%' }
-                }
-                title={a.code}
+                        moveArea(
+                          a,
+                          a.x +
+                            (e.key === 'ArrowRight'
+                              ? 0.01
+                              : e.key === 'ArrowLeft'
+                                ? -0.01
+                                : 0),
+                          a.y +
+                            (e.key === 'ArrowDown'
+                              ? 0.01
+                              : e.key === 'ArrowUp'
+                                ? -0.01
+                                : 0),
+                        ),
+                      );
+                  } else e.stopPropagation();
+                }}
               >
-                {a.code}
-              </span>
-            </button>
+                <span
+                  className="absolute top-0 max-w-[180px] truncate whitespace-nowrap rounded-sm bg-[#1677cc] px-2 text-sm leading-6 text-white"
+                  style={
+                    rect.x + rect.width > 0.85
+                      ? { right: 0, top: 'auto', bottom: '100%' }
+                      : { left: '100%' }
+                  }
+                  title={a.code}
+                >
+                  {a.code}
+                </span>
+              </button>
+              {selected?.id === a.id &&
+                canManage &&
+                editableTool &&
+                !panning &&
+                areaResizeHandles.map((handle) => (
+                  <button
+                    key={handle}
+                    type="button"
+                    aria-label={`Resize area ${handleNames[handle]}`}
+                    disabled={pending || externalBusy || conflict}
+                    className="pointer-events-auto absolute z-[5] grid size-6 -translate-x-1/2 -translate-y-1/2 place-items-center focus-visible:outline-2 focus-visible:outline-[#1677cc]"
+                    style={{
+                      left: `${String((rect.x + (handle.includes('w') ? 0 : handle.includes('e') ? rect.width : rect.width / 2)) * 100)}%`,
+                      top: `${String((rect.y + (handle.includes('n') ? 0 : handle.includes('s') ? rect.height : rect.height / 2)) * 100)}%`,
+                      cursor: `${handle}-resize`,
+                      touchAction: 'none',
+                    }}
+                    onPointerDown={(e) => {
+                      begin(e, a, handle);
+                    }}
+                    onPointerMove={move}
+                    onPointerUp={finish}
+                    onPointerCancel={cancel}
+                    onLostPointerCapture={() => {
+                      if (gesture.current) cancel();
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      suppress.current = false;
+                    }}
+                    onKeyDown={(e) => {
+                      resizeKeyDown(e, a, handle);
+                    }}
+                    onBlur={() => {
+                      if (keyboardResize.current) cancel();
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-2 rounded-sm border border-[#1677cc] bg-white"
+                    />
+                  </button>
+                ))}
+            </Fragment>
           );
         })}
         {(armed || menu) && !corner && !preview && (

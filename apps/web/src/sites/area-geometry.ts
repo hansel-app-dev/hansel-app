@@ -34,3 +34,47 @@ export function moveArea(
     y: Math.max(0, Math.min(1 - a.height, y)),
   };
 }
+
+/** @spec allocation-plan-area-transform REQ-002 */
+export const areaResizeHandles = [
+  'nw',
+  'n',
+  'ne',
+  'e',
+  'se',
+  's',
+  'sw',
+  'w',
+] as const;
+export type AreaResizeHandle = (typeof areaResizeHandles)[number];
+export interface AreaRectangle extends AreaPoint {
+  width: number;
+  height: number;
+}
+export function resizeArea(
+  a: AreaRectangle,
+  handle: AreaResizeHandle,
+  delta: AreaPoint,
+  minimum: AreaPoint,
+): AreaRectangle {
+  let left = a.x,
+    top = a.y,
+    right = a.x + a.width,
+    bottom = a.y + a.height;
+  const minWidth = minimum.x,
+    minHeight = minimum.y;
+  if (handle.includes('w') && delta.x !== 0)
+    left = Math.max(0, Math.min(right - minWidth, left + delta.x));
+  if (handle.includes('e') && delta.x !== 0)
+    right = Math.min(1, Math.max(left + minWidth, right + delta.x));
+  if (handle.includes('n') && delta.y !== 0)
+    top = Math.max(0, Math.min(bottom - minHeight, top + delta.y));
+  if (handle.includes('s') && delta.y !== 0)
+    bottom = Math.min(1, Math.max(top + minHeight, bottom + delta.y));
+  return {
+    x: left,
+    y: top,
+    width: left === a.x && right === a.x + a.width ? a.width : right - left,
+    height: top === a.y && bottom === a.y + a.height ? a.height : bottom - top,
+  };
+}

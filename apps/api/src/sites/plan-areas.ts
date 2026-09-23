@@ -229,6 +229,8 @@ export function createPlanAreasFeature(prisma: PrismaClient) {
             ...area,
             x: changes.x ?? area.x,
             y: changes.y ?? area.y,
+            width: changes.width ?? area.width,
+            height: changes.height ?? area.height,
           })
         )
           throw new SignageConflictError();
@@ -256,6 +258,8 @@ export function createPlanAreasFeature(prisma: PrismaClient) {
             ...(changes.x === undefined || changes.y === undefined
               ? {}
               : { x: changes.x, y: changes.y }),
+            width: changes.width ?? area.width,
+            height: changes.height ?? area.height,
             updatedAt: new Date(
               Math.max(Date.now(), Date.parse(expectedUpdatedAt) + 1),
             ),

@@ -53,6 +53,8 @@ function Preview({
         return area;
       },
       update: (id, input) => {
+        if (pending) return new Promise(() => undefined);
+        if (fail) return Promise.reject(new Error('unavailable'));
         const current = areas.find((a) => a.id === id) ?? initial;
         const area = {
           ...current,
@@ -61,6 +63,8 @@ function Preview({
           orientation: input.orientation ?? current.orientation,
           x: input.x ?? current.x,
           y: input.y ?? current.y,
+          width: input.width ?? current.width,
+          height: input.height ?? current.height,
           updatedAt: new Date().toISOString(),
         };
         areas = areas.map((a) => (a.id === id ? area : a));
@@ -176,4 +180,27 @@ export const Pending: Story = {
     await createWithKeyboard(canvasElement);
   },
   args: { pending: true, populated: false },
+};
+
+/** @spec allocation-plan-area-transform REQ-005,007 */
+export const ResizePreview: Story = {
+  play: async (context) => {
+    await Selected.play?.(context);
+    const handle = within(context.canvasElement).getByRole('button', {
+      name: 'Resize area bottom-right',
+    });
+    handle.focus();
+    await userEvent.keyboard('{Enter}{ArrowRight}{ArrowRight}{ArrowDown}');
+  },
+};
+export const ResizePending: Story = {
+  args: { pending: true },
+  play: async (context) => {
+    await ResizePreview.play?.(context);
+    await userEvent.keyboard('{Enter}');
+  },
+};
+export const ResizeFailure: Story = {
+  ...ResizePending,
+  args: { fail: true },
 };

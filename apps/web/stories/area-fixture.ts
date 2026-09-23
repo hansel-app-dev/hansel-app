@@ -46,6 +46,8 @@ export function areaFixture(): PlanAreasApi {
         ...current,
         x: input.x ?? current.x,
         y: input.y ?? current.y,
+        width: input.width ?? current.width,
+        height: input.height ?? current.height,
         code: input.code ?? current.code,
         content: input.content ?? current.content,
         orientation: input.orientation ?? current.orientation,

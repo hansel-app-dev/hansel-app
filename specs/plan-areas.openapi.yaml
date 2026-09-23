@@ -88,7 +88,7 @@ item:
       }
   patch:
     operationId: updatePlanArea
-    summary: Update metadata or move an Area with optimistic concurrency
+    summary: Update metadata, move or resize an Area with optimistic concurrency
     requestBody:
       required: true
       content:
@@ -98,15 +98,18 @@ item:
             additionalProperties: false
             required: [expectedUpdatedAt]
             minProperties: 2
-            dependentRequired: { x: [y], y: [x] }
+            dependentRequired:
+              { x: [y], y: [x], width: [x, y, height], height: [x, y, width] }
             properties:
               expectedUpdatedAt: { type: string, format: date-time }
               x: { type: number, minimum: 0, maximum: 1 }
               y: { type: number, minimum: 0, maximum: 1 }
+              width: { type: number, exclusiveMinimum: 0, maximum: 1 }
+              height: { type: number, exclusiveMinimum: 0, maximum: 1 }
               code: { type: string, minLength: 1, maxLength: 40 }
               content: { type: string, maxLength: 200 }
               orientation: { $ref: '#/orientation' }
-            description: Code/content trimmed and NFC-normalized; whole rectangle must remain in bounds. Width and height are immutable.
+            description: Code/content trimmed and NFC-normalized; whole rectangle must remain in bounds. Resizing requires all four geometry fields; metadata and paired x/y moves remain supported.
     responses:
       '200':
         {

@@ -95,7 +95,7 @@ it.skipIf(process.env.PLAN_AREAS_INTEGRATION !== 'true')(
         idempotencyKey: randomUUID(),
       });
       expect(two.code).toBe('Ar.02');
-      const edit = await feature.update(p, siteId, plan.id, one.id, {
+      let edit = await feature.update(p, siteId, plan.id, one.id, {
         expectedUpdatedAt: one.updatedAt,
         code: 'Room A',
         content: 'Floor zone',
@@ -112,6 +112,32 @@ it.skipIf(process.env.PLAN_AREAS_INTEGRATION !== 'true')(
         x: 0.3,
         y: 0.4,
       });
+      // @spec allocation-plan-area-transform REQ-003,006
+      edit = await feature.update(p, siteId, plan.id, one.id, {
+        expectedUpdatedAt: edit.updatedAt,
+        x: 0.2,
+        y: 0.2,
+        width: 0.5,
+        height: 0.6,
+      });
+      expect(edit).toMatchObject({
+        x: 0.2,
+        y: 0.2,
+        width: 0.5,
+        height: 0.6,
+        code: 'Room A',
+        content: 'Floor zone',
+        orientation: 'up',
+      });
+      await expect(
+        feature.update(p, siteId, plan.id, one.id, {
+          expectedUpdatedAt: edit.updatedAt,
+          x: 0.8,
+          y: 0.2,
+          width: 0.5,
+          height: 0.6,
+        }),
+      ).rejects.toThrow();
       await expect(
         feature.update(p, siteId, plan.id, one.id, {
           expectedUpdatedAt: one.updatedAt,

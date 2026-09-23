@@ -153,5 +153,103 @@ for (const width of [320, 1512]) {
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await expect(drawer).toBeVisible();
+    const resizedArea = page.getByRole('button', { name: 'Select area Ar.03' });
+    const initialSize = await resizedArea.boundingBox();
+    const resizeHandle = page.getByRole('button', {
+      name: 'Resize area bottom-right',
+      exact: true,
+    });
+    await resizeHandle.focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Enter');
+    await expect
+      .poll(async () => (await resizedArea.boundingBox())?.width)
+      .toBeGreaterThan(initialSize?.width ?? 0);
   });
 }
+
+/** @spec allocation-plan-area-transform REQ-001..007 */
+test('saved Areas drag in Add area mode and resize with handles and keyboard', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1512, height: 982 });
+  await page.goto(
+    '/iframe.html?id=sites-plan-areas--interactive&viewMode=story',
+  );
+  const area = page.getByRole('button', { name: 'Select area Ar.01' });
+  const before = await area.boundingBox();
+  if (!before) throw new Error('Missing area');
+  await page.mouse.move(before.x + 50, before.y + 50);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 70, before.y + 70, { steps: 4 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await area.boundingBox())?.x)
+    .toBeGreaterThan(before.x + 15);
+  await expect(page.getByRole('button', { name: /^Resize area/ })).toHaveCount(
+    8,
+  );
+  const handle = page.getByRole('button', {
+    name: 'Resize area bottom-right',
+    exact: true,
+  });
+  const moved = await area.boundingBox();
+  if (!moved) throw new Error('Missing moved area');
+  await handle.hover();
+  await page.mouse.down();
+  await page.mouse.move(
+    moved.x + moved.width + 30,
+    moved.y + moved.height + 20,
+    { steps: 4 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await area.boundingBox())?.width)
+    .toBeGreaterThan(moved.width + 20);
+  const resized = await area.boundingBox();
+  if (!resized) throw new Error('Missing resized area');
+  await handle.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Escape');
+  expect((await area.boundingBox())?.width).toBeCloseTo(resized.width, 0);
+  await handle.focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  await expect
+    .poll(async () => (await area.boundingBox())?.width)
+    .toBeGreaterThan(resized.width);
+  await expect(handle).toBeFocused();
+  const beforeLabelDrag = await area.boundingBox();
+  const label = area.locator('span[title]');
+  const labelBox = await label.boundingBox();
+  if (!beforeLabelDrag || !labelBox) throw new Error('Missing label');
+  await page.mouse.move(
+    labelBox.x + labelBox.width / 2,
+    labelBox.y + labelBox.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    labelBox.x + labelBox.width / 2 - 20,
+    labelBox.y + labelBox.height / 2 + 10,
+    { steps: 4 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await area.boundingBox())?.x)
+    .toBeLessThan(beforeLabelDrag.x - 15);
+  expect((await area.boundingBox())?.width).toBeCloseTo(
+    beforeLabelDrag.width,
+    0,
+  );
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .include('[aria-label="Area drawing"]')
+        .analyze()
+    ).violations,
+  ).toEqual([]);
+  await page.screenshot({ path: '/tmp/hansel-area-resize.png' });
+});

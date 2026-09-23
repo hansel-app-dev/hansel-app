@@ -30,7 +30,7 @@ it('accepts bounded independent geometry and rejects malformed or unsupported wr
       planAreaCreateSchema.safeParse({ ...input, ...changes }).success,
     ).toBe(false);
 });
-it('requires paired moves and concurrency, limits metadata and forbids resizing', () => {
+it('requires paired moves and concurrency, limits metadata and rejects partial resizing', () => {
   const expectedUpdatedAt = new Date().toISOString();
   for (const changes of [
     { x: 0, y: 0 },
@@ -73,4 +73,20 @@ it('reads Areas with fixed appearance independently from Sign schemas', () => {
   expect(planAreaSchema.safeParse({ ...area, colour: 'Red' }).success).toBe(
     false,
   );
+});
+
+/** @spec allocation-plan-area-transform REQ-006 */
+it('accepts complete resize tuples and rejects partial or invalid resize geometry', () => {
+  const expectedUpdatedAt = new Date().toISOString();
+  const resize = { expectedUpdatedAt, x: 0.1, y: 0.2, width: 0.4, height: 0.5 };
+  expect(planAreaPatchSchema.parse(resize)).toEqual(resize);
+  for (const invalid of [
+    { ...resize, height: undefined },
+    { ...resize, x: undefined },
+    { ...resize, width: 0 },
+    { ...resize, height: Infinity },
+    { ...resize, width: 1 },
+    { ...resize, height: 0.9 },
+  ])
+    expect(planAreaPatchSchema.safeParse(invalid).success).toBe(false);
 });

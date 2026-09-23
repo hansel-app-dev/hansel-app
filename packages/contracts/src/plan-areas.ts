@@ -33,6 +33,8 @@ export const planAreaPatchSchema = z
     expectedUpdatedAt: z.iso.datetime(),
     x: coordinate.optional(),
     y: coordinate.optional(),
+    width: geometry.width.optional(),
+    height: geometry.height.optional(),
     code: text(40)
       .refine((s) => s.length > 0)
       .optional(),
@@ -44,6 +46,16 @@ export const planAreaPatchSchema = z
     (v) => (v.x === undefined) === (v.y === undefined),
     'Provide both coordinates',
   )
+  .refine((v) => {
+    if (v.width === undefined && v.height === undefined) return true;
+    return (
+      v.x !== undefined &&
+      v.y !== undefined &&
+      v.width !== undefined &&
+      v.height !== undefined &&
+      areaWithinBounds({ x: v.x, y: v.y, width: v.width, height: v.height })
+    );
+  }, 'Provide complete bounded resize geometry')
   .refine((v) => Object.keys(v).length > 1, 'Provide a changed field');
 export const planAreaDeleteSchema = z
   .object({ expectedUpdatedAt: z.iso.datetime() })
