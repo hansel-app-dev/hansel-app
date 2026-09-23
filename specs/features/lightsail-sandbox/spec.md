@@ -9,6 +9,8 @@
 
 Approval: User approved this specification and authorized use of current AWS credentials for sandbox provisioning on 2026-09-23. Production deployment remains prohibited.
 
+Address amendment: User requested a freely available AWS address instead of a custom hostname. Use the included static IPv4 address over trusted HTTPS; no paid DNS/CDN is added.
+
 ## Problem
 
 The current ECS/Aurora deployment is too expensive for a low-traffic sandbox. The user requested an AWS-only sandbox below US$50/month while keeping the production configuration and explicitly forbidding production deployment.
@@ -30,13 +32,13 @@ Pricing evidence: https://aws.amazon.com/lightsail/pricing/ (checked 2026-09-23)
 
 - REQ-001: Sandbox MUST have its own infrastructure entry point and manual deployment path, resource names and environment configuration. Sandbox commands MUST reject production targets and MUST NOT invoke the production deployment workflow or mutate its configuration.
 - REQ-002: Sandbox MUST use one 4 GB Lightsail server with a static public IPv4 address. Docker Compose MUST run PostgreSQL 16, the existing API and background workers, and a Caddy HTTPS reverse proxy serving the built frontend. PostgreSQL and the API MUST NOT publish host ports; only HTTPS/HTTP and SSH restricted to an explicit operator CIDR may be exposed.
-- REQ-003: Sandbox MUST use an explicit sandbox hostname and exact HTTPS application origin. Browser `/api` requests and existing server-owned authentication routes MUST reach the API, while frontend routes retain SPA fallback. Secure cookies, origin checks and current application authorization MUST remain enforced. NODE_ENV remains production for secure runtime behavior. External provider login stays disabled because current configuration requires the production hostname; email/password authentication is the initial supported path.
+- REQ-003: Sandbox MUST use its AWS-assigned static IPv4 address and exact HTTPS application origin, with a publicly trusted short-lived IP certificate renewed automatically by Caddy. No custom domain or DNS change is required. Browser `/api` requests and existing server-owned authentication routes MUST reach the API, while frontend routes retain SPA fallback. Secure cookies, origin checks and current application authorization MUST remain enforced. NODE_ENV remains production for secure runtime behavior. External provider login stays disabled because current configuration requires the production hostname; email/password authentication is the initial supported path.
 - REQ-004: Database data, credentials, session/digest secrets, upload bucket and backups MUST be sandbox-only. Never import the local `.env.local` or existing account-wide credentials into deployed configuration. Files and backups MUST remain private and encrypted at rest. S3 runtime permissions MUST be limited to the sandbox bucket and existing required object prefixes; deployment credentials and application credentials MUST be separate. Lightsail service access credentials MUST be provisioned outside source, protected on disk and documented for rotation.
 - REQ-005: Builds MUST run outside the small runtime server and releases MUST be identified by immutable commit/image references. Deployment MUST run existing Prisma migrations as a one-off sandbox container before starting the new API release. A failed migration MUST stop release progression. Health checks MUST gate successful deployment; previous artifacts MUST remain available for rollback. Sandbox releases may have downtime.
 - REQ-006: PostgreSQL MUST use a persistent volume. Automated daily database dumps MUST be stored privately outside the server with seven-day retention; daily server snapshots and bounded container log rotation MUST be configured. Document and exercise restoring a database dump into an isolated test database. Backup failures MUST be visible through a recorded job result and operator check; snapshot success alone is not proof of database restorability.
 - REQ-007: Infrastructure MUST tag sandbox resources for cost tracking, document storage/transfer assumptions, and support a US$50 monthly budget alert when an operator supplies a notification address. Budget alerts MUST be described as alerts, not automatic spending limits. No paid monitoring subscription or additional always-on managed database is required.
 - REQ-008: Automated assertions MUST verify sandbox isolation, private storage, firewall boundaries and absence of production-style chargeable resources. Compare production synthesis before and after to confirm no resource/property changes. Existing production configuration and deployment behavior MUST be preserved.
-- REQ-009: The runbook MUST document provisioning, domain setup, secret installation, builds, migration, deployment, smoke checks, backup/restore, rollback and teardown. Teardown MUST target sandbox explicitly and retain durable data by default. No cloud resources are provisioned as part of the specification phase; actual sandbox launch needs its hostname, operator access configuration and sandbox secrets.
+- REQ-009: The runbook MUST document provisioning, domain setup, secret installation, builds, migration, deployment, smoke checks, backup/restore, rollback and teardown. Teardown MUST target sandbox explicitly and retain durable data by default. No cloud resources are provisioned as part of the specification phase; actual sandbox launch needs its assigned static IP, operator access configuration and sandbox secrets.
 
 ## Acceptance scenarios
 
@@ -50,7 +52,7 @@ Pricing evidence: https://aws.amazon.com/lightsail/pricing/ (checked 2026-09-23)
 
 ### AC-002 — Sandbox user journey [REQ-003, REQ-004]
 
-- Given a sandbox hostname with HTTPS, separate PostgreSQL and sandbox credentials
+- Given a sandbox static IP with trusted HTTPS, separate PostgreSQL and sandbox credentials
 - When a tester signs up or logs in using email/password and uses enabled Site, Allocation Plan, Sign and discussion features
 - Then requests use the sandbox API, secure same-origin sessions work, and uploads remain private in sandbox storage
 - And no production data or provider-authentication configuration is used
@@ -80,7 +82,7 @@ Pricing evidence: https://aws.amazon.com/lightsail/pricing/ (checked 2026-09-23)
 
 ## UX and accessibility
 
-No reusable frontend components or visual changes. Existing accessibility behavior and Storybook remain unchanged. The sandbox hostname distinguishes test access from production.
+No reusable frontend components or visual changes. Existing accessibility behavior and Storybook remain unchanged. The sandbox URL is its AWS-assigned static IP; no production hostname is used.
 
 ## API and integrations
 
@@ -104,8 +106,8 @@ After explicit specification approval, write failing tests for environment guard
 
 ## Rollout and rollback
 
-Commit and push this draft separately, obtain explicit approval, then implement and push a separate commit. Keep sandbox infrastructure and deployment assets separate from the existing production stack and workflow. No production deployment is authorized. Before sandbox launch, obtain its hostname, operator CIDR/access key, budget alert destination and sandbox email/storage credentials through appropriate secure configuration. Provision only the sandbox, install secrets securely, deploy a verified release, and test health, login, plans/media, workers and backup restore. Roll back failed releases to the previous image/frontend pair; retain additive schema changes and durable data. Teardown must be an explicit sandbox-only operation and must not delete retained backups by default.
+Commit and push this draft separately, obtain explicit approval, then implement and push a separate commit. Keep sandbox infrastructure and deployment assets separate from the existing production stack and workflow. No production deployment is authorized. Before sandbox launch, determine its assigned static IP, operator CIDR/access key and sandbox email/storage credentials through appropriate secure configuration. Budget notification is configured when an address is supplied. Provision only the sandbox, install secrets securely, deploy a verified release, and test health, login, plans/media, workers and backup restore. Roll back failed releases to the previous image/frontend pair; retain additive schema changes and durable data. Teardown must be an explicit sandbox-only operation and must not delete retained backups by default.
 
 ## Open questions
 
-- No unresolved architecture choices. Deployment-specific hostname, access and secret values are required inputs before provisioning, not inferred from production.
+- No unresolved architecture choices. Deployment-specific access and secret values are required inputs; the sandbox address is allocated by AWS, never inferred from production.
