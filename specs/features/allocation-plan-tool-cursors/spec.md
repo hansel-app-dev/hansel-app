@@ -1,7 +1,8 @@
 # Feature: Supplied Allocation Plan tool cursors
 
 - ID: `allocation-plan-tool-cursors`
-- Status: `draft`
+- Status: `approved`
+- Approval: `User approved this published specification in the Codex task on 2026-09-23.`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
