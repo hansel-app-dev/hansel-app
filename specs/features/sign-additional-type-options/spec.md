@@ -1,7 +1,8 @@
 # Feature: Additional Sign Type options
 
 - ID: `sign-additional-type-options`
-- Status: `draft`
+- Status: `approved`
+- Approval: `User approved this published specification in the Codex task on 2026-09-23.`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
