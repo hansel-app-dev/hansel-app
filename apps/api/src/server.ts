@@ -26,6 +26,7 @@ import {
   createPrismaPersonalProfileStore,
 } from './onboarding/prisma-personal-profile-store.js';
 import { loadPlanCatalog } from './onboarding/plan-catalog.js';
+import { selectCatalogEnvironment } from './onboarding/catalog-environment.js';
 import { createPlanSelection } from './onboarding/plan-selection.js';
 import { createPrismaPlanSelectionStore } from './onboarding/prisma-plan-selection-store.js';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -342,7 +343,13 @@ if (config.externalAuthEnabled && config.externalAuth) {
 }
 let planCatalog;
 try {
-  planCatalog = loadPlanCatalog(config.runtimeEnvironment);
+  planCatalog = loadPlanCatalog(
+    selectCatalogEnvironment(
+      config.runtimeEnvironment,
+      process.env.HANSEL_DEPLOYMENT_ENVIRONMENT,
+      config.allowedOrigin,
+    ),
+  );
 } catch (error) {
   logger.error('plan_catalog_validation_failed', { error });
   throw error;

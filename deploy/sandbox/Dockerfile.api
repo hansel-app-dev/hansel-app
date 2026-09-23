@@ -1,0 +1,7 @@
+# The existing API deploy step reconstructs node_modules without the generated
+# Prisma client. Regenerate it in the sandbox artifact, without changing production.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+USER root
+RUN node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma
+USER hansel

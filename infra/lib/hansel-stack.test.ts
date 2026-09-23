@@ -95,6 +95,10 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites
       Engine: 'aurora-postgresql',
     });
     output.hasResourceProperties('AWS::ECS::Service', { DesiredCount: 2 });
+    // sandbox-test-catalog REQ-003: production never opts into the test catalog.
+    expect(
+      JSON.stringify(output.findResources('AWS::ECS::TaskDefinition')),
+    ).not.toContain('HANSEL_DEPLOYMENT_ENVIRONMENT');
     output.hasResourceProperties('AWS::ECS::TaskDefinition', {
       ContainerDefinitions: Match.arrayWith([
         Match.objectLike({

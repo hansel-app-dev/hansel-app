@@ -15,7 +15,9 @@ cd "$scratch"
 pnpm install --frozen-lockfile
 pnpm --filter @hansel/contracts build
 VITE_API_URL='' pnpm --filter @hansel/web build
-docker build --platform linux/amd64 -f apps/api/Dockerfile -t "hansel-sandbox-api:$revision" .
+printf 'node_modules\n**/node_modules\n.git\n' > .dockerignore
+docker build --platform linux/amd64 -f apps/api/Dockerfile -t "hansel-sandbox-api-base:$revision" .
+docker build --platform linux/amd64 -f deploy/sandbox/Dockerfile.api --build-arg "BASE_IMAGE=hansel-sandbox-api-base:$revision" -t "hansel-sandbox-api:$revision" .
 docker build --platform linux/amd64 -f deploy/sandbox/Dockerfile.web -t "hansel-sandbox-web:$revision" .
 docker save "hansel-sandbox-api:$revision" "hansel-sandbox-web:$revision" | gzip > "$release/images.tar.gz"
 cp deploy/sandbox/{compose.yaml,activate.sh,backup.sh,hansel-sandbox-backup.service,hansel-sandbox-backup.timer} "$release/"

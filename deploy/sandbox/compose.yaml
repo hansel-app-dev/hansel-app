@@ -23,6 +23,7 @@ services:
     env_file: /etc/hansel-sandbox/api.env
     environment:
       NODE_ENV: production
+      HANSEL_DEPLOYMENT_ENVIRONMENT: sandbox
       PORT: '3000'
       DB_HOST: postgres
       DB_PORT: '5432'

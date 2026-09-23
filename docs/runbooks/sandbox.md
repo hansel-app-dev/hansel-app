@@ -10,14 +10,14 @@ Allow approximately US$5–13/month for small backups, uploads and monitoring, e
 
 ## Provision
 
-Use the current authorized AWS credentials locally for provisioning only. Never copy those credentials to the instance. Generate a dedicated 4096-bit RSA SSH key (Lightsail import requires RSA), protect it with filesystem mode 0600, and import the public key into Lightsail as `hansel-sandbox`. Obtain the operator's public IPv4 and use `/32` as `operatorCidr`; update this rule if the operator IP changes. Never use an unrestricted SSH CIDR.
+Use the current authorized AWS credentials locally for provisioning only. Never copy those credentials to the instance. Generate a dedicated 4096-bit RSA SSH key (Lightsail import requires RSA), protect it with filesystem mode 0600, and import the public key into Lightsail as `hansel-sandbox-ssh` using `--public-key-base64 file:///absolute/path/key.pub` (the CLI expects the OpenSSH text, not an additional base64 encoding). Obtain the operator's public IPv4 and use `/32` as `operatorCidr`; update this rule if the operator IP changes. Never use an unrestricted SSH CIDR.
 
 From the repository root, synthesize with the separate app:
 
 ```sh
 pnpm --filter @hansel/infra exec cdk synth --app 'pnpm exec tsx bin/sandbox.ts' \
   --context stage=sandbox --context operatorCidr=YOUR_IP/32 \
-  --context keyPairName=hansel-sandbox --output /tmp/hansel-sandbox-cdk
+  --context keyPairName=hansel-sandbox-ssh --output /tmp/hansel-sandbox-cdk
 ```
 
 Add `--context budgetEmail=YOUR_EMAIL` to enable budget notifications. Review the template, then deploy only that template with AWS CloudFormation to the exact stack name `Hansel-sandbox` using `CAPABILITY_NAMED_IAM`. This does not require the production CDK app or production pipeline. The template outputs the IP and the two bucket names. Bootstrap installs Docker and Compose without any secrets. Wait for cloud-init completion before release activation.
@@ -26,7 +26,7 @@ Use the authenticated Lightsail `get-instance-access-details` response to verify
 
 ## Runtime settings
 
-The examples in `deploy/sandbox/.env.example` describe separate root-owned 0600 files under `/etc/hansel-sandbox`. Do not copy that combined example directly as an environment file. Generate fresh database/session/digest secrets. The API's `DB_PASSWORD` must match the PostgreSQL password. Set `ALLOWED_ORIGIN` to the exact assigned HTTPS IP origin. Enable approved sandbox feature flags explicitly. External provider login stays disabled, because current application policy requires the production hostname for it.
+The examples in `deploy/sandbox/.env.example` describe separate root-owned 0600 files under `/etc/hansel-sandbox`. Do not copy that combined example directly as an environment file. Generate fresh database/session/digest secrets. The API's `DB_PASSWORD` must match the PostgreSQL password. Set `ALLOWED_ORIGIN` to the exact assigned HTTPS IP origin. Enable approved sandbox feature flags explicitly. Compose sets HANSEL_DEPLOYMENT_ENVIRONMENT=sandbox so this HTTPS IP sandbox may use the approved dummy plan catalog while NODE_ENV remains production. Production does not set the marker and continues rejecting dummy catalogs. External provider login stays disabled, because current application policy requires the production hostname for it.
 
 The user authorized reuse of the current Resend configuration for sandbox testing. Copy only the Resend key/sender into the protected API configuration; never copy the complete local environment file. No email delivery to third parties is part of deployment verification without authorization.
 
@@ -43,7 +43,7 @@ bash deploy/sandbox/build-release.sh sandbox /absolute/path/outside/repository
 bash deploy/sandbox/ship-release.sh sandbox STATIC_IP SSH_KEY VERIFIED_KNOWN_HOSTS /absolute/path/outside/repository/COMMIT_SHA
 ```
 
-The build uses a clean Git archive, builds Linux amd64 images outside Lightsail and records image content IDs. The release directory is named after the source commit and includes checksums. Transfer uses SSH with strict pinned host checking. Activation checks the sandbox marker and checksums, locks against concurrent releases, starts PostgreSQL, and runs `scripts/migrate.mjs` before replacing API/web services. Migration failures stop activation. Existing additive migration policy applies; no destructive rollback is attempted.
+The build uses a clean Git archive, builds Linux amd64 images outside Lightsail and records image content IDs. A sandbox-only image layer regenerates the Prisma client after dependency packaging; the existing production Dockerfile is unchanged. The unmodified API image failed a cold-start smoke test because its packaged client was missing, so production image readiness must be checked separately before any future production release. The release directory is named after the source commit and includes checksums. Transfer uses SSH with strict pinned host checking. Activation checks the sandbox marker and checksums, locks against concurrent releases, starts PostgreSQL, and runs `scripts/migrate.mjs` before replacing API/web services. Migration failures stop activation. Existing additive migration policy applies; no destructive rollback is attempted.
 
 A deployment waits for container health and trusted public HTTPS `/api/health`. If new services fail, activation restores the previous images when available. First-deployment failure leaves the sandbox for diagnosis and is never reported as success. Initial certificate issuance can take a few minutes. Verify the certificate is publicly trusted, never bypass TLS verification as a final check.
 

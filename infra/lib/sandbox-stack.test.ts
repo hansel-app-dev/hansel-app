@@ -6,7 +6,7 @@ import { SandboxStack, validateSandboxInputs } from './sandbox-stack.js';
 const inputs = {
   stage: 'sandbox',
   operatorCidr: '203.0.113.1/32',
-  keyPairName: 'hansel-sandbox',
+  keyPairName: 'hansel-sandbox-ssh',
   budgetEmail: 'operator@example.com',
 };
 describe('Lightsail sandbox [lightsail-sandbox REQ-001–009]', () => {
@@ -16,6 +16,8 @@ describe('Lightsail sandbox [lightsail-sandbox REQ-001–009]', () => {
       { operatorCidr: '0.0.0.0/0' },
       { operatorCidr: '999.1.1.1/32' },
       { keyPairName: '' },
+      { keyPairName: 'hansel-sandbox' },
+      { keyPairName: 'hansel-sandbox-ip' },
     ])
       expect(() => {
         validateSandboxInputs({ ...inputs, ...override });
@@ -27,6 +29,9 @@ describe('Lightsail sandbox [lightsail-sandbox REQ-001–009]', () => {
       new SandboxStack(app, 'Hansel-sandbox', inputs),
     );
     output.resourceCountIs('AWS::Lightsail::Instance', 1);
+    output.hasResourceProperties('AWS::Lightsail::StaticIp', {
+      StaticIpName: 'hansel-sandbox-ip',
+    });
     output.hasResourceProperties('AWS::Lightsail::Instance', {
       BundleId: 'medium_3_2',
       BlueprintId: 'ubuntu_24_04',

@@ -21,7 +21,10 @@ export function validateSandboxInputs(input: SandboxInputs): void {
   const [address, mask] = input.operatorCidr.split('/');
   if (!address || !isIPv4(address) || mask !== '32')
     throw new Error('Provide the operator IPv4 /32 CIDR');
-  if (!/^hansel-sandbox[-a-zA-Z0-9]*$/.test(input.keyPairName))
+  if (
+    !/^hansel-sandbox[-a-zA-Z0-9]*$/.test(input.keyPairName) ||
+    ['hansel-sandbox', 'hansel-sandbox-ip'].includes(input.keyPairName)
+  )
     throw new Error('Use a dedicated hansel-sandbox key pair');
   if (
     input.budgetEmail &&
@@ -39,7 +42,6 @@ export class SandboxStack extends cdk.Stack {
       instanceName: 'hansel-sandbox',
       blueprintId: 'ubuntu_24_04',
       bundleId: 'medium_3_2',
-      ipAddressType: 'ipv4',
       keyPairName: props.keyPairName,
       userData: readFileSync(
         new URL('../../deploy/sandbox/bootstrap.sh', import.meta.url),
@@ -67,7 +69,7 @@ export class SandboxStack extends cdk.Stack {
     });
     instance.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
     const ip = new lightsail.CfnStaticIp(this, 'Address', {
-      staticIpName: 'hansel-sandbox',
+      staticIpName: 'hansel-sandbox-ip',
       attachedTo: instance.ref,
     });
     ip.applyRemovalPolicy(cdk.RemovalPolicy.RETAIN);
