@@ -99,7 +99,9 @@ it('REQ-004..005: Add sign enables creation but not movement; Move restores drag
     name: 'Select sign SG.001',
   });
   fireEvent.click(screen.getByRole('button', { name: 'Add sign' }));
-  expect(marker).toHaveStyle({ cursor: 'pointer' });
+  expect(marker).toHaveStyle({
+    cursor: 'url("/assets/add_sign_cursor.png") 20 20, crosshair',
+  });
   fireEvent.keyDown(marker, { key: 'ArrowRight', altKey: true });
   expect(api.update).not.toHaveBeenCalled();
   fireEvent.click(drawing, { clientX: 250, clientY: 200 });
@@ -113,7 +115,9 @@ it('REQ-004..005: Add sign enables creation but not movement; Move restores drag
     'true',
   );
   fireEvent.click(screen.getByRole('button', { name: 'Move' }));
-  expect(marker).toHaveStyle({ cursor: 'move' });
+  expect(marker).toHaveStyle({
+    cursor: 'url("/assets/move_cursor.png") 24 17, default',
+  });
   fireEvent.keyDown(marker, { key: 'ArrowRight', altKey: true });
   await waitFor(() => {
     expect(api.update).toHaveBeenCalledWith(

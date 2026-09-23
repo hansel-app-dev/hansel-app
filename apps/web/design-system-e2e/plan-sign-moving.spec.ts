@@ -32,7 +32,7 @@ test('allocation-plan-sign-moving REQ-001,005: viewers cannot move; failed save 
   );
   const sign = page.getByRole('button', { name: 'Select sign SG.001' });
   await expect(sign).toBeVisible();
-  await expect(sign).not.toHaveCSS('cursor', 'move');
+  await expect(sign).not.toHaveCSS('cursor', /move_cursor\.png/);
   await sign.focus();
   const original = await sign.boundingBox();
   await page.keyboard.press('Alt+ArrowRight');
@@ -58,7 +58,7 @@ test('allocation-plan-sign-moving REQ-001..004,007: drag preserves offset, selec
   );
   const sign = page.getByRole('button', { name: 'Select sign SG.001' });
   await expect(sign).toBeVisible();
-  await expect(sign).toHaveCSS('cursor', 'move');
+  await expect(sign).toHaveCSS('cursor', /move_cursor\.png/);
   const before = await sign.boundingBox();
   if (!before) throw new Error('Missing Sign');
   await page.mouse.move(before.x + 10, before.y + 10);

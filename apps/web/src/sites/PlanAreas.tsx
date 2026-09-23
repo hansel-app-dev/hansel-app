@@ -1,3 +1,4 @@
+import { planCursor } from './plan-tool-cursors.js';
 /** @spec allocation-plan-add-area REQ-001..REQ-012 */
 import {
   Fragment,
@@ -677,7 +678,7 @@ export function PlanAreas({
         tabIndex={tool === 'area' && canManage ? 0 : -1}
         className={`absolute inset-0 outline-offset-2 ${tool === 'area' && canManage && !panning && !externalBusy ? 'pointer-events-auto' : 'pointer-events-none'}`}
         style={{
-          cursor: tool === 'area' && !panning ? 'crosshair' : undefined,
+          cursor: planCursor(tool, panning),
           touchAction: armed ? 'none' : undefined,
         }}
         onPointerDown={(e) => {
@@ -714,11 +715,9 @@ export function PlanAreas({
                 style={{
                   ...shape(rect),
                   cursor:
-                    panning || tool === 'hand'
-                      ? 'inherit'
-                      : editableTool && canManage
-                        ? 'move'
-                        : 'pointer',
+                    panning || tool === 'hand' || canManage
+                      ? planCursor(tool, panning)
+                      : 'pointer',
                   touchAction:
                     editableTool && canManage && !panning ? 'none' : 'auto',
                 }}

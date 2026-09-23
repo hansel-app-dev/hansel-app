@@ -1,3 +1,4 @@
+import { planCursor } from './plan-tool-cursors.js';
 import { PlanAreas, type PlanAreasHandle } from './PlanAreas.js';
 /** @spec allocation-plan-signs REQ-001..002, REQ-005..013 */
 import {
@@ -719,10 +720,7 @@ export function PlanSignsSurface({
         tabIndex={canManage ? 0 : -1}
         className="relative outline-offset-2"
         style={{
-          cursor:
-            canManage && !panning && tool === 'add'
-              ? 'url("/assets/add-sign-cursor.svg") 4 4, crosshair'
-              : undefined,
+          cursor: planCursor(tool, panning),
         }}
         onPointerDown={(event) => {
           suppressClick.current = false;
@@ -922,11 +920,9 @@ export function PlanSignsSurface({
               left: `${String((preview?.id === sign.id ? preview.x : sign.x) * 100)}%`,
               top: `${String((preview?.id === sign.id ? preview.y : sign.y) * 100)}%`,
               cursor:
-                panning || tool === 'hand'
-                  ? 'inherit'
-                  : tool === 'move' && canManage
-                    ? 'move'
-                    : 'pointer',
+                panning || tool === 'hand' || canManage
+                  ? planCursor(tool, panning)
+                  : 'pointer',
               touchAction:
                 tool === 'move' && canManage && !panning ? 'none' : 'auto',
             }}

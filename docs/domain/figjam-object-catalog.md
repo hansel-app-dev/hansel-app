@@ -196,3 +196,5 @@ The approved `allocation-plan-add-area` amendment (2026-09-23) introduces Area a
 The approved `allocation-plan-area-transform` amendment (2026-09-23) allows managers to drag saved Areas immediately in Add area mode and resize them with corner/edge handles. Complete geometry is saved atomically on the existing annotation; Site Access, MANAGE_SIGNS and separate Sign ownership remain unchanged.
 
 The approved `allocation-plan-area-auto-move` amendment (2026-09-23) switches to Move after successful Area creation or accepted existing-Area selection. Floor menu selection still arms drawing; creating another Area requires explicitly re-entering Add area. Saved geometry, access and independent annotation ownership are unchanged.
+
+The approved `allocation-plan-tool-cursors` amendment (2026-09-23) uses six supplied cursor images for the Allocation Plan tools. Tool behavior, disabled Linear/Comment capabilities, Site Access and ownership remain unchanged; Hand/Space-pan overrides drawing cursors and resize handles retain directional cursors.

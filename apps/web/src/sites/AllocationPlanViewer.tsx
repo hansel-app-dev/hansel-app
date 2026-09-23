@@ -1,3 +1,4 @@
+import { planCursor } from './plan-tool-cursors.js';
 /** @spec allocation-plan-single-file REQ-001..REQ-009 */
 /** @spec site-allocation-plan-preview REQ-005..REQ-013 @figma supplied 03.png */
 import {
@@ -308,6 +309,7 @@ export function AllocationPlanViewer({
     <section
       ref={setDrawerHost}
       aria-label={`${filename} preview`}
+      style={{ cursor: 'auto' }}
       className={`relative ${planSignsApi ? 'h-[calc(100dvh-119px)]' : 'h-[calc(100dvh-151px)]'} min-h-[320px] bg-white ${dragging ? 'cursor-grabbing select-none' : panEnabled ? 'cursor-grab select-none' : ''}`}
       onKeyDown={(event) => {
         if (
@@ -363,7 +365,10 @@ export function AllocationPlanViewer({
             event.currentTarget.scrollTop + offset[1],
           );
         }}
-        style={{ touchAction: panEnabled ? 'none' : 'auto' }}
+        style={{
+          touchAction: panEnabled ? 'none' : 'auto',
+          cursor: panEnabled || dragging ? planCursor('hand') : undefined,
+        }}
         onClickCapture={(event) => {
           // Portaled toolbar/drawer events still traverse this React ancestor.
           if (!event.currentTarget.contains(event.target as Node)) return;

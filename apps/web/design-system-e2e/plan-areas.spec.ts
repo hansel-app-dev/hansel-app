@@ -18,7 +18,7 @@ test('rectangle menu, drawing, edit, move, deletion and keyboard creation', asyn
   await expect(page.getByRole('menu', { name: 'Add area type' })).toBeVisible();
   await expect(page.getByRole('menuitem')).toHaveText(['Floor', '+New type']);
   await page.getByRole('menuitem', { name: 'Floor' }).click();
-  await expect(canvas).toHaveCSS('cursor', 'crosshair');
+  await expect(canvas).toHaveCSS('cursor', /add_area_cursor\.png/);
   await expect(
     page.getByRole('button', { name: 'Add area', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
