@@ -1,11 +1,13 @@
 # Feature: Explicit sandbox test catalog
 
 - ID: `sandbox-test-catalog`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
 - Domain references: `CONTEXT.md: Plan, Site Allowance; docs/domain/figjam-object-catalog.md: Objects and data points, Organization roles and permissions; onboarding-plan-selection REQ-002,003,018; lightsail-sandbox REQ-003.`
+
+Approval: User explicitly approved sandbox-only test catalog through the in-task approval question on 2026-09-23.
 
 ## Problem
 
