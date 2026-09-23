@@ -36,14 +36,14 @@ Create an access key for the stack's `hansel-sandbox-storage` IAM user and insta
 
 ## Build and release
 
-On a build machine with Node 24, pnpm and Docker, after checks and a commit:
+On a build machine with Node 24, pnpm, Docker and its Buildx plugin, after checks and a commit:
 
 ```sh
 bash deploy/sandbox/build-release.sh sandbox /absolute/path/outside/repository
 bash deploy/sandbox/ship-release.sh sandbox STATIC_IP SSH_KEY PINNED_KNOWN_HOSTS /absolute/path/outside/repository/COMMIT_SHA
 ```
 
-The build uses a clean Git archive, builds Linux amd64 images outside Lightsail and records image content IDs. A sandbox-only image layer regenerates the Prisma client after dependency packaging; the existing production Dockerfile is unchanged. The unmodified API image failed a cold-start smoke test because its packaged client was missing, so production image readiness must be checked separately before any future production release. The release directory is named after the source commit and includes checksums. Transfer uses SSH with strict pinned host checking. Activation checks the sandbox marker and checksums, locks against concurrent releases, starts PostgreSQL, and runs `scripts/migrate.mjs` before replacing API/web services. Migration failures stop activation. Existing additive migration policy applies; no destructive rollback is attempted.
+The build requires BuildKit, uses a clean Git archive, builds Linux amd64 images outside Lightsail and records image content IDs. A sandbox-only image layer regenerates the Prisma client after dependency packaging; the existing production Dockerfile is unchanged. The unmodified API image failed a cold-start smoke test because its packaged client was missing, so production image readiness must be checked separately before any future production release. The release directory is named after the source commit and includes checksums. Transfer uses SSH with strict pinned host checking. Activation checks the sandbox marker and checksums, locks against concurrent releases, starts PostgreSQL, and runs `scripts/migrate.mjs` before replacing API/web services. Migration failures stop activation. Existing additive migration policy applies; no destructive rollback is attempted.
 
 A deployment waits for container health and trusted public HTTPS `/api/health`. If new services fail, activation restores the previous images when available. First-deployment failure leaves the sandbox for diagnosis and is never reported as success. Initial certificate issuance can take a few minutes. Verify the certificate is publicly trusted, never bypass TLS verification as a final check.
 
@@ -64,3 +64,22 @@ For a restore drill, download a dump with operator credentials to a protected te
 Select a preceding immutable release directory and invoke its `activate.sh` with that directory. Keep schema changes additive and use a forward migration repair when necessary. Preserve database and certificate volumes; never use `docker compose down -v` for routine rollback.
 
 Stack deletion retains the instance, attached static IP and S3 buckets to protect data; they continue to incur costs. Full teardown is a separate explicit operation: archive necessary data, identify resources by stack outputs and `Project=HanselSandbox`, remove runtime keys, delete only sandbox resources and then release the unattached static IP. Never enumerate and delete account-wide resources or invoke the production stack workflow.
+
+## Deployment verification — 2026-09-23
+
+The sandbox is live at <https://3.104.93.229>, using application release `55ce1ab8488481139ffd620e2608b27a764579b0`. The `Hansel-sandbox` CloudFormation stack completed creation and the bootstrap correction completed as an in-place update. No production deployment was run.
+
+Verified on the deployed environment:
+
+- Trusted public HTTPS and healthy API; root, login, signup and deep frontend routes load. Chrome displayed login and signup, with external-provider buttons disabled as configured. Unknown API routes return JSON 404, and a cross-origin login request returns 403.
+- All 31 migrations applied. A synthetic record survived a PostgreSQL container restart.
+- Sandbox S3 credentials can write/read/delete an approved-prefix object; anonymous reads and writes outside the approved prefixes are denied. The smoke object was removed.
+- The daily backup timer is enabled, its first S3 upload succeeded, and the dump restored into an isolated PostgreSQL 16 container with all 31 migration records and the synthetic persistence record. The drill container and live synthetic schema were removed afterward.
+- Lightsail snapshots are enabled for 15:00 UTC; the database dump timer runs at 14:00 UTC. Only HTTP/HTTPS and operator-restricted SSH are public; API and PostgreSQL have no host port mapping.
+- Idle container memory was about 145 MiB total and disk usage about 5.3 GiB of 77 GiB. This is not a concurrent-user or plan/media-processing load test.
+
+Deployment corrections included a sandbox-only Prisma client generation layer, the approved sandbox catalog marker, a scoped managed storage policy, POSIX-compatible bootstrap, BuildKit image creation and a first-release rollback guard. The initial cloud-init run stopped at the old Bash-only shell option; the corrected bootstrap was subsequently executed successfully over pinned SSH. The historical cloud-init error remains in its logs. AWS returned no host fingerprints, so initial SSH trust used the documented first-use fallback at the AWS-confirmed static IP.
+
+Validation: 16 infrastructure tests and 17 focused catalog tests passed; the new catalog-environment helper reached 100% coverage. API/infra typechecks, touched TypeScript lint, specification checks, shell syntax, image startup/migrations and Caddy validation passed. The repository-wide `pnpm verify` remains blocked by 20 pre-existing formatting failures; it is not reported as passing.
+
+Remaining checks: email delivery and a full authenticated signup/login/plan/media journey have not been exercised. Current Resend settings are installed as approved. No budget alert exists because no recipient email was supplied; the new `Project` cost-allocation tag was not yet available in Cost Explorer during launch. These do not constitute a hard US$50 spending cap. The original production API image's client-packaging issue remains documented above and must be addressed before any future production release.

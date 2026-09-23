@@ -4,7 +4,7 @@ set -euo pipefail
 address=${2:?AWS sandbox static IPv4 address}
 [[ "$address" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
 key=${3:?SSH key path}
-known_hosts=${4:?AWS-verified known_hosts path}
+known_hosts=${4:?pinned known_hosts path}
 release=${5:?release directory}
 revision=$(basename "$release")
 [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || exit 1
