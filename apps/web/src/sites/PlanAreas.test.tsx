@@ -71,6 +71,7 @@ function setup(initial: PlanArea[] = [], canManageAreas = true) {
     drawerHost: document.body,
     beforeSelect: () => true,
     onBusyChange: vi.fn(),
+    onActivateMove: vi.fn(),
   };
   Object.assign(HTMLElement.prototype, {
     setPointerCapture: vi.fn(),
@@ -179,7 +180,7 @@ it('Viewers inspect fixed and read-only details without mutation', async () => {
 });
 
 it('retries failed creation with the same key and blocks duplicate writes', async () => {
-  const { api } = setup();
+  const { api, props } = setup();
   api.create.mockRejectedValueOnce(new Error('offline'));
   const drawing = screen.getByLabelText('Area drawing');
   await waitFor(() => {
@@ -194,8 +195,11 @@ it('retries failed creation with the same key and blocks duplicate writes', asyn
   fireEvent.keyDown(drawing, { key: 'ArrowRight' });
   fireEvent.keyDown(drawing, { key: 'ArrowDown' });
   fireEvent.keyDown(drawing, { key: 'Enter' });
-  fireEvent.click(await screen.findByRole('button', { name: 'Retry area' }));
+  await screen.findByRole('button', { name: 'Retry area' });
+  expect(props.onActivateMove).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry area' }));
   await screen.findByLabelText('Area details');
+  expect(props.onActivateMove).toHaveBeenCalledTimes(1);
   expect(api.create.mock.calls[0]).toEqual(api.create.mock.calls[1]);
 });
 it('metadata, orientation, fixed controls, dirty protection and move cancellation', async () => {

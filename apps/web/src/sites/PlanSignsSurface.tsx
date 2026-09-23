@@ -835,6 +835,9 @@ export function PlanSignsSurface({
             drawerHost={drawerHost}
             viewScale={viewScale}
             onBusyChange={setAreaBusy}
+            onActivateMove={() => {
+              setTool('move');
+            }}
             beforeSelect={() => {
               if (!leaveSign()) return false;
               select(null);

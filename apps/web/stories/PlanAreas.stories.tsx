@@ -103,6 +103,9 @@ function Preview({
           drawerHost={host}
           beforeSelect={() => true}
           onBusyChange={setBusy}
+          onActivateMove={() => {
+            setTool('move');
+          }}
         />
       </div>
       <div className="absolute bottom-5 left-4 z-30">
@@ -203,4 +206,12 @@ export const ResizePending: Story = {
 export const ResizeFailure: Story = {
   ...ResizePending,
   args: { fail: true },
+};
+
+/** @spec allocation-plan-area-auto-move REQ-001 */
+export const CreatedInMoveMode: Story = {
+  args: { populated: false },
+  play: async ({ canvasElement }) => {
+    await createWithKeyboard(canvasElement);
+  },
 };

@@ -17,6 +17,8 @@ Creation leaves Add area active, but saved Areas currently drag only in Move mod
 
 A manager can drag a newly created Area immediately, resize any saved Area using visible handles, and reload its saved position and dimensions. No duplicate annotation or Sign is created during these interactions.
 
+The approved `allocation-plan-area-auto-move` follow-up supersedes the requirement below to keep Add area active after successful creation.
+
 ## Non-goals
 
 - Rotation, polygons, aspect-ratio locking, snapping, multi-selection, bulk transformations, or numeric size fields.

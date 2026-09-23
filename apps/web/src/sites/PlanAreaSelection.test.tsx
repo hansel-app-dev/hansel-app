@@ -1,4 +1,5 @@
-/** @spec allocation-plan-add-area REQ-001,005,006,008,011 */
+/** @spec allocation-plan-add-area REQ-001,005,006,008,011
+ * @spec allocation-plan-area-auto-move REQ-001,002 */
 import {
   cleanup,
   fireEvent,
@@ -112,7 +113,10 @@ it('guards shared selection, clears Area details before Sign selection and forwa
   await waitFor(() => {
     expect(screen.getByRole('button', { name: 'Move' })).toBeEnabled();
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Move' }));
+  expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
   fireEvent.click(drawing);
   expect(screen.queryByLabelText('Area details')).not.toBeInTheDocument();
 });

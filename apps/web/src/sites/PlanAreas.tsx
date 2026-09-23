@@ -67,6 +67,7 @@ export function PlanAreas({
   viewScale,
   beforeSelect,
   onBusyChange,
+  onActivateMove,
   ref,
 }: {
   api: PlanAreasApi;
@@ -78,6 +79,7 @@ export function PlanAreas({
   viewScale?: number | undefined;
   beforeSelect: () => boolean;
   onBusyChange: (busy: boolean) => void;
+  onActivateMove: () => void;
   ref?: Ref<PlanAreasHandle>;
 }) {
   const [areas, setAreas] = useState<PlanArea[]>([]),
@@ -285,8 +287,15 @@ export function PlanAreas({
           area,
         ]);
         choose(area);
+        onActivateMove();
         if (keyboardCreate.current)
           requestAnimationFrame(() => {
+            if (
+              version !== epoch.current ||
+              (document.activeElement !== canvas.current &&
+                document.activeElement !== document.body)
+            )
+              return;
             document
               .getElementById(`area-${area.id}`)
               ?.focus({ preventScroll: true });
@@ -471,6 +480,8 @@ export function PlanAreas({
     setPreview(null);
     setMoving(null);
     if (g.area) {
+      // Switch only after release so the tool-change effect cannot cancel this drag.
+      onActivateMove();
       if (g.moved) {
         const next = g.handle
           ? resized(g.area, g.handle, {
@@ -733,6 +744,7 @@ export function PlanAreas({
                   if (leave() && beforeSelect()) {
                     cancel();
                     choose(a);
+                    onActivateMove();
                   }
                 }}
                 onKeyDown={(e) => {

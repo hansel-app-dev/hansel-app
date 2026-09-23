@@ -18,6 +18,10 @@ test('rectangle menu, drawing, edit, move, deletion and keyboard creation', asyn
   await expect(page.getByRole('menu', { name: 'Add area type' })).toBeVisible();
   await expect(page.getByRole('menuitem')).toHaveText(['Floor', '+New type']);
   await page.getByRole('menuitem', { name: 'Floor' }).click();
+  await expect(canvas).toHaveCSS('cursor', 'crosshair');
+  await expect(
+    page.getByRole('button', { name: 'Add area', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.25);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width * 0.75, box.y + box.height * 0.5, {
@@ -41,6 +45,9 @@ test('rectangle menu, drawing, edit, move, deletion and keyboard creation', asyn
     rectangleBox.x + rectangleBox.width - 1,
   );
   expect(Math.abs(labelBox.y - rectangleBox.y)).toBeLessThanOrEqual(1);
+  await expect(
+    page.getByRole('button', { name: 'Move', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Area code').fill('Zone A');
   await page.getByLabel('Area code').press('Tab');
   await expect(
@@ -82,7 +89,11 @@ test('Areas and Signs select independently in the real viewer', async ({
   await page.goto(
     '/iframe.html?id=sites-allocation-plan-viewer--areas-and-signs&viewMode=story',
   );
+  await page.getByRole('button', { name: 'Add area', exact: true }).click();
   await page.getByRole('button', { name: 'Select area Ar.01' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Move', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByLabel('Area details', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Select sign SG.001' }).click();
   await expect(page.getByLabel('Sign details', { exact: true })).toBeVisible();
@@ -97,7 +108,7 @@ test('Areas and Signs select independently in the real viewer', async ({
   await page.keyboard.press('Enter');
   await expect(page.getByLabel('Area code')).toHaveValue('Ar.02');
   await expect(
-    page.getByRole('button', { name: 'Add area', exact: true }),
+    page.getByRole('button', { name: 'Move', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
 });
 
@@ -143,6 +154,7 @@ for (const width of [320, 1512]) {
     await page.evaluate(() => {
       document.documentElement.style.zoom = '2';
     });
+    await page.getByRole('button', { name: 'Add area', exact: true }).click();
     await drawing.focus();
     await page.keyboard.press('Enter');
     const floor = page.getByRole('menuitem', { name: 'Floor' });
@@ -190,6 +202,9 @@ test('saved Areas drag in Add area mode and resize with handles and keyboard', a
   await expect(page.getByRole('button', { name: /^Resize area/ })).toHaveCount(
     8,
   );
+  await expect(
+    page.getByRole('button', { name: 'Move', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   const handle = page.getByRole('button', {
     name: 'Resize area bottom-right',
     exact: true,

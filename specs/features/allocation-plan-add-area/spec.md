@@ -20,6 +20,8 @@ An authorized user creates a blue rectangular Area annotation, sees its code and
 
 The approved `allocation-plan-area-transform` follow-up supersedes the resizing exclusion, Move-only transformation and immutable dimensions restrictions below.
 
+The approved `allocation-plan-area-auto-move` follow-up supersedes the requirement below to keep Add area active after successful creation.
+
 ## Non-goals
 
 - Polygon/freehand shapes, lines, measurement or calculated floor area, resizing existing rectangles, rotation of geometry, multi-selection, bulk changes or cross-plan movement.
