@@ -9,8 +9,9 @@ test('Function choices support keyboard editing and preserve the selection when 
   );
   await page.getByRole('button', { name: 'Select sign SG.001' }).click();
   const field = page.getByRole('combobox', { name: 'Function' });
-  await expect(field).toHaveValue('Directional');
-  await expect(field.locator('option')).toHaveText([
+  await expect(field).toHaveText('Directional');
+  await field.click();
+  await expect(page.getByRole('option')).toHaveText([
     'Identification',
     'Directional',
     'Informational',
@@ -18,21 +19,22 @@ test('Function choices support keyboard editing and preserve the selection when 
   ]);
   await field.focus();
   await expect(field).toBeFocused();
-  // Native select type-ahead is keyboard-driven on macOS Chromium, including headless.
-  await page.keyboard.press('r');
+  // Custom listbox navigation retains focus on its trigger.
+  await page.keyboard.press('End');
   await page.keyboard.press('Enter');
-  await expect(field).toHaveValue('Regulatory/Statutory');
+  await expect(field).toHaveText('Regulatory/Statutory');
   for (const value of [
     'Identification',
     'Directional',
     'Informational',
     'Regulatory/Statutory',
   ]) {
-    await field.selectOption(value);
+    await field.click();
+    await page.getByRole('option', { name: value, exact: true }).click();
     await expect(field).toBeEnabled();
     await page.getByRole('button', { name: 'Close sign details' }).click();
     await page.getByRole('button', { name: 'Select sign SG.001' }).click();
-    await expect(field).toHaveValue(value);
+    await expect(field).toHaveText(value);
   }
 });
 
@@ -45,7 +47,7 @@ test('Viewer Function is disabled and Regulatory/Statutory fits the drawer', asy
   );
   const field = page.getByRole('combobox', { name: 'Function' });
   await expect(field).toBeDisabled();
-  await expect(field).toHaveValue('Regulatory/Statutory');
+  await expect(field).toHaveText('Regulatory/Statutory');
   const width = await field.evaluate((element) => {
     const style = getComputedStyle(element);
     const canvas = document.createElement('canvas');

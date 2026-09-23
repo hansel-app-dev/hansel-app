@@ -394,3 +394,25 @@ export const FunctionReadOnly: Story = {
   ...SignDrawer,
   args: { planSignsApi: signApi(true, 'Regulatory/Statutory') },
 };
+
+/** @spec sign-attribute-custom-dropdowns REQ-001, REQ-006 */
+export const FunctionDropdown: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Select sign SG.001' }),
+    );
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Function' }));
+  },
+};
+export const ColourDropdown: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Select sign SG.001' }),
+    );
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Colour' }));
+  },
+};

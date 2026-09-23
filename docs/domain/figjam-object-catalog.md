@@ -184,3 +184,5 @@ Before drafting or implementing a feature:
 4. Turn every selected data point, relationship, and permission into explicit testable requirements, including ownership, visibility, validation, lifecycle, privacy, and failure behavior.
 5. Put unresolved conflicts in the specification's Open questions and stop implementation until they are resolved and the specification is approved.
 6. Update this catalog when the source board changes or an approved product decision resolves one of its ambiguities.
+
+The approved `sign-attribute-custom-dropdowns` amendment (2026-09-23) replaces native Function and Colour selects in the Sign General drawer with custom listboxes matching Type. The four Function values and Red-only Colour option, shared Sign ownership, permissions and persistence remain unchanged. This is an accepted presentation decision, not a new FigJam-derived attribute or option set.

@@ -21,6 +21,7 @@ import { SignDeleteDialog } from './SignDeleteDialog.js';
 import { SignDocuments } from './SignDocuments.js';
 import { SignPhotos } from './SignPhotos.js';
 import { SignComments } from './SignComments.js';
+import { SignAttributeSelect } from './SignAttributeSelect.js';
 import { SignMountingSelect } from './SignMountingSelect.js';
 import { PlanToolbar, type PlanTool } from './PlanToolbar.js';
 import { AddSignMenu } from './AddSignMenu.js';
@@ -64,7 +65,9 @@ export function PlanSignsSurface({
   const [tool, setTool] = useState<PlanTool>('move');
   useEffect(() => {
     onPanModeChange?.(tool === 'hand');
-    return () => { onPanModeChange?.(false); };
+    return () => {
+      onPanModeChange?.(false);
+    };
   }, [tool, onPanModeChange]);
   const [signs, setSigns] = useState<PlanSign[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -86,7 +89,8 @@ export function PlanSignsSurface({
   const down = useRef<{ x: number; y: number } | null>(null);
   const drawing = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<{
-    x: number; y: number;
+    x: number;
+    y: number;
     point: { x: number; y: number };
     bounds: { left: number; top: number; right: number; bottom: number };
   } | null>(null);
@@ -94,8 +98,12 @@ export function PlanSignsSurface({
     setPlacement(null);
     drawing.current?.focus({ preventScroll: true });
   }, []);
-  useEffect(() => { if (panning) setPlacement(null); }, [panning]);
-  useEffect(() => { setPlacement(null); }, [viewScale, fileId]);
+  useEffect(() => {
+    if (panning) setPlacement(null);
+  }, [panning]);
+  useEffect(() => {
+    setPlacement(null);
+  }, [viewScale, fileId]);
   const drag = useRef<{
     sign: PlanSign;
     pointerId: number;
@@ -156,7 +164,8 @@ export function PlanSignsSurface({
     if (panning) cancelDrag();
   }, [panning]);
   function moveSign(sign: PlanSign, x: number, y: number) {
-    if (tool !== 'move' || !canManage || panning || conflict || busy.current) return;
+    if (tool !== 'move' || !canManage || panning || conflict || busy.current)
+      return;
     void mutate(
       async () => {
         const saved = await service.current.update(sign.id, {
@@ -352,15 +361,30 @@ export function PlanSignsSurface({
     );
   }
   function offerPlacement(x: number, y: number) {
-    if (tool !== 'add' || !canManage || panning || !leave() || !drawing.current) return;
+    if (tool !== 'add' || !canManage || panning || !leave() || !drawing.current)
+      return;
     const box = drawing.current.getBoundingClientRect();
-    const viewport = drawing.current.closest('[data-testid="plan-pan-viewport"]')?.getBoundingClientRect();
+    const viewport = drawing.current
+      .closest('[data-testid="plan-pan-viewport"]')
+      ?.getBoundingClientRect();
     select(null);
-    setPlacement({ x, y, point: { x: box.left + x * box.width, y: box.top + y * box.height }, bounds: {
-      // Keep the file selector and bottom toolbar/zoom bands unobstructed.
-      left: Math.max(0, viewport?.left ?? 0), top: Math.max(0, viewport?.top ?? 0) + 60,
-      right: Math.min(window.innerWidth, viewport?.right ?? window.innerWidth), bottom: Math.min(window.innerHeight, viewport?.bottom ?? window.innerHeight) - 140,
-    } });
+    setPlacement({
+      x,
+      y,
+      point: { x: box.left + x * box.width, y: box.top + y * box.height },
+      bounds: {
+        // Keep the file selector and bottom toolbar/zoom bands unobstructed.
+        left: Math.max(0, viewport?.left ?? 0),
+        top: Math.max(0, viewport?.top ?? 0) + 60,
+        right: Math.min(
+          window.innerWidth,
+          viewport?.right ?? window.innerWidth,
+        ),
+        bottom:
+          Math.min(window.innerHeight, viewport?.bottom ?? window.innerHeight) -
+          140,
+      },
+    });
   }
   function save(changes: Omit<PlanSignPatch, 'expectedUpdatedAt'>) {
     if (!selected || !canManage || conflict) return;
@@ -513,8 +537,16 @@ export function PlanSignsSurface({
               ))}
             </div>
             {section === 'Comments' && api.comments ? (
-              <SignComments key={selected.id} api={api.comments} signId={selected.id}
-                onStateChange={(state) => { busy.current = state.busy; setPending(state.busy); setCommentDirty(state.dirty); }} />
+              <SignComments
+                key={selected.id}
+                api={api.comments}
+                signId={selected.id}
+                onStateChange={(state) => {
+                  busy.current = state.busy;
+                  setPending(state.busy);
+                  setCommentDirty(state.dirty);
+                }}
+              />
             ) : section === 'Photos' && api.photos ? (
               <SignPhotos
                 key={selected.id}
@@ -546,39 +578,40 @@ export function PlanSignsSurface({
                   plan.
                 </p>
                 <div className="mt-5 space-y-4 text-sm">
-                  <SignMountingSelect key={selected.id} value={selected.mounting} disabled={!canManage || pending} onChange={mounting => { save({ mounting }); }} />
-                  <label className="block">
-                    Function
-                    <select
-                      className={`${control} mt-2`}
-                      disabled={!canManage || pending}
-                      value={selected.function}
-                      onChange={(event) => {
-                        save({ function: signFunctionSchema.parse(event.target.value) });
-                      }}
-                    >
-                      {signFunctionOptions.map((value) => <option key={value} value={value}>{value}</option>)}
-                    </select>
-                  </label>
-                  <label className="block">
-                    Colour
-                    <span className="relative mt-2 block">
+                  <SignMountingSelect
+                    key={selected.id}
+                    value={selected.mounting}
+                    disabled={!canManage || pending}
+                    onChange={(mounting) => {
+                      save({ mounting });
+                    }}
+                  />
+                  <SignAttributeSelect
+                    key={`${selected.id}-function`}
+                    label="Function"
+                    value={selected.function}
+                    options={signFunctionOptions}
+                    disabled={!canManage || pending}
+                    onChange={(value) => {
+                      save({ function: signFunctionSchema.parse(value) });
+                    }}
+                  />
+                  <SignAttributeSelect
+                    key={`${selected.id}-colour`}
+                    label="Colour"
+                    value={selected.colour}
+                    options={['Red']}
+                    disabled={!canManage || pending}
+                    icon={
                       <span
                         aria-hidden="true"
-                        className="absolute left-3 top-[10px] size-5 rounded-full bg-[#f45b00]"
+                        className="size-5 shrink-0 rounded-full bg-[#f45b00]"
                       />
-                      <select
-                        className={`${control} !pl-10`}
-                        disabled={!canManage || pending}
-                        value={selected.colour}
-                        onChange={() => {
-                          save({ colour: 'Red' });
-                        }}
-                      >
-                        <option>Red</option>
-                      </select>
-                    </span>
-                  </label>
+                    }
+                    onChange={() => {
+                      save({ colour: 'Red' });
+                    }}
+                  />
                   <fieldset>
                     <legend>Orientation</legend>
                     <div className="mt-2 flex h-10 overflow-hidden rounded border border-[#e2e2e7]">
@@ -649,24 +682,36 @@ export function PlanSignsSurface({
       : null;
   return (
     <>
-      {drawerHost && createPortal(
-        <div className="absolute -left-[14px] bottom-5 z-30 max-w-full max-md:left-0">
-          <PlanToolbar tool={tool} canAdd={canManage} disabled={pending || !!preview || !!deleteTarget} onChange={next => {
-            if (next === tool || drag.current || !leave()) return;
-            if (unsaved) select(null);
-            setCursor(null);
-            setPlacement(null);
-            setTool(next);
-          }} />
-        </div>, drawerHost,
-      )}
+      {drawerHost &&
+        createPortal(
+          <div className="absolute -left-[14px] bottom-5 z-30 max-w-full max-md:left-0">
+            <PlanToolbar
+              tool={tool}
+              canAdd={canManage}
+              disabled={pending || !!preview || !!deleteTarget}
+              onChange={(next) => {
+                if (next === tool || drag.current || !leave()) return;
+                if (unsaved) select(null);
+                setCursor(null);
+                setPlacement(null);
+                setTool(next);
+              }}
+            />
+          </div>,
+          drawerHost,
+        )}
       <div
         aria-label="Plan drawing"
         ref={drawing}
         data-can-manage-signs={canManage}
         tabIndex={canManage ? 0 : -1}
         className="relative outline-offset-2"
-        style={{ cursor: canManage && !panning && tool === 'add' ? 'url("/assets/add-sign-cursor.svg") 4 4, crosshair' : undefined }}
+        style={{
+          cursor:
+            canManage && !panning && tool === 'add'
+              ? 'url("/assets/add-sign-cursor.svg") 4 4, crosshair'
+              : undefined,
+        }}
         onPointerDown={(event) => {
           suppressClick.current = false;
           down.current = { x: event.clientX, y: event.clientY };
@@ -711,8 +756,7 @@ export function PlanSignsSurface({
           }
           const x = (event.clientX - box.left) / box.width,
             y = (event.clientY - box.top) / box.height;
-          if (x >= 0 && x <= 1 && y >= 0 && y <= 1)
-            offerPlacement(x, y);
+          if (x >= 0 && x <= 1 && y >= 0 && y <= 1) offerPlacement(x, y);
         }}
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget || !canManage || panning)
@@ -783,7 +827,14 @@ export function PlanSignsSurface({
                 return;
               event.preventDefault();
               event.stopPropagation();
-              if (tool !== 'move' || unsaved || busy.current || !canManage || panning || conflict)
+              if (
+                tool !== 'move' ||
+                unsaved ||
+                busy.current ||
+                !canManage ||
+                panning ||
+                conflict
+              )
                 return;
               moveSign(
                 sign,
@@ -825,8 +876,14 @@ export function PlanSignsSurface({
             style={{
               left: `${String((preview?.id === sign.id ? preview.x : sign.x) * 100)}%`,
               top: `${String((preview?.id === sign.id ? preview.y : sign.y) * 100)}%`,
-              cursor: panning || tool === 'hand' ? 'inherit' : tool === 'move' && canManage ? 'move' : 'pointer',
-              touchAction: tool === 'move' && canManage && !panning ? 'none' : 'auto',
+              cursor:
+                panning || tool === 'hand'
+                  ? 'inherit'
+                  : tool === 'move' && canManage
+                    ? 'move'
+                    : 'pointer',
+              touchAction:
+                tool === 'move' && canManage && !panning ? 'none' : 'auto',
             }}
             className={`absolute flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}
           >
@@ -842,10 +899,26 @@ export function PlanSignsSurface({
           </button>
         ))}
       </div>
-      {placement && drawerHost && createPortal(<AddSignMenu point={placement.point} bounds={placement.bounds} onDismiss={dismissPlacement} onChoose={mounting => {
-        setPlacement(null);
-        create({ x: placement.x, y: placement.y, fileId, mounting, idempotencyKey: crypto.randomUUID() });
-      }} />, drawerHost)}
+      {placement &&
+        drawerHost &&
+        createPortal(
+          <AddSignMenu
+            point={placement.point}
+            bounds={placement.bounds}
+            onDismiss={dismissPlacement}
+            onChoose={(mounting) => {
+              setPlacement(null);
+              create({
+                x: placement.x,
+                y: placement.y,
+                fileId,
+                mounting,
+                idempotencyKey: crypto.randomUUID(),
+              });
+            }}
+          />,
+          drawerHost,
+        )}
       {!selected &&
         message &&
         drawerHost &&

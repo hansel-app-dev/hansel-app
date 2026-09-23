@@ -65,19 +65,18 @@ it('REQ-001,002 offers exact choices and saves each through reload', async () =>
     await screen.findByRole('button', { name: 'Select sign SG.001' }),
   );
   const field = screen.getByRole('combobox', { name: 'Function' });
+  fireEvent.click(field);
   expect(
-    Array.from(field.querySelectorAll('option')).map(
-      (option) => option.textContent,
-    ),
+    screen.getAllByRole('option').map((option) => option.textContent),
   ).toEqual(values);
+  fireEvent.keyDown(field, { key: 'Escape' });
   for (const value of values) {
-    fireEvent.change(screen.getByRole('combobox', { name: 'Function' }), {
-      target: { value },
-    });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Function' }));
+    fireEvent.click(screen.getByRole('option', { name: value }));
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Function' })).toHaveValue(
-        value,
-      ),
+      expect(
+        screen.getByRole('combobox', { name: 'Function' }),
+      ).toHaveTextContent(value),
     );
     expect(api.update).toHaveBeenLastCalledWith(
       'sign',
@@ -91,9 +90,9 @@ it('REQ-001,002 offers exact choices and saves each through reload', async () =>
     fireEvent.click(
       await screen.findByRole('button', { name: 'Select sign SG.001' }),
     );
-    expect(screen.getByRole('combobox', { name: 'Function' })).toHaveValue(
-      value,
-    );
+    expect(
+      screen.getByRole('combobox', { name: 'Function' }),
+    ).toHaveTextContent(value);
   }
 });
 it('REQ-005 shows a disabled current value to Viewers', async () => {
@@ -103,7 +102,7 @@ it('REQ-005 shows a disabled current value to Viewers', async () => {
     await screen.findByRole('button', { name: 'Select sign SG.001' }),
   );
   expect(screen.getByRole('combobox', { name: 'Function' })).toBeDisabled();
-  expect(screen.getByRole('combobox', { name: 'Function' })).toHaveValue(
+  expect(screen.getByRole('combobox', { name: 'Function' })).toHaveTextContent(
     'Directional',
   );
 });
@@ -114,18 +113,17 @@ it('REQ-002 retains the saved value after failure and retries the chosen value',
   fireEvent.click(
     await screen.findByRole('button', { name: 'Select sign SG.001' }),
   );
-  fireEvent.change(screen.getByRole('combobox', { name: 'Function' }), {
-    target: { value: 'Informational' },
-  });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Function' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Informational' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
   await waitFor(() =>
-    expect(screen.getByRole('combobox', { name: 'Function' })).toHaveValue(
-      'Informational',
-    ),
+    expect(
+      screen.getByRole('combobox', { name: 'Function' }),
+    ).toHaveTextContent('Informational'),
   );
 });
 
-it('REQ-005 keeps Space on Function available to the native select instead of panning', async () => {
+it('REQ-005 keeps Space on Function available to the custom dropdown instead of panning', async () => {
   const { api } = setup();
   render(
     <AllocationPlanViewer
@@ -153,6 +151,26 @@ it('REQ-005 keeps Space on Function available to the native select instead of pa
       key: ' ',
       code: 'Space',
     }),
-  ).toBe(true);
+  ).toBe(false);
+  expect(screen.getByRole('listbox', { name: 'Function' })).toBeVisible();
+  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Function' }), {
+    key: 'Escape',
+  });
+  expect(screen.getByLabelText('Sign details')).toBeVisible();
   expect(preview).not.toHaveClass('cursor-grab');
+});
+
+it('sign-attribute-custom-dropdowns REQ-002..005: Colour is custom and choosing Red is a no-op', async () => {
+  const { api, element } = setup();
+  render(element);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Select sign SG.001' }),
+  );
+  const colour = screen.getByRole('combobox', { name: 'Colour' });
+  expect(colour.tagName).toBe('BUTTON');
+  fireEvent.click(colour);
+  expect(screen.getByRole('listbox', { name: 'Colour' })).toBeVisible();
+  fireEvent.click(screen.getByRole('option', { name: 'Red' }));
+  expect(api.update).not.toHaveBeenCalled();
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 });
