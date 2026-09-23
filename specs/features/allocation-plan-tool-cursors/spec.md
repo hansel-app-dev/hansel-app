@@ -26,7 +26,7 @@ Selecting an enabled tool displays its supplied image over the drawing. Switchin
 
 ## Requirements
 
-- REQ-001: Provide a shared cursor mapping: Move → move_cursor.png; Hand → hand_cursor.png; Add sign → add_sign_cursor.png; Add area → add_area_cursor.png; Add linear → add_linear_cursor.png; Comment → comment_cursor.png. Bundle all six supplied PNGs unchanged, preserving transparency and source dimensions (70–86 pixels). Use local asset URLs; no remote runtime requests. Keep disabled tools disabled; their cursor mappings can be demonstrated in Storybook without enabling them in the product.
+- REQ-001: Provide a shared cursor mapping: Move → move_cursor.png; Hand → hand_cursor.png; Add sign → add_sign_cursor.png; Add area → add_area_cursor.png; Add linear → add_linear_cursor.png; Comment → comment_cursor.png. Bundle all six supplied PNGs unchanged, preserving transparency and source dimensions (70–86 pixels). Treat them as 3× assets and display cursors at one-third of the source dimensions (approximately 23–29 CSS pixels); scale and round hotspots to the displayed coordinate system. Use local asset URLs; no remote runtime requests. Keep disabled tools disabled; their cursor mappings can be demonstrated in Storybook without enabling them in the product.
 - REQ-002: Apply the active tool image over Allocation Plan drawing content, with a hotspot aligned to the artwork's intended pointing location: arrow tip for Move, plus intersection for Add tools, fingertip for Hand, and speech-tail tip for Comment. Record tested integer hotspot coordinates in the implementation. Image padding MUST NOT offset the actual click/drag coordinates. Include a suitable native CSS fallback if the image fails to load or is unsupported.
 - REQ-003: The selected tool cursor MUST remain consistent over drawing images, SVG/PDF content, saved Area bodies/labels and Sign controls, except for directional resize handles and non-editable states. Preserve meaningful native text/menu/control cursors in toolbars, dropdowns and drawers. In Move mode use the supplied Move image over movable Areas/Signs, including during their drag. Area resize handles retain directional native resize cursors.
 - REQ-004: Hand selection and temporary Space-pan MUST use the supplied Hand image while hovering or actively panning, overriding other drawing cursors. Releasing Space restores the selected tool cursor. Successful Area/Sign creation and accepted Area selection MUST use the supplied Move image when the existing auto-Move transition occurs. Choosing Floor still uses the Add area image while defining the rectangle.
@@ -49,7 +49,7 @@ Selecting an enabled tool displays its supplied image over the drawing. Switchin
 
 ## UX and accessibility
 
-Keep toolbar accessible names, active states, focus rings and keyboard shortcuts. Cursors supplement these existing indicators rather than replacing them. Use the original artwork without colour filters. Verify visibility on white and dark drawing content, narrow layouts and 200% zoom. Cursor appearance follows browser/OS rendering; annotation geometry must not depend on image dimensions.
+Keep toolbar accessible names, active states, focus rings and keyboard shortcuts. Cursors supplement these existing indicators rather than replacing them. Use the original artwork without colour filters, at its 3× display density. Verify visibility on white and dark drawing content, narrow layouts and 200% zoom. Cursor appearance follows browser/OS rendering; annotation geometry must not depend on image dimensions.
 
 ## API and integrations
 
@@ -77,4 +77,4 @@ Frontend-only release after separate specification approval. Smoke-check each en
 
 ## Open questions
 
-- None. Approval accepts original image sizes and keeping Add linear/Comment disabled until their behavior is specified separately.
+- None. The user explicitly clarified that the images are 3× assets and requested one-third display size on 2026-09-23. Original files remain unchanged; Add linear/Comment remain disabled until specified separately.
