@@ -148,6 +148,7 @@ export const planSignsResponseSchema = z
     documentsEnabled: z.boolean().optional(),
     photosEnabled: z.boolean().optional(),
     commentsEnabled: z.boolean().optional(),
+    planCommentsEnabled: z.boolean().optional(),
     signs: z.array(planSignSchema).max(5000),
   })
   .strict();

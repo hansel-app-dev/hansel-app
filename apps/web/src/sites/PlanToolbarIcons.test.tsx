@@ -54,7 +54,7 @@ it.each(['move', 'hand', 'add'] as const)(
     expect(outside).not.toHaveBeenCalled();
     expect(
       buttons.filter((button) => button.hasAttribute('disabled')),
-    ).toHaveLength(3);
+    ).toHaveLength(2);
   },
 );
 it('preserves Viewer and pending availability', () => {

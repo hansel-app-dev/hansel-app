@@ -3,6 +3,22 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments:
+    $ref: './plan-comments.openapi.yaml#/collection'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/{threadId}:
+    $ref: './plan-comments.openapi.yaml#/history'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/{threadId}/state:
+    $ref: './plan-comments.openapi.yaml#/state'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/people:
+    $ref: './plan-comments.openapi.yaml#/people'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/attachments:
+    $ref: './plan-comments.openapi.yaml#/attachments'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/attachments/{attachmentId}:
+    $ref: './plan-comments.openapi.yaml#/attachment'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/attachments/{attachmentId}/download:
+    $ref: './plan-comments.openapi.yaml#/download'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/attachments/{attachmentId}/thumbnail:
+    $ref: './plan-comments.openapi.yaml#/thumbnail'
   /api/sites/{siteId}/allocation-plans/{planId}/areas:
     $ref: './plan-areas.openapi.yaml#/collection'
   /api/sites/{siteId}/allocation-plans/{planId}/areas/{areaId}:

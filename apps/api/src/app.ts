@@ -1,3 +1,4 @@
+import { registerPlanCommentRoutes } from './sites/plan-comment-routes.js';
 import {
   planAreaCreateSchema,
   planAreaPatchSchema,
@@ -273,6 +274,10 @@ export interface AuthenticationModule {
 export interface SitesModule {
   signPhotos?: Omit<
     Parameters<typeof registerSignPhotoRoutes>[1],
+    'enabled' | 'allowedOrigin'
+  >;
+  planComments?: Omit<
+    Parameters<typeof registerPlanCommentRoutes>[1],
     'enabled' | 'allowedOrigin'
   >;
   signComments?: Omit<
@@ -644,6 +649,7 @@ export function createApp(
     signDocumentsEnabled?: boolean;
     signPhotosEnabled?: boolean;
     signCommentsEnabled?: boolean;
+    planCommentsEnabled?: boolean;
     siteActivityEnabled?: boolean;
   },
   configureRoutes?: ConfigureRoutes,
@@ -1543,6 +1549,12 @@ export function createApp(
           !!config.signPhotosEnabled && !!config.allocationPlanSignsEnabled,
         allowedOrigin: config.allowedOrigin,
       });
+    if (sites.planComments)
+      registerPlanCommentRoutes(app, {
+        ...sites.planComments,
+        enabled: !!config.planCommentsEnabled,
+        allowedOrigin: config.allowedOrigin,
+      });
     if (sites.signComments)
       registerSignCommentRoutes(app, {
         ...sites.signComments,
@@ -1699,6 +1711,7 @@ export function createApp(
                 documentsEnabled: !!config.signDocumentsEnabled,
                 photosEnabled: !!config.signPhotosEnabled,
                 commentsEnabled: !!config.signCommentsEnabled,
+                planCommentsEnabled: !!config.planCommentsEnabled,
               });
           } else if (request.method === 'POST' && !request.params.signId) {
             const input = planSignCreateSchema.safeParse(request.body);

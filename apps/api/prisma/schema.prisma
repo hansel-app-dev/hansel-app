@@ -579,6 +579,8 @@ model Sign {
 }
 
 model AllocationPlan {
+  commentThreads AllocationPlanCommentThread[]
+  planCommentAttachments AllocationPlanCommentAttachment[]
   areas PlanArea[]
   areaRequests PlanAreaRequest[]
   id             String                @id @default(uuid()) @db.Uuid
@@ -627,6 +629,8 @@ model AllocationPlanUploadBatch {
 }
 
 model AllocationPlanUpload {
+  commentThreads AllocationPlanCommentThread[]
+  planCommentAttachments AllocationPlanCommentAttachment[]
   areas PlanArea[]
   id               String                     @id @default(uuid()) @db.Uuid
   batchId          String                     @db.Uuid
@@ -955,4 +959,76 @@ model PlanAreaRequest {
   createdAt DateTime @default(now())
   plan AllocationPlan @relation(fields:[planId,tenantId,siteId],references:[id,tenantId,siteId],onDelete:Cascade)
   @@unique([tenantId,key])
+}
+
+// @spec allocation-plan-comments REQ-001,004..010
+model AllocationPlanCommentThread {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  planId String @db.Uuid
+  fileId String? @db.Uuid
+  x Float
+  y Float
+  authorId String @db.Uuid
+  authorName String @db.VarChar(200)
+  preview String @db.VarChar(160)
+  resolved Boolean @default(false)
+  resolvedAt DateTime?
+  resolvedById String? @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  plan AllocationPlan @relation(fields:[planId,tenantId,siteId],references:[id,tenantId,siteId],onDelete:Cascade)
+  file AllocationPlanUpload? @relation(fields:[fileId,tenantId,siteId,planId],references:[id,tenantId,siteId,groupedPlanId],onDelete:Cascade)
+  comments AllocationPlanComment[]
+  @@unique([id,tenantId,siteId,planId])
+  @@index([tenantId,siteId,planId,fileId,resolved,createdAt,id])
+}
+model AllocationPlanComment {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  planId String @db.Uuid
+  threadId String @db.Uuid
+  thread AllocationPlanCommentThread @relation(fields:[threadId,tenantId,siteId,planId],references:[id,tenantId,siteId,planId],onDelete:Cascade)
+  authorId String @db.Uuid
+  authorName String @db.VarChar(200)
+  body String
+  mentions Json
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  createdAt DateTime @default(now())
+  attachments AllocationPlanCommentAttachment[]
+  @@unique([id,tenantId,siteId,planId])
+  @@unique([tenantId,authorId,requestKey])
+  @@index([threadId,createdAt,id])
+}
+model AllocationPlanCommentAttachment {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  siteId String @db.Uuid
+  planId String @db.Uuid
+  fileId String? @db.Uuid
+  plan AllocationPlan @relation(fields:[planId,tenantId,siteId],references:[id,tenantId,siteId],onDelete:Cascade)
+  file AllocationPlanUpload? @relation(fields:[fileId,tenantId,siteId,planId],references:[id,tenantId,siteId,groupedPlanId],onDelete:Cascade)
+  commentId String? @db.Uuid
+  comment AllocationPlanComment? @relation(fields:[commentId,tenantId,siteId,planId],references:[id,tenantId,siteId,planId],onDelete:Cascade)
+  uploadedById String @db.Uuid
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  filename String @db.VarChar(255)
+  mediaType String @db.VarChar(32)
+  byteSize Int
+  checksumSha256 String @db.VarChar(44)
+  completed Boolean @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@unique([tenantId,requestKey])
+  @@index([tenantId,siteId,planId,fileId,commentId])
+}
+// Deliberately independent of parent foreign keys for durable cleanup.
+model AllocationPlanCommentAttachmentObject {
+  attachmentId String @id @db.Uuid
+  expiresAt DateTime
+  @@index([expiresAt])
 }

@@ -25,7 +25,9 @@ export function SignComments({
   api,
   signId,
   onStateChange,
+  compact,
 }: {
+  compact?: { draft: boolean; readOnly: boolean; onSubmitted: () => void };
   api: SignCommentsApi;
   signId: string;
   onStateChange: (state: { busy: boolean; dirty: boolean }) => void;
@@ -38,7 +40,7 @@ export function SignComments({
     [reply, setReply] = useState<SignComment | null>(null),
     [body, setBody] = useState(''),
     [mentions, setMentions] = useState<CommentMention[]>([]),
-    [expanded, setExpanded] = useState(false),
+    [expanded, setExpanded] = useState(!!compact),
     [pending, setPending] = useState(false),
     [reactionPending, setReactionPending] = useState(false),
     [emojiTarget, setEmojiTarget] = useState<string | null>(null);
@@ -258,8 +260,9 @@ export function SignComments({
       setMentions([]);
       setReply(null);
       uploads.committed();
-      setExpanded(false);
+      setExpanded(!!compact);
       attempt.current = null;
+      compact?.onSubmitted();
       requestAnimationFrame(() => {
         document
           .getElementById(`comment-${row.id}`)
@@ -271,10 +274,15 @@ export function SignComments({
           reason instanceof CommentRequestError &&
             reason.category === 'mention_unavailable'
             ? 'A mentioned person is no longer available. Remove or reselect the mention.'
-            : reason instanceof CommentRequestError &&
-                reason.category === 'attachment_unavailable'
-              ? 'An attachment has expired. Remove and upload it again.'
-              : 'We couldn’t submit your comment. Please retry.',
+            : reason instanceof CommentRequestError && reason.status === 409
+              ? 'This discussion changed. Close and reopen it to reload; your unsent draft is retained until you confirm discard.'
+              : reason instanceof CommentRequestError &&
+                  reason.category === 'comment_capacity_reached'
+                ? 'This plan has reached its 5,000 comment thread limit.'
+                : reason instanceof CommentRequestError &&
+                    reason.category === 'attachment_unavailable'
+                  ? 'An attachment has expired. Remove and upload it again.'
+                  : 'We couldn’t submit your comment. Please retry.',
         );
     } finally {
       posting.current = false;
@@ -311,72 +319,95 @@ export function SignComments({
   const rootRows = rows.filter((row) => !row.parentId);
   return (
     <div
-      role="tabpanel"
-      aria-label="Sign comments"
+      role={compact ? 'group' : 'tabpanel'}
+      aria-label={compact ? 'Plan comment discussion' : 'Sign comments'}
       className="flex min-h-0 flex-1 flex-col text-[13px] leading-[15px] text-[#27272a]"
     >
-      <div
-        ref={list}
-        className="min-h-0 flex-1 overflow-y-auto px-[23px] pr-6 pt-6 pb-2"
-        aria-label="Comment thread"
-      >
-        {loading && !rows.length ? (
-          <p role="status" className="text-center text-sm text-[#72727e]">
-            Loading comments…
-          </p>
-        ) : !rows.length && !error ? (
-          <p className="text-center text-sm text-[#72727e]">
-            There are no comments yet.
-          </p>
-        ) : null}
-        <div className="space-y-6">
-          {rootRows.map((row) => (
-            <CommentThread
-              key={row.id}
-              row={row}
-              rows={rows}
-              api={api}
-              signId={signId}
-              onRows={(incoming) => {
-                if (mounted.current) setRows((old) => merge(old, incoming));
+      {!compact?.draft && (
+        <div
+          ref={list}
+          className={
+            compact
+              ? 'min-h-0 flex-1 overflow-y-auto p-3'
+              : 'min-h-0 flex-1 overflow-y-auto px-[23px] pr-6 pt-6 pb-2'
+          }
+          aria-label="Comment thread"
+        >
+          {loading && !rows.length ? (
+            <p role="status" className="text-center text-sm text-[#72727e]">
+              Loading comments…
+            </p>
+          ) : !rows.length && !error ? (
+            <p className="text-center text-sm text-[#72727e]">
+              There are no comments yet.
+            </p>
+          ) : null}
+          <div className="space-y-6">
+            {compact
+              ? rows.map((row) => (
+                  <CommentRow
+                    key={row.id}
+                    row={row}
+                    api={api}
+                    signId={signId}
+                    disabled={pending}
+                    onReply={() => undefined}
+                    onReact={() => undefined}
+                    picker={false}
+                    onPicker={() => undefined}
+                    onError={setError}
+                    hideActions
+                  />
+                ))
+              : rootRows.map((row) => (
+                  <CommentThread
+                    key={row.id}
+                    row={row}
+                    rows={rows}
+                    api={api}
+                    signId={signId}
+                    onRows={(incoming) => {
+                      if (mounted.current)
+                        setRows((old) => merge(old, incoming));
+                    }}
+                    render={(comment) => (
+                      <CommentRow
+                        row={comment}
+                        api={api}
+                        signId={signId}
+                        disabled={pending || reactionPending}
+                        onReply={() => {
+                          replyTo(comment);
+                        }}
+                        onReact={(emoji) => {
+                          void react(comment, emoji);
+                        }}
+                        picker={emojiTarget === comment.id}
+                        onPicker={() => {
+                          setEmojiTarget(
+                            emojiTarget === comment.id ? null : comment.id,
+                          );
+                        }}
+                        onError={setError}
+                      />
+                    )}
+                  />
+                ))}
+          </div>
+          {cursor && (
+            <button
+              type="button"
+              disabled={loading}
+              className={`mt-4 underline ${focus}`}
+              onClick={() => {
+                void load(cursor);
               }}
-              render={(comment) => (
-                <CommentRow
-                  row={comment}
-                  api={api}
-                  signId={signId}
-                  disabled={pending || reactionPending}
-                  onReply={() => {
-                    replyTo(comment);
-                  }}
-                  onReact={(emoji) => {
-                    void react(comment, emoji);
-                  }}
-                  picker={emojiTarget === comment.id}
-                  onPicker={() => {
-                    setEmojiTarget(
-                      emojiTarget === comment.id ? null : comment.id,
-                    );
-                  }}
-                  onError={setError}
-                />
-              )}
-            />
-          ))}
+            >
+              Load more comments
+            </button>
+          )}
         </div>
-        {cursor && (
-          <button
-            type="button"
-            disabled={loading}
-            className={`mt-4 underline ${focus}`}
-            onClick={() => {
-              void load(cursor);
-            }}
-          >
-            Load more comments
-          </button>
-        )}
-      </div>
+      )}
       {error && (
         <p role="alert" className="shrink-0 px-6 py-2 text-xs text-red-700">
           {error}
@@ -393,308 +424,352 @@ export function SignComments({
           )}
         </p>
       )}
-      <div className="relative shrink-0 border-t border-[#e2e2e7] bg-white pt-[15px] pb-4 pl-[23px] pr-6">
-        {reply && (
-          <div className="mb-2 ml-10 flex items-center justify-between gap-1 text-xs text-[#64748b]">
-            <span>Replying to {reply.author.name}</span>
-            <button
-              type="button"
-              disabled={pending}
-              aria-label="Cancel reply"
-              className={focus}
-              onClick={() => {
-                setReply(null);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        )}
-        <div className="flex items-start gap-3">
-          <Avatar person={viewer} />
-          <div
-            className="relative min-w-0 flex-1 rounded-md border border-[#e2e2e7] bg-[#fafafa]"
-            onBlur={(event) => {
-              if (
-                !event.currentTarget.contains(event.relatedTarget) &&
-                !dirty
-              ) {
-                setExpanded(false);
-                setEmojiTarget(null);
-                setMentionQuery(null);
-              }
-            }}
-          >
-            {mentionQuery && (
-              <div className="absolute bottom-full left-0 z-20 mb-1 max-h-48 w-full overflow-y-auto rounded border border-[#e2e2e7] bg-white p-1 shadow-lg">
-                <div
-                  id="comment-mention-options"
-                  role="listbox"
-                  aria-label="People with Site access"
-                >
-                  {people.map((person, i) => (
-                    <button
-                      key={person.id}
-                      id={`mention-${person.id}`}
-                      type="button"
-                      role="option"
-                      aria-selected={i === personIndex}
-                      className={`block w-full rounded px-2 py-2 text-left ${i === personIndex ? 'bg-blue-50' : ''} ${focus}`}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                      }}
-                      onClick={() => {
-                        choosePerson(person);
-                      }}
-                    >
-                      {person.name}
-                    </button>
-                  ))}
-                </div>
-                {!people.length && (
-                  <p className="p-2 text-xs">
-                    {peopleError || 'No matching people'}
-                  </p>
-                )}
-                {peopleCursor && (
-                  <button
-                    type="button"
-                    className="p-2 underline"
-                    onClick={() => {
-                      const query = mentionQuery.query;
-                      void api
-                        .people(signId, query, peopleCursor)
-                        .then((result) => {
-                          if (mounted.current && query === mentionQuery.query) {
-                            setPeople((old) => [...old, ...result.people]);
-                            setPeopleCursor(result.nextCursor);
-                          }
-                        })
-                        .catch(() => {
-                          setPeopleError('Couldn’t load more people.');
-                        });
-                    }}
-                  >
-                    More people
-                  </button>
-                )}
-              </div>
-            )}
-            <textarea
-              ref={input}
-              aria-label="Write a comment"
-              placeholder="Write a comment..."
-              disabled={pending}
-              value={body}
-              onFocus={() => {
-                setExpanded(true);
-              }}
-              onChange={(event) => {
-                updateText(event.target.value, event.target.selectionStart);
-              }}
-              onKeyDown={(event) => {
-                if (
-                  mentionQuery &&
-                  ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(
-                    event.key,
-                  )
-                ) {
-                  event.preventDefault();
-                  if (event.key === 'Escape') setMentionQuery(null);
-                  else if (event.key === 'Enter') {
-                    const person = people[personIndex];
-                    if (person) choosePerson(person);
-                  } else
-                    setPersonIndex((index) =>
-                      Math.max(
-                        0,
-                        Math.min(
-                          people.length - 1,
-                          index + (event.key === 'ArrowDown' ? 1 : -1),
-                        ),
-                      ),
-                    );
-                } else if (
-                  (event.ctrlKey || event.metaKey) &&
-                  event.key === 'Enter'
-                ) {
-                  event.preventDefault();
-                  void submit();
-                }
-              }}
-              aria-controls={
-                mentionQuery ? 'comment-mention-options' : undefined
-              }
-              className={`block w-full resize-none rounded-t-md bg-transparent px-[11px] py-[10px] text-[12px] leading-4 placeholder:text-[#72727e] ${focus} ${expanded ? 'h-[71px]' : 'h-[54px] pr-[87px]'}`}
-            />
-            {!!uploads.items.length && (
-              <div className="max-h-40 space-y-2 overflow-y-auto px-3 pb-2">
-                {uploads.items.map((item) => (
-                  <div
-                    key={item.key}
-                    className="rounded border border-[#d4d4d8] bg-white p-2 text-xs"
-                  >
-                    <div className="flex gap-2">
-                      <span
-                        className="min-w-0 flex-1 truncate"
-                        title={item.file.name}
-                      >
-                        {item.file.name}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${item.file.name}`}
-                        disabled={pending}
-                        className={focus}
-                        onClick={() => {
-                          uploads.remove(item.key);
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {item.state === 'error' ? (
-                      <>
-                        <p role="alert" className="text-red-700">
-                          {item.error}
-                        </p>
-                        {!item.error?.startsWith('Choose') && (
-                          <button
-                            type="button"
-                            className="underline"
-                            onClick={() => {
-                              uploads.retry(item.key);
-                            }}
-                          >
-                            Retry upload
-                          </button>
-                        )}
-                      </>
-                    ) : item.state === 'complete' ? (
-                      <span>Ready</span>
-                    ) : (
-                      <>
-                        <span>
-                          {item.uploaded
-                            ? 'Verifying…'
-                            : `Uploading ${String(item.progress)}%`}
-                        </span>
-                        <progress
-                          aria-label={`Uploading ${item.file.name}`}
-                          className="h-1 w-full"
-                          value={item.progress}
-                          max={100}
-                        />
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {uploads.error && (
-              <p role="alert" className="px-3 text-xs text-red-700">
-                {uploads.error}
-              </p>
-            )}
-            {Array.from(body).length > 5000 && (
-              <p role="alert" className="px-3 text-xs text-red-700">
-                Comments can have up to 5,000 characters.
-              </p>
-            )}
-            <div
-              className={
-                expanded
-                  ? 'flex h-[55px] items-center justify-between border-t border-[#e2e2e7] px-[11px]'
-                  : 'absolute right-[11px] top-[11px]'
-              }
-            >
-              {expanded && (
-                <div className="flex items-center gap-3 text-[#72727e]">
-                  <button
-                    type="button"
-                    aria-label="Attach files"
-                    disabled={pending}
-                    className={focus}
-                    onClick={() => {
-                      fileInput.current?.click();
-                    }}
-                  >
-                    <CommentIcon name="attach" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Mention a person"
-                    disabled={pending}
-                    className={`grid size-5 place-items-center ${focus}`}
-                    onClick={() => {
-                      insert('@');
-                    }}
-                  >
-                    <CommentIcon name="mention" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Insert emoji"
-                    disabled={pending}
-                    className={focus}
-                    onClick={() => {
-                      setEmojiTarget(
-                        emojiTarget === 'composer' ? null : 'composer',
-                      );
-                    }}
-                  >
-                    <CommentIcon name="smile" />
-                  </button>
-                </div>
-              )}
+      {!compact?.readOnly && (
+        <div
+          className={
+            compact
+              ? 'relative min-h-0 shrink overflow-y-auto p-0'
+              : 'relative shrink-0 border-t border-[#e2e2e7] bg-white pt-[15px] pb-4 pl-[23px] pr-6'
+          }
+        >
+          {reply && (
+            <div className="mb-2 ml-10 flex items-center justify-between gap-1 text-xs text-[#64748b]">
+              <span>Replying to {reply.author.name}</span>
               <button
                 type="button"
-                disabled={
-                  pending ||
-                  !viewer ||
-                  uploads.busy ||
-                  uploads.items.some((item) => item.state !== 'complete') ||
-                  (!body.trim() && !uploads.items.length) ||
-                  Array.from(body).length > 5000
-                }
+                disabled={pending}
+                aria-label="Cancel reply"
+                className={focus}
                 onClick={() => {
-                  void submit();
+                  setReply(null);
                 }}
-                className={`h-8 rounded bg-[#475569] px-3 text-sm text-white disabled:bg-[#d4d4d8] disabled:text-[#72727e] ${focus}`}
               >
-                {pending ? 'Submitting…' : 'Submit'}
+                ×
               </button>
             </div>
-            {emojiTarget === 'composer' && (
-              <div className="absolute bottom-[56px] right-0 z-20 rounded border bg-white p-2 shadow-lg">
-                <EmojiPicker
-                  onChoose={(emoji) => {
-                    insert(emoji);
-                    setEmojiTarget(null);
-                  }}
-                  onClose={() => {
-                    setEmojiTarget(null);
-                  }}
-                />
-              </div>
-            )}
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              accept="image/png,image/jpeg,application/pdf,.png,.jpg,.jpeg,.pdf"
-              aria-label="Comment attachments"
-              disabled={pending}
-              className="sr-only"
-              onChange={(event) => {
-                uploads.add(Array.from(event.target.files ?? []));
-                event.target.value = '';
-                setExpanded(true);
+          )}
+          <div className="flex items-start gap-3">
+            {!compact && <Avatar person={viewer} />}
+            <div
+              className="relative min-w-0 flex-1 rounded-md border border-[#e2e2e7] bg-[#fafafa]"
+              onKeyDown={(event) => {
+                if (
+                  compact &&
+                  event.key === 'Escape' &&
+                  (mentionQuery || emojiTarget)
+                ) {
+                  event.stopPropagation();
+                  setMentionQuery(null);
+                  setEmojiTarget(null);
+                  input.current?.focus();
+                }
               }}
-            />
+              onBlur={(event) => {
+                if (
+                  !event.currentTarget.contains(event.relatedTarget) &&
+                  !dirty &&
+                  !compact
+                ) {
+                  setExpanded(false);
+                  setEmojiTarget(null);
+                  setMentionQuery(null);
+                }
+              }}
+            >
+              {mentionQuery && (
+                <div
+                  className={
+                    compact
+                      ? 'relative z-20 max-h-32 w-full overflow-y-auto border-b border-[#e2e2e7] bg-white p-1'
+                      : 'absolute bottom-full left-0 z-20 mb-1 max-h-48 w-full overflow-y-auto rounded border border-[#e2e2e7] bg-white p-1 shadow-lg'
+                  }
+                >
+                  <div
+                    id="comment-mention-options"
+                    role="listbox"
+                    aria-label="People with Site access"
+                  >
+                    {people.map((person, i) => (
+                      <button
+                        key={person.id}
+                        id={`mention-${person.id}`}
+                        type="button"
+                        role="option"
+                        aria-selected={i === personIndex}
+                        className={`block w-full rounded px-2 py-2 text-left ${i === personIndex ? 'bg-blue-50' : ''} ${focus}`}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                        }}
+                        onClick={() => {
+                          choosePerson(person);
+                        }}
+                      >
+                        {person.name}
+                      </button>
+                    ))}
+                  </div>
+                  {!people.length && (
+                    <p className="p-2 text-xs">
+                      {peopleError || 'No matching people'}
+                    </p>
+                  )}
+                  {peopleCursor && (
+                    <button
+                      type="button"
+                      className="p-2 underline"
+                      onClick={() => {
+                        const query = mentionQuery.query;
+                        void api
+                          .people(signId, query, peopleCursor)
+                          .then((result) => {
+                            if (
+                              mounted.current &&
+                              query === mentionQuery.query
+                            ) {
+                              setPeople((old) => [...old, ...result.people]);
+                              setPeopleCursor(result.nextCursor);
+                            }
+                          })
+                          .catch(() => {
+                            setPeopleError('Couldn’t load more people.');
+                          });
+                      }}
+                    >
+                      More people
+                    </button>
+                  )}
+                </div>
+              )}
+              <textarea
+                ref={input}
+                aria-label="Write a comment"
+                placeholder={
+                  compact
+                    ? compact.draft
+                      ? ''
+                      : 'Reply'
+                    : 'Write a comment...'
+                }
+                autoFocus={!!compact && !compact.readOnly}
+                disabled={pending}
+                value={body}
+                onFocus={() => {
+                  setExpanded(true);
+                }}
+                onChange={(event) => {
+                  updateText(event.target.value, event.target.selectionStart);
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    mentionQuery &&
+                    ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(
+                      event.key,
+                    )
+                  ) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.key === 'Escape') setMentionQuery(null);
+                    else if (event.key === 'Enter') {
+                      const person = people[personIndex];
+                      if (person) choosePerson(person);
+                    } else
+                      setPersonIndex((index) =>
+                        Math.max(
+                          0,
+                          Math.min(
+                            people.length - 1,
+                            index + (event.key === 'ArrowDown' ? 1 : -1),
+                          ),
+                        ),
+                      );
+                  } else if (
+                    (event.ctrlKey || event.metaKey) &&
+                    event.key === 'Enter'
+                  ) {
+                    event.preventDefault();
+                    void submit();
+                  }
+                }}
+                aria-controls={
+                  mentionQuery ? 'comment-mention-options' : undefined
+                }
+                className={`block w-full resize-none rounded-t-md bg-transparent px-[11px] py-[10px] text-[12px] leading-4 placeholder:text-[#72727e] ${focus} ${expanded ? 'h-[71px]' : 'h-[54px] pr-[87px]'}`}
+              />
+              {!!uploads.items.length && (
+                <div className="max-h-40 space-y-2 overflow-y-auto px-3 pb-2">
+                  {uploads.items.map((item) => (
+                    <div
+                      key={item.key}
+                      className="rounded border border-[#d4d4d8] bg-white p-2 text-xs"
+                    >
+                      <div className="flex gap-2">
+                        <span
+                          className="min-w-0 flex-1 truncate"
+                          title={item.file.name}
+                        >
+                          {item.file.name}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.file.name}`}
+                          disabled={pending}
+                          className={focus}
+                          onClick={() => {
+                            uploads.remove(item.key);
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {item.state === 'error' ? (
+                        <>
+                          <p role="alert" className="text-red-700">
+                            {item.error}
+                          </p>
+                          {!item.error?.startsWith('Choose') && (
+                            <button
+                              type="button"
+                              className="underline"
+                              onClick={() => {
+                                uploads.retry(item.key);
+                              }}
+                            >
+                              Retry upload
+                            </button>
+                          )}
+                        </>
+                      ) : item.state === 'complete' ? (
+                        <span>Ready</span>
+                      ) : (
+                        <>
+                          <span>
+                            {item.uploaded
+                              ? 'Verifying…'
+                              : `Uploading ${String(item.progress)}%`}
+                          </span>
+                          <progress
+                            aria-label={`Uploading ${item.file.name}`}
+                            className="h-1 w-full"
+                            value={item.progress}
+                            max={100}
+                          />
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {uploads.error && (
+                <p role="alert" className="px-3 text-xs text-red-700">
+                  {uploads.error}
+                </p>
+              )}
+              {Array.from(body).length > 5000 && (
+                <p role="alert" className="px-3 text-xs text-red-700">
+                  Comments can have up to 5,000 characters.
+                </p>
+              )}
+              <div
+                className={
+                  expanded
+                    ? 'flex h-[55px] items-center justify-between border-t border-[#e2e2e7] px-[11px]'
+                    : 'absolute right-[11px] top-[11px]'
+                }
+              >
+                {expanded && (
+                  <div className="flex items-center gap-3 text-[#72727e]">
+                    <button
+                      type="button"
+                      aria-label="Attach files"
+                      disabled={pending}
+                      className={focus}
+                      onClick={() => {
+                        fileInput.current?.click();
+                      }}
+                    >
+                      <CommentIcon name="attach" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Mention a person"
+                      disabled={pending}
+                      className={`grid size-5 place-items-center ${focus}`}
+                      onClick={() => {
+                        insert('@');
+                      }}
+                    >
+                      <CommentIcon name="mention" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Insert emoji"
+                      disabled={pending}
+                      className={focus}
+                      onClick={() => {
+                        setEmojiTarget(
+                          emojiTarget === 'composer' ? null : 'composer',
+                        );
+                      }}
+                    >
+                      <CommentIcon name="smile" />
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={
+                    pending ||
+                    !viewer ||
+                    uploads.busy ||
+                    uploads.items.some((item) => item.state !== 'complete') ||
+                    (!body.trim() && !uploads.items.length) ||
+                    Array.from(body).length > 5000
+                  }
+                  onClick={() => {
+                    void submit();
+                  }}
+                  className={`h-8 rounded bg-[#475569] px-3 text-sm text-white disabled:bg-[#d4d4d8] disabled:text-[#72727e] ${focus}`}
+                >
+                  {pending ? 'Submitting…' : 'Submit'}
+                </button>
+              </div>
+              {emojiTarget === 'composer' && (
+                <div
+                  className={
+                    compact
+                      ? 'relative z-20 border-t bg-white p-2'
+                      : 'absolute bottom-[56px] right-0 z-20 rounded border bg-white p-2 shadow-lg'
+                  }
+                >
+                  <EmojiPicker
+                    onChoose={(emoji) => {
+                      insert(emoji);
+                      setEmojiTarget(null);
+                    }}
+                    onClose={() => {
+                      setEmojiTarget(null);
+                    }}
+                  />
+                </div>
+              )}
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                accept="image/png,image/jpeg,application/pdf,.png,.jpg,.jpeg,.pdf"
+                aria-label="Comment attachments"
+                disabled={pending}
+                className="sr-only"
+                onChange={(event) => {
+                  uploads.add(Array.from(event.target.files ?? []));
+                  event.target.value = '';
+                  setExpanded(true);
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -788,7 +863,9 @@ function CommentRow({
   picker,
   onPicker,
   onError,
+  hideActions = false,
 }: {
+  hideActions?: boolean;
   row: SignComment;
   api: SignCommentsApi;
   signId: string;
@@ -876,48 +953,50 @@ function CommentRow({
             )}
           </div>
         ))}
-        <div className="relative mt-2 flex flex-wrap items-center gap-1 text-[#72727e]">
-          <button
-            type="button"
-            aria-label={`React to comment by ${row.author.name}`}
-            disabled={disabled}
-            className={focus}
-            onClick={onPicker}
-          >
-            <CommentIcon name="smile" small />
-          </button>
-          <span aria-hidden="true">
-            <CommentIcon name="check" small />
-          </span>
-          <button
-            type="button"
-            disabled={disabled}
-            className={`px-0.5 text-xs text-[#526581] ${focus}`}
-            onClick={onReply}
-          >
-            Reply
-          </button>
-          {row.reactions.map((reaction) => (
+        {!hideActions && (
+          <div className="relative mt-2 flex flex-wrap items-center gap-1 text-[#72727e]">
             <button
               type="button"
-              key={reaction.emoji}
+              aria-label={`React to comment by ${row.author.name}`}
               disabled={disabled}
-              aria-pressed={reaction.selected}
-              aria-label={`${reaction.emoji} reaction, ${String(reaction.count)}`}
-              className={`rounded-full border px-1.5 py-0.5 text-xs ${reaction.selected ? 'border-blue-300 bg-blue-50' : 'border-[#e2e2e7]'} ${focus}`}
-              onClick={() => {
-                onReact(reaction.emoji);
-              }}
+              className={focus}
+              onClick={onPicker}
             >
-              {reaction.emoji} {reaction.count}
+              <CommentIcon name="smile" small />
             </button>
-          ))}
-          {picker && (
-            <div className="absolute left-0 top-6 z-20 rounded border bg-white p-2 shadow-lg">
-              <EmojiPicker onChoose={onReact} onClose={onPicker} />
-            </div>
-          )}
-        </div>
+            <span aria-hidden="true">
+              <CommentIcon name="check" small />
+            </span>
+            <button
+              type="button"
+              disabled={disabled}
+              className={`px-0.5 text-xs text-[#526581] ${focus}`}
+              onClick={onReply}
+            >
+              Reply
+            </button>
+            {row.reactions.map((reaction) => (
+              <button
+                type="button"
+                key={reaction.emoji}
+                disabled={disabled}
+                aria-pressed={reaction.selected}
+                aria-label={`${reaction.emoji} reaction, ${String(reaction.count)}`}
+                className={`rounded-full border px-1.5 py-0.5 text-xs ${reaction.selected ? 'border-blue-300 bg-blue-50' : 'border-[#e2e2e7]'} ${focus}`}
+                onClick={() => {
+                  onReact(reaction.emoji);
+                }}
+              >
+                {reaction.emoji} {reaction.count}
+              </button>
+            ))}
+            {picker && (
+              <div className="absolute left-0 top-6 z-20 rounded border bg-white p-2 shadow-lg">
+                <EmojiPicker onChoose={onReact} onClose={onPicker} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

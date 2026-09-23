@@ -947,3 +947,5 @@ export * from './sign-documents.js';
 export * from './sign-photos.js';
 export * from './sign-comments.js';
 export * from './plan-areas.js';
+
+export * from './plan-comments.js';

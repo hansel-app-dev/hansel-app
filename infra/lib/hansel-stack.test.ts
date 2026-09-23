@@ -254,6 +254,8 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites
     });
     const policies = JSON.stringify(output.findResources('AWS::IAM::Policy'));
     expect(policies).toContain('quarantine/*');
+    // allocation-plan-comments REQ-007,010: private published attachment access.
+    expect(policies).toContain('plan-comments/*');
     expect(policies).toContain('plans/*');
   });
 

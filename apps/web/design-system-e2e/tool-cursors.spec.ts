@@ -65,7 +65,7 @@ test('supplied cursors follow tools, auto-Move and temporary pan without replaci
   await expect(drawing).toHaveCSS('cursor', /move_cursor\.png/);
   await expect(page.getByRole('button', { name: 'Add linear' })).toBeEnabled();
   await expect(
-    page.getByRole('button', { name: 'Comment (coming soon)' }),
+    page.getByRole('button', { name: 'Add comment' }),
   ).toBeDisabled();
 });
 test('all six original images load in previews and remain available at 200% zoom', async ({

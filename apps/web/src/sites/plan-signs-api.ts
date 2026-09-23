@@ -1,3 +1,7 @@
+import {
+  createPlanCommentsApi,
+  type PlanCommentsApi,
+} from './plan-comments-api.js';
 import { createPlanAreasApi, type PlanAreasApi } from './plan-areas-api.js';
 import {
   planSignSchema,
@@ -42,6 +46,7 @@ export function createPlanSignsApi(
     return (await response.json()) as unknown;
   }
   return {
+    planComments: createPlanCommentsApi(siteId, planId, baseUrl),
     areas: createPlanAreasApi(siteId, planId, baseUrl),
     documents: createSignDocumentsApi(siteId, baseUrl),
     photos: createSignPhotosApi(siteId, baseUrl),
@@ -61,8 +66,9 @@ export function createPlanSignsApi(
 }
 export type PlanSignsApi = Omit<
   ReturnType<typeof createPlanSignsApi>,
-  'documents' | 'photos' | 'comments' | 'areas'
+  'documents' | 'photos' | 'comments' | 'areas' | 'planComments'
 > & {
+  planComments?: PlanCommentsApi;
   areas?: PlanAreasApi;
   documents?: SignDocumentsApi;
   photos?: SignPhotosApi;

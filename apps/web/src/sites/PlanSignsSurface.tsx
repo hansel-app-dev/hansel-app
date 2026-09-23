@@ -1,3 +1,4 @@
+import { PlanComments, type PlanCommentsHandle } from './PlanComments.js';
 import { PlanLinearLayer, type PlanLinearHandle } from './PlanLinearLayer.js';
 import type { LinearGeometry } from './linear-geometry.js';
 import { planCursor } from './plan-tool-cursors.js';
@@ -61,6 +62,9 @@ export function PlanSignsSurface({
   viewScale?: number;
   children: ReactNode;
 }) {
+  const planCommentsRef = useRef<PlanCommentsHandle>(null);
+  const [planCommentBusy, setPlanCommentBusy] = useState(false);
+  const [planCommentsEnabled, setPlanCommentsEnabled] = useState(false);
   const linearRef = useRef<PlanLinearHandle>(null);
   const areaRef = useRef<PlanAreasHandle>(null);
   const [areaBusy, setAreaBusy] = useState(false);
@@ -136,9 +140,15 @@ export function PlanSignsSurface({
     !busy.current &&
     !areaBusy &&
     (!unsaved || window.confirm('Discard unsaved Sign changes?'));
-  const leave = () => leaveSign() && (areaRef.current?.leave() ?? true);
+  const leave = () =>
+    leaveSign() &&
+    (areaRef.current?.leave() ?? true) &&
+    (planCommentsRef.current?.leave() ?? true);
   function select(sign: PlanSign | null) {
-    if (sign) areaRef.current?.clear();
+    if (sign) {
+      areaRef.current?.clear();
+      planCommentsRef.current?.clear();
+    }
     setPlacement(null);
     if (sign?.id !== selected?.id) setSection('General');
     setSelected(sign);
@@ -174,8 +184,17 @@ export function PlanSignsSurface({
     if (panning) cancelDrag();
   }, [panning]);
   function moveSign(sign: PlanSign, x: number, y: number) {
-    if (tool !== 'move' || !canManage || panning || conflict || busy.current)
+    if (
+      tool !== 'move' ||
+      !canManage ||
+      panning ||
+      conflict ||
+      busy.current ||
+      planCommentBusy
+    )
       return;
+    if (!(planCommentsRef.current?.leave() ?? true)) return;
+    planCommentsRef.current?.clear();
     void mutate(
       async () => {
         const saved = await service.current.update(sign.id, {
@@ -210,6 +229,7 @@ export function PlanSignsSurface({
       !canManage ||
       busy.current ||
       areaBusy ||
+      planCommentBusy ||
       areaRef.current?.blocked() ||
       unsaved ||
       conflict
@@ -217,6 +237,8 @@ export function PlanSignsSurface({
       return;
     const box = drawing.current?.getBoundingClientRect();
     if (!box?.width || !box.height) return;
+    if (!(planCommentsRef.current?.leave() ?? true)) return;
+    planCommentsRef.current?.clear();
     event.preventDefault();
     event.currentTarget.focus();
     setCursor(null);
@@ -283,6 +305,7 @@ export function PlanSignsSurface({
       setDocumentsEnabled(result.documentsEnabled === true);
       setPhotosEnabled(result.photosEnabled === true);
       setCommentsEnabled(result.commentsEnabled === true);
+      setPlanCommentsEnabled(result.planCommentsEnabled === true);
       setMessage('');
       setRetry(null);
     } catch (error) {
@@ -779,10 +802,21 @@ export function PlanSignsSurface({
               tool={tool}
               canAdd={canManage}
               canAddArea={canManage && !!api.areas}
-              disabled={pending || areaBusy || !!preview || !!deleteTarget}
+              canComment={planCommentsEnabled && !!api.planComments}
+              disabled={
+                pending ||
+                areaBusy ||
+                planCommentBusy ||
+                !!preview ||
+                !!deleteTarget
+              }
               onChange={(next) => {
                 if (next === tool || drag.current || !leave()) return;
-                if (unsaved) select(null);
+                planCommentsRef.current?.clear();
+                if (next === 'comment' || unsaved) {
+                  select(null);
+                  areaRef.current?.clear();
+                }
                 setCursor(null);
                 setPlacement(null);
                 setTool(next);
@@ -795,7 +829,7 @@ export function PlanSignsSurface({
         aria-label="Plan drawing"
         ref={drawing}
         data-can-manage-signs={canManage}
-        tabIndex={canManage ? 0 : -1}
+        tabIndex={canManage || planCommentsEnabled ? 0 : -1}
         className="relative outline-offset-2"
         style={{
           cursor: planCursor(tool, panning),
@@ -842,21 +876,37 @@ export function PlanSignsSurface({
             if (leave()) {
               select(null);
               areaRef.current?.clear();
+              planCommentsRef.current?.clear();
             }
             return;
           }
           const x = (event.clientX - box.left) / box.width,
             y = (event.clientY - box.top) / box.height;
-          if (x >= 0 && x <= 1 && y >= 0 && y <= 1) offerPlacement(x, y);
+          if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
+            if (tool === 'comment') planCommentsRef.current?.place(x, y);
+            else offerPlacement(x, y);
+          }
         }}
         onKeyDown={(event) => {
-          if (event.target !== event.currentTarget || !canManage || panning)
+          if (event.target !== event.currentTarget || panning) return;
+          if (tool === 'comment') {
+            planCommentsRef.current?.keyDown(event);
             return;
+          }
+          if (!canManage) {
+            if (
+              event.key === 'Escape' &&
+              (planCommentsRef.current?.leave() ?? true)
+            )
+              planCommentsRef.current?.clear();
+            return;
+          }
           if (event.key === 'Escape') {
             setCursor(null);
             if (leave()) {
               select(null);
               areaRef.current?.clear();
+              planCommentsRef.current?.clear();
             }
           }
           if (tool === 'line') {
@@ -904,6 +954,27 @@ export function PlanSignsSurface({
         }}
       >
         {children}
+        {api.planComments && planCommentsEnabled && (
+          <PlanComments
+            ref={planCommentsRef}
+            api={api.planComments}
+            fileId={fileId}
+            tool={tool}
+            panning={panning}
+            host={drawerHost}
+            beforeOpen={() => {
+              if (!leaveSign() || !(areaRef.current?.leave() ?? true))
+                return false;
+              select(null);
+              areaRef.current?.clear();
+              return true;
+            }}
+            onActivateMove={() => {
+              setTool('move');
+            }}
+            onBusyChange={setPlanCommentBusy}
+          />
+        )}
         {api.areas && (
           <PlanAreas
             ref={areaRef}
@@ -911,7 +982,7 @@ export function PlanSignsSurface({
             fileId={fileId}
             tool={tool}
             panning={panning}
-            externalBusy={pending}
+            externalBusy={pending || planCommentBusy}
             drawerHost={drawerHost}
             viewScale={viewScale}
             onBusyChange={setAreaBusy}
@@ -919,7 +990,9 @@ export function PlanSignsSurface({
               setTool('move');
             }}
             beforeSelect={() => {
-              if (!leaveSign()) return false;
+              if (!leaveSign() || !(planCommentsRef.current?.leave() ?? true))
+                return false;
+              planCommentsRef.current?.clear();
               select(null);
               return true;
             }}
@@ -932,7 +1005,14 @@ export function PlanSignsSurface({
           tool={tool}
           panning={panning}
           canManage={canManage}
-          blocked={pending || areaBusy || unsaved || conflict || !!deleteTarget}
+          blocked={
+            pending ||
+            areaBusy ||
+            planCommentBusy ||
+            unsaved ||
+            conflict ||
+            !!deleteTarget
+          }
           fileId={fileId}
           viewScale={viewScale}
           host={drawerHost}

@@ -347,8 +347,19 @@ export class HanselStack extends cdk.Stack {
       api.taskDefinition.taskRole,
       'sign-documents/*',
     );
-    allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'sign-photos/*');
-    allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'sign-comments/*');
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
+      'sign-photos/*',
+    );
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
+      'sign-comments/*',
+    );
+    // allocation-plan-comments REQ-007,010: separate private attachment namespace.
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
+      'plan-comments/*',
+    );
     allocationPlanBucket.grantReadWrite(
       api.taskDefinition.taskRole,
       'covers/*',

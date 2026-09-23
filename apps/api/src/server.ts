@@ -1,3 +1,5 @@
+import { createPlanCommentsFeature } from './sites/plan-comments.js';
+import { createPlanCommentAttachments } from './sites/plan-comment-attachments.js';
 import { createPlanAreasFeature } from './sites/plan-areas.js';
 import { PrismaClient } from '@prisma/client';
 import { Logger } from '@aws-lambda-powertools/logger';
@@ -503,6 +505,21 @@ const signageScheduleFeature = createSignageScheduleFeature(
 const siteActivityFeature = createSiteActivityFeature(prisma);
 const planAreasFeature = createPlanAreasFeature(prisma);
 const planSignsFeature = createPlanSignsFeature(prisma);
+const planCommentsFeature = createPlanCommentsFeature(prisma);
+const planCommentAttachments = createPlanCommentAttachments(
+  prisma,
+  createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+);
+const planCommentCleanup = setInterval(() => {
+  void planCommentAttachments.cleanup().catch(() => {
+    logger.error('plan_comment_cleanup_failed', {
+      correlationId: randomUUID(),
+    });
+  });
+}, 60_000);
+planCommentCleanup.unref();
 const signCommentsFeature = createSignCommentsFeature(prisma);
 // Keep draft cleanup active even when the discussion feature is rolled back.
 const commentAttachments = createSignCommentAttachments(
@@ -552,6 +569,14 @@ const resolveSitePrincipal = (credential: string) =>
     new Date(),
   );
 const sites: SitesModule = {
+  planComments: {
+    feature: planCommentsFeature,
+    attachments: planCommentAttachments,
+    resolve: resolveSitePrincipal,
+    record: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  },
   signComments: {
     feature: signCommentsFeature,
     attachments: commentAttachments,

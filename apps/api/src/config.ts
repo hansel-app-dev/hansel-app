@@ -11,6 +11,7 @@ interface BaseAppConfig {
   signDocumentsEnabled: boolean;
   signPhotosEnabled: boolean;
   signCommentsEnabled: boolean;
+  planCommentsEnabled: boolean;
   siteActivityEnabled: boolean;
   organizationTraySettingsEnabled: boolean;
   allocationPlansBucketName: string | null;
@@ -263,6 +264,7 @@ export function loadConfig(
     signDocumentsEnabled: environment.SIGN_DOCUMENTS_ENABLED === 'true',
     signPhotosEnabled: environment.SIGN_PHOTOS_ENABLED === 'true',
     signCommentsEnabled: environment.SIGN_COMMENTS_ENABLED === 'true',
+    planCommentsEnabled: environment.PLAN_COMMENTS_ENABLED === 'true',
     allocationPlanDraftsEnabled:
       environment.ALLOCATION_PLAN_DRAFTS_ENABLED === 'true',
     signageScheduleEnabled:
