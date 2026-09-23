@@ -51,7 +51,7 @@ A place or service managed in Hansel that groups its allocation plans, signs, ac
 _Avoid_: Property, Location when referring to the whole managed object
 
 **Allocation Plan**:
-A named plan or image for a Site that organizes the Signs associated with it.
+A named plan for a Site with exactly one uploaded PDF or Image that organizes the Signs associated with that file. The Allocation Details dropdown switches between Allocation Plans within the Site.
 _Avoid_: Floor Plan when the plan is not necessarily a floor
 
 **Sign**:

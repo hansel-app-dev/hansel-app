@@ -907,3 +907,12 @@ model ApplicationSessionCredential {
 
   @@index([familyId, kind, expiresAt])
 }
+
+// Identifier-only audit of the single-file split; retained independently for recovery.
+model AllocationPlanFileSplit {
+  fileId String @id @db.Uuid
+  originalPlanId String @db.Uuid
+  resultPlanId String @db.Uuid
+  originalPosition Int
+  createdAt DateTime @default(now())
+}

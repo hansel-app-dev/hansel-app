@@ -1,6 +1,7 @@
 /** @spec site-allocation-plan-preview REQ-006..REQ-013 @figma supplied 03.png */
+import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import type { PlanSign } from '@hansel/contracts';
+import type { AllocationPlan, PlanSign } from '@hansel/contracts';
 import type { PlanSignsApi } from '../src/sites/plan-signs-api.js';
 import { userEvent, within } from 'storybook/test';
 import { AllocationPlanViewer } from '../src/sites/AllocationPlanViewer.js';
@@ -44,39 +45,66 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ImagePlan: Story = {};
-export const MultipleFiles: Story = {
-  args: {
-    plan: {
-      ...plan,
-      name: 'Building A',
-      files: [
-        'Ground Floor.png',
-        'First Floor.png',
-        'Second Floor.png',
-        'Third Floor.png',
-      ].map((filename, index) => ({
-        id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
-        filename,
-        mediaType: 'image/png',
-        byteSize: 3,
-      })),
+const plans: AllocationPlan[] = [
+  'Ground Floor',
+  'First Floor',
+  'Second Floor',
+  'Third Floor',
+].map((name, index) => ({
+  ...plan,
+  id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
+  name,
+  files: [
+    {
+      id: `file-${String(index)}`,
+      filename: `${name}.png`,
+      mediaType: 'image/png',
+      byteSize: 3,
     },
-  },
+  ],
+}));
+function SwitchingPlans(
+  args: React.ComponentProps<typeof AllocationPlanViewer>,
+) {
+  const [selected, setSelected] = useState(args.plan);
+  return (
+    <AllocationPlanViewer
+      {...args}
+      key={selected.id}
+      plan={selected}
+      onSelectPlan={(id) => {
+        setSelected(args.plans?.find((item) => item.id === id) ?? selected);
+      }}
+    />
+  );
+}
+const firstPlan = plans[0] ?? plan;
+export const MultiplePlans: Story = {
+  args: { plan: firstPlan, plans },
+  render: (args) => <SwitchingPlans {...args} />,
 };
-export const FileDropdown: Story = {
-  ...MultipleFiles,
+export const PlanDropdown: Story = {
+  ...MultiplePlans,
   play: async ({ canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'Select plan file' }),
+      within(canvasElement).getByRole('button', {
+        name: 'Select allocation plan',
+      }),
     );
+  },
+};
+export const DuplicateNames: Story = {
+  ...MultiplePlans,
+  args: {
+    plan: { ...firstPlan, name: 'Building' },
+    plans: plans.map((item) => ({ ...item, name: 'Building' })),
   },
 };
 export const LongFilename: Story = {
   args: {
     plan: {
       ...plan,
-      filename:
-        'Building A - General Teaching Space - Allocation Plan Ground Floor.png',
+      name: 'Building A - General Teaching Space - Allocation Plan Ground Floor.png',
     },
   },
 };
@@ -109,7 +137,10 @@ export const SpacePanArmed: Story = {
   },
 };
 
-function signApi(readonly = false, signFunction: PlanSign['function'] = 'Directional'): PlanSignsApi {
+function signApi(
+  readonly = false,
+  signFunction: PlanSign['function'] = 'Directional',
+): PlanSignsApi {
   const initial: PlanSign = {
     id: '00000000-0000-4000-8000-000000000011',
     fileId: null,
@@ -171,23 +202,60 @@ const openAddMenu = async (canvasElement: HTMLElement, edge = false) => {
   await userEvent.click(canvas.getByRole('button', { name: 'Add sign' }));
   const drawing = canvas.getByLabelText('Plan drawing');
   const box = drawing.getBoundingClientRect();
-  await userEvent.pointer({ target: drawing, keys: '[MouseLeft]', coords: { clientX: edge ? box.right - 10 : box.left + box.width * 0.65, clientY: edge ? box.bottom - 10 : box.top + box.height * 0.45 } });
+  await userEvent.pointer({
+    target: drawing,
+    keys: '[MouseLeft]',
+    coords: {
+      clientX: edge ? box.right - 10 : box.left + box.width * 0.65,
+      clientY: edge ? box.bottom - 10 : box.top + box.height * 0.45,
+    },
+  });
 };
-export const AddSignCursor: Story = { args: { planSignsApi: signApi() }, play: async ({ canvasElement }) => {
-  const canvas = within(canvasElement);
-  await canvas.findByRole('button', { name: 'Select sign SG.001' });
-  await userEvent.click(canvas.getByRole('button', { name: 'Add sign' }));
-} };
-export const AddSignMenu: Story = { args: { planSignsApi: signApi() }, play: async ({ canvasElement }) => { await openAddMenu(canvasElement); } };
-export const AddSignMenuEdge: Story = { args: { planSignsApi: signApi() }, play: async ({ canvasElement }) => { await openAddMenu(canvasElement, true); } };
-export const AddSignPending: Story = { args: { planSignsApi: { ...signApi(), create: () => new Promise(() => undefined) } }, play: async ({ canvasElement }) => {
-  await openAddMenu(canvasElement);
-  await userEvent.click(within(canvasElement).getByRole('menuitem', { name: 'Floor' }));
-} };
-export const AddSignFailure: Story = { args: { planSignsApi: { ...signApi(), create: () => Promise.reject(new Error('unavailable')) } }, play: async ({ canvasElement }) => {
-  await openAddMenu(canvasElement);
-  await userEvent.click(within(canvasElement).getByRole('menuitem', { name: 'Floor' }));
-} };
+export const AddSignCursor: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('button', { name: 'Select sign SG.001' });
+    await userEvent.click(canvas.getByRole('button', { name: 'Add sign' }));
+  },
+};
+export const AddSignMenu: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    await openAddMenu(canvasElement);
+  },
+};
+export const AddSignMenuEdge: Story = {
+  args: { planSignsApi: signApi() },
+  play: async ({ canvasElement }) => {
+    await openAddMenu(canvasElement, true);
+  },
+};
+export const AddSignPending: Story = {
+  args: {
+    planSignsApi: { ...signApi(), create: () => new Promise(() => undefined) },
+  },
+  play: async ({ canvasElement }) => {
+    await openAddMenu(canvasElement);
+    await userEvent.click(
+      within(canvasElement).getByRole('menuitem', { name: 'Floor' }),
+    );
+  },
+};
+export const AddSignFailure: Story = {
+  args: {
+    planSignsApi: {
+      ...signApi(),
+      create: () => Promise.reject(new Error('unavailable')),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await openAddMenu(canvasElement);
+    await userEvent.click(
+      within(canvasElement).getByRole('menuitem', { name: 'Floor' }),
+    );
+  },
+};
 export const DeletePending: Story = {
   args: {
     planSignsApi: { ...signApi(), remove: () => new Promise(() => undefined) },
@@ -253,7 +321,10 @@ export const HandOverflow: Story = {
     const canvas = within(canvasElement);
     await canvas.findByRole('button', { name: 'Select sign SG.001' });
     await userEvent.click(canvas.getByRole('button', { name: 'Hand' }));
-    for (let i = 0; i < 4; i++) await userEvent.click(canvas.getByRole('button', { name: 'Increase plan zoom' }));
+    for (let i = 0; i < 4; i++)
+      await userEvent.click(
+        canvas.getByRole('button', { name: 'Increase plan zoom' }),
+      );
   },
 };
 export const HandGrabbing: Story = {
@@ -262,12 +333,21 @@ export const HandGrabbing: Story = {
     const canvas = within(canvasElement);
     await canvas.findByRole('button', { name: 'Select sign SG.001' });
     await userEvent.click(canvas.getByRole('button', { name: 'Hand' }));
-    await userEvent.click(canvas.getByRole('button', { name: 'Increase plan zoom' }));
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Increase plan zoom' }),
+    );
     const viewport = canvas.getByLabelText('Plan viewport');
     const box = viewport.getBoundingClientRect();
     await userEvent.pointer([
-      { target: viewport, coords: { clientX: box.x + 100, clientY: box.y + 100 }, keys: '[MouseLeft>]' },
-      { target: viewport, coords: { clientX: box.x + 60, clientY: box.y + 60 } },
+      {
+        target: viewport,
+        coords: { clientX: box.x + 100, clientY: box.y + 100 },
+        keys: '[MouseLeft>]',
+      },
+      {
+        target: viewport,
+        coords: { clientX: box.x + 60, clientY: box.y + 60 },
+      },
     ]);
   },
 };
@@ -294,8 +374,23 @@ export const EmptySigns: Story = {
 };
 
 /** @spec sign-function-options REQ-001, REQ-005 */
-export const FunctionIdentification: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Identification') } };
-export const FunctionDirectional: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Directional') } };
-export const FunctionInformational: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Informational') } };
-export const FunctionRegulatory: Story = { ...SignDrawer, args: { planSignsApi: signApi(false, 'Regulatory/Statutory') } };
-export const FunctionReadOnly: Story = { ...SignDrawer, args: { planSignsApi: signApi(true, 'Regulatory/Statutory') } };
+export const FunctionIdentification: Story = {
+  ...SignDrawer,
+  args: { planSignsApi: signApi(false, 'Identification') },
+};
+export const FunctionDirectional: Story = {
+  ...SignDrawer,
+  args: { planSignsApi: signApi(false, 'Directional') },
+};
+export const FunctionInformational: Story = {
+  ...SignDrawer,
+  args: { planSignsApi: signApi(false, 'Informational') },
+};
+export const FunctionRegulatory: Story = {
+  ...SignDrawer,
+  args: { planSignsApi: signApi(false, 'Regulatory/Statutory') },
+};
+export const FunctionReadOnly: Story = {
+  ...SignDrawer,
+  args: { planSignsApi: signApi(true, 'Regulatory/Statutory') },
+};

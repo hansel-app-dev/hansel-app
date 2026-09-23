@@ -729,6 +729,12 @@ function SiteDetails({
                 loadContent={loadAllocationPlanContent}
                 planSignsApi={planSignsApi}
                 plan={plan}
+                plans={allocationPlans.plans}
+                onSelectPlan={(id) => {
+                  const destination = `/sites/${siteId}/allocations/${id}`;
+                  if (navigate) navigate(destination);
+                  else window.location.assign(destination);
+                }}
               />
             ) : (
               <p className="grid min-h-[420px] place-items-center text-sm text-content-muted">

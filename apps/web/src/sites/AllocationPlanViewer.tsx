@@ -1,3 +1,4 @@
+/** @spec allocation-plan-single-file REQ-001..REQ-009 */
 /** @spec site-allocation-plan-preview REQ-005..REQ-013 @figma supplied 03.png */
 import {
   useCallback,
@@ -73,22 +74,32 @@ export async function renderPlan(
 }
 
 function scrollWithinPlan(element: HTMLDivElement, x: number, y: number) {
-  element.scrollLeft = Math.max(0, Math.min(x, element.scrollWidth - element.clientWidth));
-  element.scrollTop = Math.max(0, Math.min(y, element.scrollHeight - element.clientHeight));
+  element.scrollLeft = Math.max(
+    0,
+    Math.min(x, element.scrollWidth - element.clientWidth),
+  );
+  element.scrollTop = Math.max(
+    0,
+    Math.min(y, element.scrollHeight - element.clientHeight),
+  );
 }
 
 export function AllocationPlanViewer({
   plan,
+  plans = [plan],
+  onSelectPlan,
   loadContent,
   planSignsApi,
   render = renderPlan,
 }: {
   plan: AllocationPlan;
+  plans?: AllocationPlan[];
+  onSelectPlan?: (id: string) => void;
   planSignsApi?: PlanSignsApi | undefined;
   loadContent: (fileId?: string, signal?: AbortSignal) => Promise<Blob>;
   render?: (blob: Blob, signal?: AbortSignal) => Promise<RenderedPlan>;
 }) {
-  const [selectedId, setSelectedId] = useState(plan.files?.[0]?.id);
+  const selectedId = plan.files?.[0]?.id;
   const [drawerHost, setDrawerHost] = useState<HTMLElement | null>(null);
   const selected = plan.files?.find((file) => file.id === selectedId);
   const filename = selected?.filename ?? plan.filename ?? plan.name ?? 'Plan';
@@ -190,10 +201,13 @@ export function AllocationPlanViewer({
     }
     setDragging(false);
   }, []);
-  const changePanMode = useCallback((enabled: boolean) => {
-    stopDragging();
-    setHandActive(enabled);
-  }, [stopDragging]);
+  const changePanMode = useCallback(
+    (enabled: boolean) => {
+      stopDragging();
+      setHandActive(enabled);
+    },
+    [stopDragging],
+  );
 
   useEffect(() => {
     const keyDown = (event: KeyboardEvent) => {
@@ -210,7 +224,9 @@ export function AllocationPlanViewer({
         event.metaKey ||
         !pointerInside ||
         (event.target instanceof HTMLElement &&
-          !!event.target.closest('button, input, textarea, select, [role="menu"]'))
+          !!event.target.closest(
+            'button, input, textarea, select, [role="menu"]',
+          ))
       )
         return;
       event.preventDefault();
@@ -322,13 +338,30 @@ export function AllocationPlanViewer({
         tabIndex={0}
         aria-label="Plan viewport"
         onKeyDown={(event) => {
-          if (!handActive || event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-          const offsets: Record<string, [number, number]> = { ArrowLeft: [-40, 0], ArrowRight: [40, 0], ArrowUp: [0, -40], ArrowDown: [0, 40] };
+          if (
+            !handActive ||
+            event.target !== event.currentTarget ||
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey
+          )
+            return;
+          const offsets: Record<string, [number, number]> = {
+            ArrowLeft: [-40, 0],
+            ArrowRight: [40, 0],
+            ArrowUp: [0, -40],
+            ArrowDown: [0, 40],
+          };
           const offset = offsets[event.key];
           if (!offset) return;
           event.preventDefault();
           event.stopPropagation();
-          scrollWithinPlan(event.currentTarget, event.currentTarget.scrollLeft + offset[0], event.currentTarget.scrollTop + offset[1]);
+          scrollWithinPlan(
+            event.currentTarget,
+            event.currentTarget.scrollLeft + offset[0],
+            event.currentTarget.scrollTop + offset[1],
+          );
         }}
         style={{ touchAction: panEnabled ? 'none' : 'auto' }}
         onClickCapture={(event) => {
@@ -341,13 +374,24 @@ export function AllocationPlanViewer({
         }}
         onPointerDownCapture={(event) => {
           if (!event.currentTarget.contains(event.target as Node)) return;
-          if (!drag.current && event.button === 0 && event.isPrimary) suppressPanClick.current = false;
+          if (!drag.current && event.button === 0 && event.isPrimary)
+            suppressPanClick.current = false;
         }}
-        onPointerCancel={(event) => { if (drag.current?.pointerId === event.pointerId) stopDragging(); }}
-        onLostPointerCapture={(event) => { if (drag.current?.pointerId === event.pointerId) stopDragging(); }}
+        onPointerCancel={(event) => {
+          if (drag.current?.pointerId === event.pointerId) stopDragging();
+        }}
+        onLostPointerCapture={(event) => {
+          if (drag.current?.pointerId === event.pointerId) stopDragging();
+        }}
         onPointerDown={(event) => {
           if (!event.currentTarget.contains(event.target as Node)) return;
-          if (!panEnabled || event.button !== 0 || !event.isPrimary || drag.current) return;
+          if (
+            !panEnabled ||
+            event.button !== 0 ||
+            !event.isPrimary ||
+            drag.current
+          )
+            return;
           event.preventDefault();
           suppressPanClick.current = true;
           drag.current = {
@@ -364,11 +408,15 @@ export function AllocationPlanViewer({
         onPointerMove={(event) => {
           const activeDrag = drag.current;
           if (activeDrag?.pointerId !== event.pointerId) return;
-          scrollWithinPlan(event.currentTarget,
+          scrollWithinPlan(
+            event.currentTarget,
             activeDrag.scrollLeft + activeDrag.clientX - event.clientX,
-            activeDrag.scrollTop + activeDrag.clientY - event.clientY);
+            activeDrag.scrollTop + activeDrag.clientY - event.clientY,
+          );
         }}
-        onPointerUp={(event) => { if (drag.current?.pointerId === event.pointerId) stopDragging(); }}
+        onPointerUp={(event) => {
+          if (drag.current?.pointerId === event.pointerId) stopDragging();
+        }}
         ref={viewport}
       >
         {state.status === 'loading' ? (
@@ -464,11 +512,12 @@ export function AllocationPlanViewer({
       >
         <button
           ref={selectorButton}
+          autoFocus={plans.length > 1}
           type="button"
-          aria-label="Select plan file"
+          aria-label="Select allocation plan"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          disabled={(plan.files?.length ?? 1) < 2}
+          disabled={plans.length < 2 || !onSelectPlan}
           onClick={() => {
             setMenuOpen((open) => !open);
           }}
@@ -482,41 +531,45 @@ export function AllocationPlanViewer({
           <span className="mx-[10px] grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-white">
             <AppSymbol className="!size-4 text-[16px]">layers</AppSymbol>
           </span>
-          <span className="truncate pr-3" title={filename}>
-            {filename}
+          <span className="truncate pr-3" title={plan.name ?? filename}>
+            {plan.name ?? filename}
           </span>
         </button>
         {menuOpen && (
           <div
             role="menu"
-            aria-label="Plan files"
-            className="ml-[35px] overflow-hidden rounded-b border border-t-0 border-control-border bg-[#f4f4f5] shadow-site-card"
+            aria-label="Allocation plans"
+            className="ml-[35px] max-h-72 overflow-y-auto rounded-b border border-t-0 border-control-border bg-[#f4f4f5] shadow-site-card"
           >
-            {plan.files
-              ?.filter((file) => file.id !== selectedId)
-              .map((file) => (
-                <button
-                  key={file.id}
-                  type="button"
-                  role="menuitem"
-                  className="flex h-[38px] w-full items-center border-b border-control-border text-left last:border-b-0 hover:bg-white focus-visible:bg-white focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
-                  onClick={() => {
-                    setState({ status: 'loading' });
-                    setSelectedId(file.id);
-                    setMenuOpen(false);
-                    selectorButton.current?.focus();
-                  }}
-                >
-                  <span className="mx-[10px] grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-white">
-                    <AppSymbol className="!size-4 text-[16px]">
-                      layers
-                    </AppSymbol>
+            {plans.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="menuitem"
+                aria-current={item.id === plan.id ? 'page' : undefined}
+                className="flex h-[38px] w-full items-center border-b border-control-border text-left last:border-b-0 aria-[current=page]:bg-white aria-[current=page]:font-medium hover:bg-white focus-visible:bg-white focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
+                onClick={() => {
+                  if (item.id !== plan.id) onSelectPlan?.(item.id);
+                  setMenuOpen(false);
+                  selectorButton.current?.focus();
+                }}
+              >
+                <span className="mx-[10px] grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-white">
+                  <AppSymbol className="!size-4 text-[16px]">layers</AppSymbol>
+                </span>
+                <span className="min-w-0 pr-3">
+                  <span
+                    className="block truncate"
+                    title={item.name ?? item.filename}
+                  >
+                    {item.name ?? item.filename}
                   </span>
-                  <span className="truncate pr-3" title={file.filename}>
-                    {file.filename}
+                  <span className="block truncate text-[10px] text-content-muted">
+                    {item.files?.[0]?.filename ?? item.filename}
                   </span>
-                </button>
-              ))}
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -548,79 +601,81 @@ export function AllocationPlanViewer({
           </button>
         </div>
       )}
-      {!planSignsApi && <div
-        aria-label="Plan viewing controls"
-        className="absolute -left-8 -right-8 bottom-0 flex h-10 items-center border-t border-[#e2e2e7] bg-[#fafafa] px-8 text-[10px] leading-[14px] tracking-[0.2px] text-[#72727e] max-md:-left-5 max-md:-right-5 max-md:px-5"
-      >
-        <div className="flex w-[187px] shrink-0 items-center max-sm:w-[106px]">
-          <button
-            aria-label="Reset zoom"
-            title="Reset to fit (0)"
-            className="grid h-6 w-[30px] shrink-0 place-items-center rounded-sm text-[8px] focus-visible:outline-2 focus-visible:outline-focus"
-            onClick={() => {
-              changeZoom(100);
-            }}
-            type="button"
-          >
-            <span className="grid h-[22px] w-full place-items-center border border-[#eeeeF2] bg-white">
-              {zoom}%
-            </span>
-          </button>
-          <span
-            aria-hidden="true"
-            className="w-[11px] shrink-0 text-center text-[8px]"
-          >
-            +
-          </span>
-          <button
-            aria-label="Zoom in"
-            title="Zoom in (+)"
-            className="grid size-6 shrink-0 place-items-center rounded-sm text-[10px] focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-40"
-            disabled={zoom === 400}
-            onClick={() => {
-              changeZoom(zoom + 25);
-            }}
-            type="button"
-          >
+      {!planSignsApi && (
+        <div
+          aria-label="Plan viewing controls"
+          className="absolute -left-8 -right-8 bottom-0 flex h-10 items-center border-t border-[#e2e2e7] bg-[#fafafa] px-8 text-[10px] leading-[14px] tracking-[0.2px] text-[#72727e] max-md:-left-5 max-md:-right-5 max-md:px-5"
+        >
+          <div className="flex w-[187px] shrink-0 items-center max-sm:w-[106px]">
+            <button
+              aria-label="Reset zoom"
+              title="Reset to fit (0)"
+              className="grid h-6 w-[30px] shrink-0 place-items-center rounded-sm text-[8px] focus-visible:outline-2 focus-visible:outline-focus"
+              onClick={() => {
+                changeZoom(100);
+              }}
+              type="button"
+            >
+              <span className="grid h-[22px] w-full place-items-center border border-[#eeeeF2] bg-white">
+                {zoom}%
+              </span>
+            </button>
             <span
               aria-hidden="true"
-              className="grid h-[22px] w-[21px] place-items-center border border-[#eeeeF2] bg-white"
+              className="w-[11px] shrink-0 text-center text-[8px]"
             >
               +
             </span>
-          </button>
-          <span
-            aria-hidden="true"
-            className="w-[6px] shrink-0 text-center text-[8px]"
-          >
-            /
-          </span>
-          <button
-            aria-label="Zoom out"
-            title="Zoom out (-)"
-            className="grid size-6 shrink-0 place-items-center rounded-sm text-[10px] focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-40"
-            disabled={zoom === 25}
-            onClick={() => {
-              changeZoom(zoom - 25);
-            }}
-            type="button"
-          >
+            <button
+              aria-label="Zoom in"
+              title="Zoom in (+)"
+              className="grid size-6 shrink-0 place-items-center rounded-sm text-[10px] focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-40"
+              disabled={zoom === 400}
+              onClick={() => {
+                changeZoom(zoom + 25);
+              }}
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className="grid h-[22px] w-[21px] place-items-center border border-[#eeeeF2] bg-white"
+              >
+                +
+              </span>
+            </button>
             <span
               aria-hidden="true"
-              className="grid h-[22px] w-[21px] place-items-center border border-[#eeeeF2] bg-white"
+              className="w-[6px] shrink-0 text-center text-[8px]"
             >
-              -
+              /
             </span>
-          </button>
-          <span className="ml-px whitespace-nowrap max-sm:hidden">
-            Zoom in / out
-          </span>
+            <button
+              aria-label="Zoom out"
+              title="Zoom out (-)"
+              className="grid size-6 shrink-0 place-items-center rounded-sm text-[10px] focus-visible:outline-2 focus-visible:outline-focus disabled:opacity-40"
+              disabled={zoom === 25}
+              onClick={() => {
+                changeZoom(zoom - 25);
+              }}
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className="grid h-[22px] w-[21px] place-items-center border border-[#eeeeF2] bg-white"
+              >
+                -
+              </span>
+            </button>
+            <span className="ml-px whitespace-nowrap max-sm:hidden">
+              Zoom in / out
+            </span>
+          </div>
+          <kbd className="grid h-[22px] w-16 shrink-0 place-items-center border border-[#eeeef2] bg-white font-sans text-[8px] tracking-[0.5px]">
+            SPACEBAR
+          </kbd>
+          <span className="ml-1 whitespace-nowrap">Hold to navigate</span>
         </div>
-        <kbd className="grid h-[22px] w-16 shrink-0 place-items-center border border-[#eeeef2] bg-white font-sans text-[8px] tracking-[0.5px]">
-          SPACEBAR
-        </kbd>
-        <span className="ml-1 whitespace-nowrap">Hold to navigate</span>
-      </div>}
+      )}
       <span aria-live="polite" className="sr-only">
         Zoom {zoom}%
       </span>

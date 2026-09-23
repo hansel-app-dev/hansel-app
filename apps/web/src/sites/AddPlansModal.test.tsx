@@ -83,9 +83,9 @@ describe('allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012', ()
     const props = setup();
     select([file()]);
     expect(
-      screen.queryByText('Drag your file(s) here to get started'),
+      screen.queryByText('Drag your file here to get started'),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('Add plans here')).toBeVisible();
+    expect(screen.getByText('Allocation file')).toBeVisible();
     expect(
       screen.getByRole('list', { name: 'Allocation files' }),
     ).toBeVisible();
@@ -97,20 +97,24 @@ describe('allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012', ()
     expect(props.createBatch).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Remove plan.pdf' }));
     expect(
-      screen.getByText('Drag your file(s) here to get started'),
+      screen.getByText('Drag your file here to get started'),
     ).toBeVisible();
   });
-  it('verifies multiple files without committing, then creates one named allocation', async () => {
+  it('allocation-plan-single-file REQ-002: rejects multiple files without losing the selected file', async () => {
     const props = setup();
-    select([file('one.pdf'), file('two.pdf')]);
+    select([file('one.pdf')]);
+    select([file('two.pdf'), file('three.pdf')]);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Choose exactly one file per allocation.',
+    );
+    expect(screen.getByText('one.pdf')).toBeVisible();
+    expect(screen.queryByText('two.pdf')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Add Allocation' }),
       ).toBeEnabled(),
     );
-    expect(props.finalize).toHaveBeenCalledTimes(2);
-    expect(props.commit).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
     await waitFor(() => {
       expect(props.onComplete).toHaveBeenCalledOnce();
@@ -118,10 +122,7 @@ describe('allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012', ()
     expect(props.commit).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Ground floor',
-        uploadIds: [
-          '00000000-0000-4000-8000-000000000001',
-          '00000000-0000-4000-8000-000000000002',
-        ],
+        uploadIds: ['00000000-0000-4000-8000-000000000001'],
       }),
     );
   });
@@ -203,20 +204,14 @@ describe('allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012', ()
     });
     expect(commit.mock.calls[0]).toEqual(commit.mock.calls[1]);
   });
-  it('rejects unsupported and duplicate selections', async () => {
+  it('allocation-plan-single-file REQ-002: rejects unsupported and duplicate selections', () => {
     setup();
     select([new File(['x'], 'file.txt', { type: 'text/plain' })]);
     expect(screen.getByRole('alert')).toHaveTextContent('PNG');
     select([file(), file()]);
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent('duplicate'),
-    );
-    const remove = screen.getAllByRole('button', {
-      name: 'Remove plan.pdf',
-    })[0];
-    if (!remove) throw new Error('Expected remove action');
-    fireEvent.click(remove);
+    expect(screen.getByRole('alert')).toHaveTextContent('exactly one');
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    select([file()]);
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
   });
   it('can retry batch creation after a network failure', async () => {

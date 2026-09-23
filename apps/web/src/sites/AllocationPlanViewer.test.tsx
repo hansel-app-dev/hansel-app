@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AllocationPlanViewer, renderPlan } from './AllocationPlanViewer.js';
 
@@ -38,56 +39,62 @@ const plan = {
 };
 
 describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]', () => {
-  it('allocation-plan-toolbar REQ-001, REQ-005: replaces help strip and resets Move on file change', async () => {
-    const files = ['Ground.png', 'First.png'].map((filename, index) => ({ id: String(index), filename, mediaType: 'image/png' as const, byteSize: 3 }));
-    const api = { load: vi.fn().mockResolvedValue({ signs: [], canManageSigns: true }), create: vi.fn(), update: vi.fn(), remove: vi.fn() };
-    render(<AllocationPlanViewer plan={{ ...plan, files }} planSignsApi={api} loadContent={() => Promise.resolve(new Blob())} render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })} />);
-    await waitFor(() => { expect(screen.getByRole('button', { name: 'Add sign' })).toBeEnabled(); });
-    expect(screen.queryByLabelText('Plan viewing controls')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Add sign' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'First.png' }));
-    await screen.findByRole('img', { name: 'First.png' });
-    expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByLabelText('Plan zoom')).toBeVisible();
-  });
-  it('switches ordered files and resets zoom [allocation-details-design AC-001]', async () => {
-    const files = ['Ground.png', 'First.png'].map((filename, index) => ({
-      id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
-      filename,
-      mediaType: 'image/png' as const,
-      byteSize: 3,
+  it('allocation-plan-single-file REQ-003..005: switches plans and resets zoom, drawing and Signs', async () => {
+    const plans = ['Ground', 'First'].map((name, index) => ({
+      ...plan,
+      id: String(index),
+      name,
+      files: [
+        {
+          id: `file-${String(index)}`,
+          filename: `${name}.png`,
+          mediaType: 'image/png' as const,
+          byteSize: 3,
+        },
+      ],
     }));
+    const api = {
+      load: vi.fn().mockResolvedValue({ signs: [], canManageSigns: true }),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    };
     const load = vi.fn().mockResolvedValue(new Blob());
-    render(
-      <AllocationPlanViewer
-        plan={{ ...plan, name: 'Building', files }}
-        loadContent={load}
-        render={() => Promise.resolve({ src: 'preview.png', release: vi.fn() })}
-      />,
-    );
+    function Harness() {
+      const [selected, setSelected] = useState(plans[0] ?? plan);
+      return (
+        <AllocationPlanViewer
+          key={selected.id}
+          plan={selected}
+          plans={plans}
+          onSelectPlan={(id) => {
+            setSelected(plans.find((item) => item.id === id) ?? selected);
+          }}
+          planSignsApi={api}
+          loadContent={load}
+          render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })}
+        />
+      );
+    }
+    render(<Harness />);
     await screen.findByRole('img', { name: 'Ground.png' });
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'First.png' }));
-    await screen.findByRole('img', { name: 'First.png' });
-    expect(load).toHaveBeenLastCalledWith(
-      files[1]?.id,
-      expect.any(AbortSignal),
+    fireEvent.click(screen.getByRole('button', { name: 'Increase plan zoom' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add sign' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Select allocation plan' }),
     );
-    expect(
-      screen.getByRole('button', { name: 'Reset zoom' }),
-    ).toHaveTextContent('100%');
+    expect(screen.getAllByRole('menuitem')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('menuitem', { name: /First/ }));
+    await screen.findByRole('img', { name: 'First.png' });
+    expect(load).toHaveBeenLastCalledWith('file-1', expect.any(AbortSignal));
+    expect(screen.getByLabelText('Plan zoom')).toHaveTextContent('100%');
+    expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
-
-  it('aborts obsolete files and retries the selected file [allocation-details-design AC-003]', async () => {
-    const files = ['Ground.png', 'First.png'].map((filename, index) => ({
-      id: `00000000-0000-4000-8000-00000000000${String(index + 1)}`,
-      filename,
-      mediaType: 'image/png' as const,
-      byteSize: 3,
-    }));
+  it('allocation-plan-single-file REQ-005: cancels obsolete plan reads and retries the current plan', async () => {
     let finish: ((blob: Blob) => void) | undefined;
     const load = vi
       .fn()
@@ -104,23 +111,26 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       .mockResolvedValue({ src: 'current.png', release: vi.fn() });
     const view = render(
       <AllocationPlanViewer
-        plan={{ ...plan, files }}
+        key="first"
+        plan={plan}
         loadContent={load}
         render={renderer}
       />,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'First.png' }));
+    view.rerender(
+      <AllocationPlanViewer
+        key="second"
+        plan={{ ...plan, id: 'second', filename: 'Second.png' }}
+        loadContent={load}
+        render={renderer}
+      />,
+    );
     await screen.findByRole('button', { name: 'Retry' });
     expect(load.mock.calls[0]?.[1].aborted).toBe(true);
     finish?.(new Blob());
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await screen.findByRole('img', { name: 'First.png' });
+    await screen.findByRole('img', { name: 'Second.png' });
     expect(renderer).toHaveBeenCalledOnce();
-    expect(load).toHaveBeenLastCalledWith(
-      files[1]?.id,
-      expect.any(AbortSignal),
-    );
     view.unmount();
     expect(load.mock.calls[2]?.[1].aborted).toBe(true);
   });
@@ -285,8 +295,10 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
       releasePointerCapture: vi.fn(),
     });
     Object.defineProperties(viewport, {
-      clientWidth: { value: 400 }, clientHeight: { value: 300 },
-      scrollWidth: { value: 1000 }, scrollHeight: { value: 800 },
+      clientWidth: { value: 400 },
+      clientHeight: { value: 300 },
+      scrollWidth: { value: 1000 },
+      scrollHeight: { value: 800 },
     });
 
     fireEvent.pointerEnter(viewer);

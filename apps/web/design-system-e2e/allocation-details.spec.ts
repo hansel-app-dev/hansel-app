@@ -6,10 +6,10 @@ test('allocation-details-design AC-002, AC-004: reference geometry, selection an
 }) => {
   await page.setViewportSize({ width: 1512, height: 982 });
   await page.goto(
-    '/iframe.html?id=sites-allocation-plan-viewer--multiple-files&viewMode=story',
+    '/iframe.html?id=sites-allocation-plan-viewer--multiple-plans&viewMode=story',
   );
   await expect(page.getByRole('img')).toBeVisible();
-  const selector = page.getByRole('button', { name: 'Select plan file' });
+  const selector = page.getByRole('button', { name: 'Select allocation plan' });
   expect(await selector.boundingBox()).toMatchObject({
     x: 332,
     y: 171,
@@ -35,7 +35,7 @@ test('allocation-details-design AC-002, AC-004: reference geometry, selection an
     await page.getByText('SPACEBAR', { exact: true }).boundingBox(),
   ).toMatchObject({ x: 519, width: 64, height: 22 });
   await selector.click();
-  await expect(page.getByRole('menuitem')).toHaveCount(3);
+  await expect(page.getByRole('menuitem')).toHaveCount(4);
   expect(await page.getByRole('menu').boundingBox()).toMatchObject({
     x: 367,
     y: 209,
@@ -45,7 +45,7 @@ test('allocation-details-design AC-002, AC-004: reference geometry, selection an
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(
-    page.getByRole('img', { name: 'Second Floor.png' }),
+    page.getByRole('img', { name: 'First Floor.png' }),
   ).toBeVisible();
   await expect(selector).toBeFocused();
   const accessibility = await new AxeBuilder({ page })
@@ -60,7 +60,7 @@ test('allocation-details-design AC-002: narrow viewport has no horizontal docume
 }) => {
   await page.setViewportSize({ width: 320, height: 768 });
   await page.goto(
-    '/iframe.html?id=sites-allocation-plan-viewer--multiple-files&viewMode=story',
+    '/iframe.html?id=sites-allocation-plan-viewer--multiple-plans&viewMode=story',
   );
   await expect(page.getByRole('img')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
@@ -74,14 +74,14 @@ test('allocation-details-design AC-002: 200% zoom retains reachable controls', a
 }) => {
   await page.setViewportSize({ width: 1512, height: 982 });
   await page.goto(
-    '/iframe.html?id=sites-allocation-plan-viewer--multiple-files&viewMode=story',
+    '/iframe.html?id=sites-allocation-plan-viewer--multiple-plans&viewMode=story',
   );
   await expect(page.getByRole('img')).toBeVisible();
   await page.evaluate(() => {
     document.documentElement.style.zoom = '2';
   });
   await expect(
-    page.getByRole('button', { name: 'Select plan file' }),
+    page.getByRole('button', { name: 'Select allocation plan' }),
   ).toBeInViewport();
   await expect(page.getByRole('button', { name: 'Zoom in' })).toBeVisible();
   expect(

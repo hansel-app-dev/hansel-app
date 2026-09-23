@@ -15,7 +15,7 @@ describe('allocation-plan-multiple-files REQ-002, REQ-008', () => {
     for (const name of ['', '  ', 'x\nname', 'x'.repeat(201)])
       expect(allocationPlanNameSchema.safeParse(name).success).toBe(false);
   });
-  it('requires unique ordered file intents and bounded strict input', () => {
+  it('allocation-plan-single-file REQ-001: requires exactly one file intent', () => {
     const id = '00000000-0000-4000-8000-000000000001';
     const input = {
       name: 'Plan',
@@ -28,6 +28,7 @@ describe('allocation-plan-multiple-files REQ-002, REQ-008', () => {
     for (const uploadIds of [
       [],
       [id, id],
+      [id, '00000000-0000-4000-8000-000000000002'],
       Array.from({ length: 21 }, () => id),
     ])
       expect(

@@ -6,7 +6,7 @@ import { createAllocationPlansFeature } from './allocation-plans.js';
 import { createPrismaAllocationPlanStore } from './prisma-allocation-plan-store.js';
 
 it.skipIf(process.env.ALLOCATION_DRAFT_INTEGRATION !== 'true')(
-  'REQ-001, REQ-008..010: verifies privately, commits ordered files once, preserves legacy plans and rejects foreign/expired files',
+  'REQ-001, REQ-008..010: verifies privately, commits a single file once, preserves legacy plans and rejects foreign/expired files',
   async () => {
     const prisma = new PrismaClient();
     const siteId = randomUUID();
@@ -54,7 +54,7 @@ it.skipIf(process.env.ALLOCATION_DRAFT_INTEGRATION !== 'true')(
       });
       const batch = await feature.createBatch(principal, siteId, {
         idempotencyKey: randomUUID(),
-        files: ['one.pdf', 'two.pdf'].map((filename) => ({
+        files: ['one.pdf'].map((filename) => ({
           filename,
           mediaType: 'application/pdf',
           byteSize: bytes.length,
@@ -77,7 +77,6 @@ it.skipIf(process.env.ALLOCATION_DRAFT_INTEGRATION !== 'true')(
       expect(first.plan.id).toBe(second.plan.id);
       expect(first.plan.name).toBe('Ground floor');
       expect(first.plan.files?.map((file) => file.filename)).toEqual([
-        'two.pdf',
         'one.pdf',
       ]);
       expect(first.plan.filename).toBeUndefined();
@@ -183,7 +182,7 @@ it.skipIf(process.env.ALLOCATION_DRAFT_INTEGRATION !== 'true')(
       });
       expect(
         collection.plans.find((plan) => plan.id === first.plan.id)?.files,
-      ).toHaveLength(2);
+      ).toHaveLength(1);
       await expect(
         feature.commit(principal, randomUUID(), input),
       ).rejects.toThrow();

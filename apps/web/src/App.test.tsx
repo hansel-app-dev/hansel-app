@@ -704,9 +704,10 @@ describe('App [REQ-002]', () => {
     });
   });
 
-  it('opens a finalized Allocation Plan in the private viewer [site-allocation-plan-preview AC-001]', async () => {
+  it('allocation-plan-single-file REQ-003..005: switches plan routes and restores history selection', async () => {
     const siteId = 'ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9';
     const planId = 'a87f107e-ac6e-46a7-b46c-11a86dd56c74';
+    const otherPlanId = 'a87f107e-ac6e-46a7-b46c-11a86dd56c75';
     Object.assign(URL, {
       createObjectURL: vi.fn().mockReturnValue('blob:plan'),
       revokeObjectURL: vi.fn(),
@@ -714,7 +715,7 @@ describe('App [REQ-002]', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
-        if (url.endsWith(`/${planId}/content`))
+        if (url.endsWith('/content'))
           return Promise.resolve(
             new Response('png', {
               headers: { 'content-type': 'image/png' },
@@ -755,17 +756,17 @@ describe('App [REQ-002]', () => {
             : url.endsWith('/allocation-plans')
               ? {
                   canAddPlans: true,
-                  plans: [
-                    {
-                      id: planId,
-                      filename: 'Ground Floor.png',
-                      mediaType: 'image/png',
-                      byteSize: 3,
-                      createdAt: '2026-09-06T00:00:00.000Z',
-                      modifiedAt: '2026-09-06T00:00:00.000Z',
-                      uploadedBy: 'Owner',
-                    },
-                  ],
+                  plans: [planId, otherPlanId].map((id, index) => ({
+                    id,
+                    name: index === 0 ? 'Ground' : 'First',
+                    filename:
+                      index === 0 ? 'Ground Floor.png' : 'First Floor.png',
+                    mediaType: 'image/png',
+                    byteSize: 3,
+                    createdAt: '2026-09-06T00:00:00.000Z',
+                    modifiedAt: '2026-09-06T00:00:00.000Z',
+                    uploadedBy: 'Owner',
+                  })),
                 }
               : { site: { id: siteId, name: 'Direct site' } };
         return Promise.resolve(new Response(JSON.stringify(value)));
@@ -775,6 +776,23 @@ describe('App [REQ-002]', () => {
     expect(
       await screen.findByRole('img', { name: 'Ground Floor.png' }),
     ).toHaveAttribute('src', 'blob:plan');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Select allocation plan' }),
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: /First/ }));
+    await screen.findByRole('img', { name: 'First Floor.png' });
+    expect(window.location.pathname).toBe(
+      `/sites/${siteId}/allocations/${otherPlanId}`,
+    );
+    act(() => {
+      window.history.replaceState(
+        {},
+        '',
+        `/sites/${siteId}/allocations/${planId}`,
+      );
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await screen.findByRole('img', { name: 'Ground Floor.png' });
   });
 
   it.each(['/sites/allocations', '/sites/not-a-site/allocations'])(

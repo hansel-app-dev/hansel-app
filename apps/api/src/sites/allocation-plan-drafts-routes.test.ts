@@ -74,6 +74,23 @@ it('REQ-001, REQ-008: draft routes enforce feature flag, session, origin, strict
         })
     ).status,
   ).toBe(409);
+  // allocation-plan-single-file REQ-001: no backend mutation for invalid cardinality.
+  for (const uploadIds of [
+    [],
+    [siteId, '00000000-0000-4000-8000-000000000002'],
+  ]) {
+    expect(
+      (
+        await request(app)
+          .post(`${url}/commit`)
+          .set('Cookie', 'hansel_access=token')
+          .set('Origin', config.allowedOrigin)
+          .send({ name: 'Plan', idempotencyKey: 'x'.repeat(32), uploadIds })
+      ).status,
+    ).toBe(400);
+  }
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- inspect mock call count only
+  expect(sites.commitAllocationPlanDraft).toHaveBeenCalledOnce();
   const disabled = createApp(
     { ...config, allocationPlanDraftsEnabled: false },
     undefined,

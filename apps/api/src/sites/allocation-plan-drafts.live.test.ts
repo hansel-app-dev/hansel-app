@@ -8,7 +8,7 @@ import { loadConfig } from '../config.js';
 import { createS3AllocationPlanObjectStore } from './s3-allocation-plan-object-store.js';
 
 it.skipIf(process.env.ALLOCATION_DRAFT_LIVE !== 'true')(
-  'creates one real named allocation from two browser-uploaded files and cleans only its fixtures',
+  'creates one real named allocation from one browser-uploaded file and cleans only its fixtures',
   async () => {
     const databaseUrl = new URL(process.env.DATABASE_URL ?? 'http://invalid');
     if (!['localhost', '127.0.0.1'].includes(databaseUrl.hostname))
@@ -76,9 +76,11 @@ it.skipIf(process.env.ALLOCATION_DRAFT_LIVE !== 'true')(
       const page = await context.newPage();
       await page.goto(`http://localhost:5173/sites/${siteId}/allocations`);
       await page.getByRole('button', { name: 'Add plan', exact: true }).click();
-      await page.getByLabel('Allocation name').fill('Multi-file browser check');
+      await page
+        .getByLabel('Allocation name')
+        .fill('Single-file browser check');
       await page.getByLabel('Choose allocation files').setInputFiles(
-        ['ground.png', 'first.png'].map((name) => ({
+        ['ground.png'].map((name) => ({
           name,
           mimeType: 'image/png',
           buffer: Buffer.from(
@@ -110,7 +112,7 @@ it.skipIf(process.env.ALLOCATION_DRAFT_LIVE !== 'true')(
       await add.click();
       await page.getByRole('dialog').waitFor({ state: 'hidden' });
       await page
-        .getByText('Multi-file browser check', { exact: true })
+        .getByText('Single-file browser check', { exact: true })
         .waitFor();
       expect(documentLoads).toBe(0);
       const plans = await prisma.allocationPlan.findMany({
@@ -120,7 +122,6 @@ it.skipIf(process.env.ALLOCATION_DRAFT_LIVE !== 'true')(
       expect(plans).toHaveLength(1);
       expect(plans[0]?.files.map((file) => file.filename)).toEqual([
         'ground.png',
-        'first.png',
       ]);
       expect(
         await prisma.activity.count({
@@ -129,16 +130,16 @@ it.skipIf(process.env.ALLOCATION_DRAFT_LIVE !== 'true')(
       ).toBe(1);
       // allocation-details-design AC-001: real private bytes and SPA file switching.
       await page
-        .getByRole('link', { name: 'Multi-file browser check', exact: true })
+        .getByRole('link', { name: 'Single-file browser check', exact: true })
         .click();
       await page
         .getByRole('img', { name: 'ground.png', exact: true })
         .waitFor();
-      await page.getByRole('button', { name: 'Select plan file' }).click();
-      await page
-        .getByRole('menuitem', { name: 'first.png', exact: true })
-        .click();
-      await page.getByRole('img', { name: 'first.png', exact: true }).waitFor();
+      expect(
+        await page
+          .getByRole('button', { name: 'Select allocation plan' })
+          .isDisabled(),
+      ).toBe(true);
       expect(documentLoads).toBe(0);
       const canvas = await page.getByTestId('plan-pan-viewport').boundingBox();
       expect(canvas?.y).toBe(151);

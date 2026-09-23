@@ -1,3 +1,4 @@
+/** @spec allocation-plan-single-file REQ-001..REQ-009 */
 import { z } from 'zod';
 
 /** @spec allocation-plan-multiple-files REQ-002, REQ-008 */
@@ -23,11 +24,7 @@ export const commitAllocationPlanDraftRequestSchema = z
   .object({
     name: allocationPlanNameSchema,
     idempotencyKey: z.string().min(32).max(200),
-    uploadIds: z
-      .array(z.uuid())
-      .min(1)
-      .max(20)
-      .refine((ids) => new Set(ids).size === ids.length),
+    uploadIds: z.array(z.uuid()).length(1),
   })
   .strict();
 export type CommitAllocationPlanDraftRequest = z.infer<

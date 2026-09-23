@@ -1,3 +1,4 @@
+/** @spec allocation-plan-single-file REQ-001..REQ-009 */
 /** @spec allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012 */
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -63,7 +64,6 @@ export function AddPlansModal({
   const [stage, setStage] = useState<'select' | 'upload'>('select');
   const [error, setError] = useState('');
   const [preparing, setPreparing] = useState(false);
-  const [retryPreparation, setRetryPreparation] = useState(false);
   const [creating, setCreating] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const generation = useRef(0);
@@ -166,8 +166,8 @@ export function AddPlansModal({
         return;
       }
     }
-    if (files.length + current.current.length > 20) {
-      setError('Choose no more than 20 files.');
+    if (files.length + current.current.length > 1) {
+      setError('Choose exactly one file per allocation.');
       return;
     }
     setError('');
@@ -229,7 +229,6 @@ export function AddPlansModal({
     if (starting.current || !validName.success || !current.current.length)
       return;
     starting.current = true;
-    setRetryPreparation(false);
     setPreparing(true);
     setError('');
     const run = generation.current;
@@ -278,7 +277,6 @@ export function AddPlansModal({
       if (run === generation.current) {
         if (failure instanceof AllocationDraftFilesRejectedError)
           batchKey.current = crypto.randomUUID();
-        setRetryPreparation(true);
         setError('We couldn’t start the upload. Please try again.');
       }
     } finally {
@@ -322,7 +320,6 @@ export function AddPlansModal({
           })),
         );
         setStage('select');
-        setRetryPreparation(true);
         setError(
           'The uploaded files expired or were rejected. Press Next to upload them again.',
         );
@@ -438,7 +435,6 @@ export function AddPlansModal({
                 ref={picker}
                 aria-label="Choose allocation files"
                 type="file"
-                multiple
                 accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                 className="sr-only"
                 tabIndex={-1}
@@ -497,7 +493,7 @@ export function AddPlansModal({
                       />
                     </svg>
                     <p className="mt-[21px] text-[14px] leading-5">
-                      Drag your file(s) here to get started
+                      Drag your file here to get started
                     </p>
                     <div className="my-2 flex w-[246px] max-w-[85%] items-center gap-[10px] text-[14px] leading-5">
                       <span className="h-px flex-1 bg-[#dce1e9]" />
@@ -520,7 +516,7 @@ export function AddPlansModal({
               ) : (
                 <>
                   <p className="mb-6 mt-6 text-[14px] leading-5">
-                    Add plans here
+                    Allocation file
                   </p>
                   <ul aria-label="Allocation files" className="space-y-3">
                     {rows.map((row) => (
@@ -643,12 +639,7 @@ export function AddPlansModal({
                 <button
                   className={primary}
                   type="button"
-                  disabled={
-                    preparing ||
-                    !rows.length ||
-                    !validName.success ||
-                    (Boolean(error) && !retryPreparation)
-                  }
+                  disabled={preparing || !rows.length || !validName.success}
                   onClick={() => void start()}
                 >
                   {preparing ? 'Preparing…' : 'Next'}

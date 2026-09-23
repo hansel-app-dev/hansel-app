@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { AllocationPlanViewer } from './AllocationPlanViewer.js';
+import { useState } from 'react';
 import type { PlanSign } from '@hansel/contracts';
 
 afterEach(() => {
@@ -55,22 +56,35 @@ async function setup(canManageSigns = true) {
     update: vi.fn(),
     remove: vi.fn(),
   };
-  const view = render(
-    <AllocationPlanViewer
-      plan={{
-        ...plan,
-        files: ['Plan.png', 'Second.png'].map((filename, i) => ({
+  function Plans() {
+    const plans = ['Plan.png', 'Second.png'].map((filename, i) => ({
+      ...plan,
+      id: String(i),
+      filename,
+      files: [
+        {
           id: String(i),
           filename,
-          mediaType: 'image/png',
+          mediaType: 'image/png' as const,
           byteSize: 3,
-        })),
-      }}
-      planSignsApi={api}
-      loadContent={() => Promise.resolve(new Blob())}
-      render={() => Promise.resolve({ src: 'preview.png', release: vi.fn() })}
-    />,
-  );
+        },
+      ],
+    }));
+    const [selectedId, setSelectedId] = useState('0');
+    const selected = plans.find((item) => item.id === selectedId) ?? plan;
+    return (
+      <AllocationPlanViewer
+        key={selected.id}
+        plan={selected}
+        plans={plans}
+        onSelectPlan={setSelectedId}
+        planSignsApi={api}
+        loadContent={() => Promise.resolve(new Blob())}
+        render={() => Promise.resolve({ src: 'preview.png', release: vi.fn() })}
+      />
+    );
+  }
+  const view = render(<Plans />);
   const marker = await screen.findByRole('button', {
     name: 'Select sign SG.001',
   });
@@ -251,9 +265,11 @@ it('REQ-004..006: file changes reset Hand and capture; controls and modified key
   );
   expect(screen.getByRole('region')).not.toHaveClass('cursor-grabbing');
   pointer(viewport, 'pointerdown');
-  fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Second.png' }));
-  await screen.findByRole('img', { name: 'Second.png' });
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Select allocation plan' }),
+  );
+  fireEvent.click(screen.getByRole('menuitem', { name: /Second.png/ }));
+  await screen.findByRole('img', { name: /Second.png/ });
   expect(screen.getByRole('button', { name: 'Move' })).toHaveAttribute(
     'aria-pressed',
     'true',
