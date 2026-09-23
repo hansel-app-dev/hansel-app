@@ -31,3 +31,7 @@ The aggregate `pnpm verify` gate also stops at existing formatting failures outs
 ## Operational checks
 
 After deployment, check API health, create and reload an Area on an accessible plan, verify the Schedule is unchanged, and confirm a Viewer cannot mutate it. Inspect categorical `plan_area_<method>_success` / `plan_area_<method>_failure` events for write failures or repeated conflicts. Events must not include Area content, codes, credentials or file data. The change adds no new telemetry provider or dashboard.
+
+## Label placement correction
+
+The Area code badge sits outside the rectangle at its upper-right edge, matching the applied design. Near the drawing’s right edge it moves above the rectangle to remain reachable. Placement follows the live move preview. The browser regression checks the badge’s position against the rectangle bounds; it failed before the correction.

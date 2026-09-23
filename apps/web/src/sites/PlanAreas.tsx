@@ -656,7 +656,11 @@ export function PlanAreas({
             >
               <span
                 className="absolute top-0 max-w-[180px] truncate whitespace-nowrap rounded-sm bg-[#1677cc] px-2 text-sm leading-6 text-white"
-                style={a.x + a.width < 0.25 ? { left: 0 } : { right: 0 }}
+                style={
+                  rect.x + rect.width > 0.85
+                    ? { right: 0, top: 'auto', bottom: '100%' }
+                    : { left: '100%' }
+                }
                 title={a.code}
               >
                 {a.code}

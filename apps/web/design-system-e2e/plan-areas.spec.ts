@@ -33,6 +33,14 @@ test('rectangle menu, drawing, edit, move, deletion and keyboard creation', asyn
   await expect(page.getByRole('combobox', { name: 'Colour' })).toHaveText(
     'Blue',
   );
+  const rectangle = page.getByRole('button', { name: 'Select area Ar.02' });
+  const rectangleBox = await rectangle.boundingBox();
+  const labelBox = await rectangle.locator('span[title]').boundingBox();
+  if (!rectangleBox || !labelBox) throw new Error('Missing area label');
+  expect(labelBox.x).toBeGreaterThanOrEqual(
+    rectangleBox.x + rectangleBox.width - 1,
+  );
+  expect(Math.abs(labelBox.y - rectangleBox.y)).toBeLessThanOrEqual(1);
   await page.getByLabel('Area code').fill('Zone A');
   await page.getByLabel('Area code').press('Tab');
   await expect(
