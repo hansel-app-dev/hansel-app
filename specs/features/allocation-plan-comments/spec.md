@@ -1,7 +1,8 @@
 # Feature: Allocation Plan Comment tool
 
 - ID: `allocation-plan-comments`
-- Status: `draft`
+- Status: `approved`
+- Approval: User explicitly approved this published specification on 2026-09-23.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-23`
