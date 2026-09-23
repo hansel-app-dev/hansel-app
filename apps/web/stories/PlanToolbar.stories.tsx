@@ -1,3 +1,4 @@
+/** @spec allocation-plan-toolbar-icons REQ-004: supplied artwork in all existing states */
 /** @spec allocation-plan-toolbar REQ-001..007 */
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
