@@ -18,6 +18,14 @@ Before enabling password recovery, deploy both additive password-recovery migrat
 
 Before enabling Sites, deploy the additive site, grant, invitation, idempotency, and delivery-intent migration while `SITES_ENABLED` is false. Confirm the PostgreSQL serializable concurrency test, Owner/Administrator creation boundary, Free one-site and invitation limits, tenant-isolated Activity read, Resend sender/domain, one controlled Viewer invitation, and the desktop and 320-pixel Add Site journeys. Enable `enable_sites` only after these gates pass.
 
+## AWS service network access
+
+The stack retains the S3 gateway endpoint and routes ECR API/Docker, CloudWatch Logs and Secrets Manager HTTPS requests through the existing NAT gateways. No paid interface endpoints are provisioned. API tasks remain in private application subnets without public IP addresses; database subnets remain isolated. Non-production has one NAT gateway and production has two.
+
+When deploying this network configuration, inspect the change set for removal of only the four interface endpoints and their dedicated security groups. Confirm application-subnet NAT routes and the S3 gateway remain. Start a fresh task and confirm image download, secret injection, `/api/health`, a new CloudWatch log entry and private storage access. Synthesis cannot verify these live dependencies. If task startup or log delivery fails because of NAT connectivity, restore the endpoint definitions from the preceding revision and redeploy through the protected workflow.
+
+Removing endpoints saves their per-AZ hourly and endpoint processing charges; the affected traffic now incurs NAT processing and potentially cross-AZ transfer charges. This repository change does not itself deploy or delete live AWS resources.
+
 ## Roll back
 
 Disable Welcome delivery first, then re-deploy the last known-good Git commit/image. ECS circuit breaker automatically rolls back unhealthy tasks. Leave the additive delivery table and its pending, delivered, and terminal evidence in place; do not reverse a destructive database migration or delete pending intents. Deploy a forward repair before resuming claims. CloudFront invalidation occurs with web asset deployment.

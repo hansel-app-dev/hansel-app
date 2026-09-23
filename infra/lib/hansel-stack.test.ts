@@ -22,6 +22,70 @@ function template(
 }
 
 describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites-add-new REQ-023]', () => {
+  it.each(['development', 'staging', 'production'])(
+    '%s uses NAT without paid endpoints [remove-interface-endpoints REQ-001, REQ-002, REQ-003]',
+    (stage) => {
+      const output = template(stage);
+      output.resourceCountIs('AWS::EC2::VPCEndpoint', 1);
+      output.hasResourceProperties('AWS::EC2::VPCEndpoint', {
+        VpcEndpointType: 'Gateway',
+        ServiceName: {
+          'Fn::Join': ['', ['com.amazonaws.', { Ref: 'AWS::Region' }, '.s3']],
+        },
+      });
+      output.resourceCountIs(
+        'AWS::EC2::NatGateway',
+        stage === 'production' ? 2 : 1,
+      );
+      const [service] = Object.values(
+        output.findResources('AWS::ECS::Service'),
+      );
+      if (!service) throw new Error('Missing API service');
+      const network =
+        service.Properties.NetworkConfiguration.AwsvpcConfiguration;
+      expect(network.AssignPublicIp).toBe('DISABLED');
+      const associations = Object.values(
+        output.findResources('AWS::EC2::SubnetRouteTableAssociation'),
+      );
+      const routes = Object.values(output.findResources('AWS::EC2::Route'));
+      const natGateways = output.findResources('AWS::EC2::NatGateway');
+      for (const subnet of network.Subnets) {
+        const association = associations.find(
+          (item) => item.Properties.SubnetId.Ref === subnet.Ref,
+        );
+        expect(association).toBeDefined();
+        const route = routes.find(
+          (item) =>
+            item.Properties.RouteTableId.Ref ===
+              association?.Properties.RouteTableId.Ref &&
+            item.Properties.DestinationCidrBlock === '0.0.0.0/0',
+        );
+        expect(route).toBeDefined();
+        expect(Object.keys(natGateways)).toContain(
+          route?.Properties.NatGatewayId.Ref,
+        );
+      }
+      const [databaseSubnets] = Object.values(
+        output.findResources('AWS::RDS::DBSubnetGroup'),
+      );
+      if (!databaseSubnets) throw new Error('Missing database subnet group');
+      for (const subnet of databaseSubnets.Properties.SubnetIds) {
+        const association = associations.find(
+          (item) => item.Properties.SubnetId.Ref === subnet.Ref,
+        );
+        expect(association).toBeDefined();
+        expect(
+          routes.filter(
+            (item) =>
+              item.Properties.RouteTableId.Ref ===
+                association?.Properties.RouteTableId.Ref &&
+              item.Properties.DestinationCidrBlock === '0.0.0.0/0',
+          ),
+        ).toHaveLength(0);
+      }
+    },
+  );
+
   it('uses private compute and an encrypted, protected production database', () => {
     const output = template('production');
     output.hasResourceProperties('AWS::RDS::DBCluster', {

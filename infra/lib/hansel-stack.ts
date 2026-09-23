@@ -79,16 +79,7 @@ export class HanselStack extends cdk.Stack {
     vpc.addGatewayEndpoint('S3Endpoint', {
       service: ec2.GatewayVpcEndpointAwsService.S3,
     });
-    for (const [name, service] of [
-      ['EcrApi', ec2.InterfaceVpcEndpointAwsService.ECR],
-      ['EcrDocker', ec2.InterfaceVpcEndpointAwsService.ECR_DOCKER],
-      ['CloudWatchLogs', ec2.InterfaceVpcEndpointAwsService.CLOUDWATCH_LOGS],
-      ['SecretsManager', ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER],
-    ] as const)
-      vpc.addInterfaceEndpoint(`${name}Endpoint`, {
-        service,
-        privateDnsEnabled: true,
-      });
+    // AWS service HTTPS traffic uses existing NAT egress; S3 keeps its gateway endpoint.
 
     const databaseSecret = new secretsmanager.Secret(this, 'DatabaseSecret', {
       generateSecretString: {
