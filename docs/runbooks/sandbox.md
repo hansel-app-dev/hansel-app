@@ -22,7 +22,7 @@ pnpm --filter @hansel/infra exec cdk synth --app 'pnpm exec tsx bin/sandbox.ts' 
 
 Add `--context budgetEmail=YOUR_EMAIL` to enable budget notifications. Review the template, then deploy only that template with AWS CloudFormation to the exact stack name `Hansel-sandbox` using `CAPABILITY_NAMED_IAM`. This does not require the production CDK app or production pipeline. The template outputs the IP and the two bucket names. Bootstrap installs Docker and Compose without any secrets. Wait for cloud-init completion before release activation.
 
-Use the authenticated Lightsail `get-instance-access-details` response to verify the SSH host public key before constructing `known_hosts`; never trust `ssh-keyscan` by itself or disable strict host verification. Save all private operational files outside the repository.
+Prefer the authenticated Lightsail `get-instance-access-details` host keys when constructing `known_hosts`. Some new instances return an empty host-key list. For initial trust on a fresh sandbox only, confirm the static IP and its instance attachment through the authenticated AWS API, collect and pin the first SSH host key, then enforce strict checking on every connection. This fallback is trust on first use, not independent cryptographic verification of the host. Never silently replace a known key or disable strict checking during release transfer. Save all private operational files outside the repository.
 
 ## Runtime settings
 
@@ -40,7 +40,7 @@ On a build machine with Node 24, pnpm and Docker, after checks and a commit:
 
 ```sh
 bash deploy/sandbox/build-release.sh sandbox /absolute/path/outside/repository
-bash deploy/sandbox/ship-release.sh sandbox STATIC_IP SSH_KEY VERIFIED_KNOWN_HOSTS /absolute/path/outside/repository/COMMIT_SHA
+bash deploy/sandbox/ship-release.sh sandbox STATIC_IP SSH_KEY PINNED_KNOWN_HOSTS /absolute/path/outside/repository/COMMIT_SHA
 ```
 
 The build uses a clean Git archive, builds Linux amd64 images outside Lightsail and records image content IDs. A sandbox-only image layer regenerates the Prisma client after dependency packaging; the existing production Dockerfile is unchanged. The unmodified API image failed a cold-start smoke test because its packaged client was missing, so production image readiness must be checked separately before any future production release. The release directory is named after the source commit and includes checksums. Transfer uses SSH with strict pinned host checking. Activation checks the sandbox marker and checksums, locks against concurrent releases, starts PostgreSQL, and runs `scripts/migrate.mjs` before replacing API/web services. Migration failures stop activation. Existing additive migration policy applies; no destructive rollback is attempted.

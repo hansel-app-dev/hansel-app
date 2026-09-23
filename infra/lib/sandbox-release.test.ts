@@ -71,3 +71,35 @@ describe('Sandbox release progression [lightsail-sandbox REQ-005]', () => {
     },
   );
 });
+
+describe('Sandbox bootstrap [lightsail-sandbox REQ-002]', () => {
+  it('runs through the POSIX shell used by Lightsail user data', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'sandbox-bootstrap-'));
+    try {
+      const bin = join(scratch, 'bin');
+      mkdirSync(bin);
+      for (const command of ['apt-get', 'systemctl'])
+        writeFileSync(join(bin, command), '#!/bin/sh\nexit 0\n', {
+          mode: 0o755,
+        });
+      const config = join(scratch, 'config');
+      const script = readFileSync(
+        new URL('../../deploy/sandbox/bootstrap.sh', import.meta.url),
+        'utf8',
+      )
+        .replaceAll('/etc/hansel-sandbox', config)
+        .replaceAll('/opt/hansel-sandbox', join(scratch, 'app'));
+      const result = spawnSync('sh', ['-s'], {
+        input: script,
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` },
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(readFileSync(join(config, 'environment'), 'utf8')).toBe(
+        'sandbox\n',
+      );
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+});
