@@ -40,21 +40,50 @@ export const signFunctionSchema = z.enum(signFunctionOptions);
 const appearance = {
   mounting: signMountingSchema,
   function: signFunctionSchema,
-  colour: z.literal('Red'),
+  colour: z.enum(['Red', 'Orange']),
   orientation: planSignOrientationSchema,
 };
+const coordinate = z.number().min(0).max(1);
+const endpoints = {
+  endX: coordinate.nullable().optional(),
+  endY: coordinate.nullable().optional(),
+};
+const placementKind = z.enum(['point', 'linear']).optional();
+function validPlacement(value: {
+  placementKind?: 'point' | 'linear' | undefined;
+  x: number;
+  y: number;
+  endX?: number | null | undefined;
+  endY?: number | null | undefined;
+}) {
+  return value.placementKind === 'linear'
+    ? typeof value.endX === 'number' &&
+        typeof value.endY === 'number' &&
+        (value.x !== value.endX || value.y !== value.endY)
+    : value.endX == null && value.endY == null;
+}
 export const planSignCreateSchema = z
   .object({
     fileId: z.uuid().nullable(),
+    placementKind,
+    ...endpoints,
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
     idempotencyKey: z.uuid(),
     mounting: signMountingSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine(validPlacement, 'Provide valid placement endpoints')
+  .refine(
+    (value) =>
+      value.placementKind !== 'linear' || value.mounting === 'Safety Decal',
+    'Linear Type must be Safety Decal',
+  );
 export const planSignPatchSchema = z
   .object({
     expectedUpdatedAt: z.iso.datetime(),
+    endX: coordinate.optional(),
+    endY: coordinate.optional(),
     x: z.number().min(0).max(1).optional(),
     y: z.number().min(0).max(1).optional(),
     code: text(40).pipe(z.string().min(1)).optional(),
@@ -70,6 +99,16 @@ export const planSignPatchSchema = z
     'Provide both coordinates',
   )
   .refine(
+    (value) =>
+      (value.endX === undefined && value.endY === undefined) ||
+      (value.x !== undefined &&
+        value.y !== undefined &&
+        value.endX !== undefined &&
+        value.endY !== undefined &&
+        (value.x !== value.endX || value.y !== value.endY)),
+    'Provide complete distinct endpoints',
+  )
+  .refine(
     (value) => Object.keys(value).some((key) => key !== 'expectedUpdatedAt'),
     'Provide a changed field',
   );
@@ -80,6 +119,8 @@ export const planSignSchema = z
   .object({
     id: z.uuid(),
     fileId: z.uuid().nullable(),
+    placementKind,
+    ...endpoints,
     x: z.number().min(0).max(1),
     y: z.number().min(0).max(1),
     code: text(40).pipe(z.string().min(1)),
@@ -92,7 +133,15 @@ export const planSignSchema = z
       z.literal('Wayfinder').transform(() => 'Directional' as const),
     ]),
   })
-  .strict();
+  .strict()
+  .refine(validPlacement, 'Provide valid placement endpoints')
+  .refine(
+    (value) =>
+      value.placementKind === 'linear'
+        ? value.mounting === 'Safety Decal' && value.colour === 'Orange'
+        : value.colour === 'Red',
+    'Invalid placement appearance',
+  );
 export const planSignsResponseSchema = z
   .object({
     canManageSigns: z.boolean(),

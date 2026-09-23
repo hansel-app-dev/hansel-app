@@ -63,9 +63,7 @@ test('supplied cursors follow tools, auto-Move and temporary pan without replaci
   await page.keyboard.press('Enter');
   await page.getByRole('menuitem', { name: 'Floor' }).click();
   await expect(drawing).toHaveCSS('cursor', /move_cursor\.png/);
-  await expect(
-    page.getByRole('button', { name: 'Line (coming soon)' }),
-  ).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add linear' })).toBeEnabled();
   await expect(
     page.getByRole('button', { name: 'Comment (coming soon)' }),
   ).toBeDisabled();

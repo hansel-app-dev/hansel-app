@@ -8,10 +8,12 @@ import { SignAttributeSelect } from './SignAttributeSelect.js';
 
 export function SignMountingSelect({
   value,
+  options = signMountingOptions,
   onChange,
   disabled = false,
 }: {
   value: SignMounting;
+  options?: readonly SignMounting[] | undefined;
   onChange: (value: SignMounting) => void;
   disabled?: boolean;
 }) {
@@ -19,7 +21,7 @@ export function SignMountingSelect({
     <SignAttributeSelect
       label="Type"
       value={value}
-      options={signMountingOptions}
+      options={options}
       disabled={disabled}
       onChange={(option) => {
         onChange(signMountingSchema.parse(option));

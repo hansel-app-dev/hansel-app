@@ -781,6 +781,9 @@ model SignPhotoObject {
   @@index([expiresAt])
 }
 model SignPlacement {
+  placementKind String @default("point") @db.VarChar(8)
+  endX Float?
+  endY Float?
   signId   String @id @db.Uuid
   tenantId String @db.Uuid
   siteId   String @db.Uuid

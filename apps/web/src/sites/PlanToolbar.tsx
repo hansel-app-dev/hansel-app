@@ -1,5 +1,5 @@
 /** @spec allocation-plan-toolbar REQ-001..002, REQ-007 */
-export type PlanTool = 'move' | 'hand' | 'add' | 'area';
+export type PlanTool = 'move' | 'hand' | 'add' | 'area' | 'line';
 
 /** @spec allocation-plan-toolbar-icons REQ-001..REQ-004 */
 const tools = [
@@ -13,7 +13,7 @@ const tools = [
   },
   {
     id: 'line',
-    label: 'Line (coming soon)',
+    label: 'Add linear',
     icon: '/assets/add_linear_toolbar.png',
   },
   {
@@ -58,7 +58,8 @@ export function PlanToolbar({
             item.id === 'move' ||
             item.id === 'hand' ||
             item.id === 'add' ||
-            item.id === 'area'
+            item.id === 'area' ||
+            item.id === 'line'
               ? tool === item.id
               : undefined
           }
@@ -66,7 +67,9 @@ export function PlanToolbar({
             disabled ||
             (item.id !== 'move' &&
               item.id !== 'hand' &&
-              (item.id === 'area' ? !canAddArea : item.id !== 'add' || !canAdd))
+              (item.id === 'area'
+                ? !canAddArea
+                : (item.id !== 'add' && item.id !== 'line') || !canAdd))
           }
           onClick={
             item.id === 'move'
@@ -78,7 +81,13 @@ export function PlanToolbar({
                     onChange('hand');
                   }
                 : () => {
-                    onChange(item.id === 'area' ? 'area' : 'add');
+                    onChange(
+                      item.id === 'area'
+                        ? 'area'
+                        : item.id === 'line'
+                          ? 'line'
+                          : 'add',
+                    );
                   }
           }
           className={`grid size-[34px] shrink-0 place-items-center rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff] disabled:cursor-not-allowed ${tool === item.id ? 'bg-[#4096ff] text-white' : 'text-[#27272a] enabled:hover:bg-[#f4f4f5]'}`}

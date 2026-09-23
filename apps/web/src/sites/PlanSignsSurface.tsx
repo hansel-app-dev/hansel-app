@@ -1,3 +1,5 @@
+import { PlanLinearLayer, type PlanLinearHandle } from './PlanLinearLayer.js';
+import type { LinearGeometry } from './linear-geometry.js';
 import { planCursor } from './plan-tool-cursors.js';
 import { PlanAreas, type PlanAreasHandle } from './PlanAreas.js';
 /** @spec allocation-plan-signs REQ-001..002, REQ-005..013 */
@@ -59,6 +61,7 @@ export function PlanSignsSurface({
   viewScale?: number;
   children: ReactNode;
 }) {
+  const linearRef = useRef<PlanLinearHandle>(null);
   const areaRef = useRef<PlanAreasHandle>(null);
   const [areaBusy, setAreaBusy] = useState(false);
   const service = useRef(api);
@@ -352,7 +355,13 @@ export function PlanSignsSurface({
     }
   }
   function create(input: PlanSignCreate) {
-    if (tool !== 'add' || !canManage || panning || !leave()) return;
+    if (
+      (tool !== 'add' && tool !== 'line') ||
+      !canManage ||
+      panning ||
+      !leave()
+    )
+      return;
     void mutate(
       async () => {
         const sign = await service.current.create(input);
@@ -363,6 +372,21 @@ export function PlanSignsSurface({
         ]);
         select(sign);
         setTool('move');
+        if (input.placementKind === 'linear')
+          requestAnimationFrame(() => {
+            if (
+              active.current &&
+              (document.activeElement === document.body ||
+                document.activeElement?.getAttribute('aria-label') ===
+                  'Linear drawing')
+            ) {
+              drawing.current
+                ?.querySelector<HTMLButtonElement>(
+                  `button[aria-label="Select sign ${CSS.escape(sign.code)}"]`,
+                )
+                ?.focus({ preventScroll: true });
+            }
+          });
       },
       () => {
         create(input);
@@ -397,6 +421,12 @@ export function PlanSignsSurface({
   }
   function save(changes: Omit<PlanSignPatch, 'expectedUpdatedAt'>) {
     if (!selected || !canManage || conflict) return;
+    if (
+      Object.entries(changes).every(
+        ([key, value]) => selected[key as keyof PlanSign] === value,
+      )
+    )
+      return;
     const input = planSignPatchSchema.safeParse({
       expectedUpdatedAt: selected.updatedAt,
       ...changes,
@@ -419,6 +449,26 @@ export function PlanSignsSurface({
       },
       () => {
         save(changes);
+      },
+    );
+  }
+  async function transformLinear(sign: PlanSign, geometry: LinearGeometry) {
+    if (!canManage || panning || tool !== 'move' || busy.current || conflict)
+      return;
+    await mutate(
+      async () => {
+        const saved = await service.current.update(sign.id, {
+          expectedUpdatedAt: sign.updatedAt,
+          ...geometry,
+        });
+        if (!active.current) return;
+        setSigns((current) =>
+          current.map((item) => (item.id === saved.id ? saved : item)),
+        );
+        select(saved);
+      },
+      () => {
+        void transformLinear(sign, geometry);
       },
     );
   }
@@ -592,6 +642,11 @@ export function PlanSignsSurface({
                 <div className="mt-5 space-y-4 text-sm">
                   <SignMountingSelect
                     key={selected.id}
+                    options={
+                      selected.placementKind === 'linear'
+                        ? ['Safety Decal']
+                        : undefined
+                    }
                     value={selected.mounting}
                     disabled={!canManage || pending}
                     onChange={(mounting) => {
@@ -612,16 +667,24 @@ export function PlanSignsSurface({
                     key={`${selected.id}-colour`}
                     label="Colour"
                     value={selected.colour}
-                    options={['Red']}
+                    options={
+                      selected.placementKind === 'linear' ? ['Orange'] : ['Red']
+                    }
                     disabled={!canManage || pending}
                     icon={
                       <span
                         aria-hidden="true"
-                        className="size-5 shrink-0 rounded-full bg-[#f45b00]"
+                        className="size-5 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor:
+                            selected.colour === 'Orange'
+                              ? '#ff7a00'
+                              : '#f45b00',
+                        }}
                       />
                     }
                     onChange={() => {
-                      save({ colour: 'Red' });
+                      // Both placement kinds currently have one fixed colour.
                     }}
                   />
                   <fieldset>
@@ -658,6 +721,21 @@ export function PlanSignsSurface({
                     />
                   </label>
                 </div>
+                {selected.placementKind === 'linear' && (
+                  <label className="mt-2 flex items-center gap-1 text-xs text-[#72727e]">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-label="Doubleside"
+                      aria-checked={false}
+                      disabled
+                      className="h-5 w-[30px] rounded-full bg-[#d4d4d8] p-[2px]"
+                    >
+                      <span className="block size-4 rounded-full bg-white" />
+                    </button>
+                    Doubleside
+                  </label>
+                )}
                 <div className="mt-2 min-h-4">{notice}</div>
                 {canManage && (
                   <button
@@ -781,6 +859,10 @@ export function PlanSignsSurface({
               areaRef.current?.clear();
             }
           }
+          if (tool === 'line') {
+            linearRef.current?.keyDown(event);
+            return;
+          }
           if (tool === 'area') {
             areaRef.current?.keyDown(event);
             return;
@@ -843,102 +925,129 @@ export function PlanSignsSurface({
             }}
           />
         )}
-        {signs.map((sign) => (
-          <button
-            type="button"
-            key={sign.id}
-            aria-label={`Select sign ${sign.code}`}
-            onPointerDown={(event) => {
-              startMove(event, sign);
-            }}
-            onPointerMove={updateMove}
-            onPointerUp={finishMove}
-            onPointerCancel={cancelDrag}
-            onLostPointerCapture={cancelDrag}
-            onDragStart={(event) => {
-              event.preventDefault();
-            }}
-            onKeyDown={(event) => {
-              if (
-                !event.altKey ||
-                !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
-                  event.key,
+        <PlanLinearLayer
+          ref={linearRef}
+          signs={signs.filter((sign) => sign.placementKind === 'linear')}
+          selectedId={selected?.id}
+          tool={tool}
+          panning={panning}
+          canManage={canManage}
+          blocked={pending || areaBusy || unsaved || conflict || !!deleteTarget}
+          fileId={fileId}
+          viewScale={viewScale}
+          host={drawerHost}
+          beforeCreate={() => {
+            if (!leave()) return false;
+            select(null);
+            return true;
+          }}
+          onSelect={(sign) => {
+            if (!leave()) return false;
+            select(sign);
+            setTool('move');
+            return true;
+          }}
+          onCreate={create}
+          onTransform={transformLinear}
+        />
+        {signs
+          .filter((sign) => sign.placementKind !== 'linear')
+          .map((sign) => (
+            <button
+              type="button"
+              key={sign.id}
+              aria-label={`Select sign ${sign.code}`}
+              onPointerDown={(event) => {
+                startMove(event, sign);
+              }}
+              onPointerMove={updateMove}
+              onPointerUp={finishMove}
+              onPointerCancel={cancelDrag}
+              onLostPointerCapture={cancelDrag}
+              onDragStart={(event) => {
+                event.preventDefault();
+              }}
+              onKeyDown={(event) => {
+                if (
+                  !event.altKey ||
+                  !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
+                    event.key,
+                  )
                 )
-              )
-                return;
-              event.preventDefault();
-              event.stopPropagation();
-              if (
-                tool !== 'move' ||
-                unsaved ||
-                busy.current ||
-                areaBusy ||
-                areaRef.current?.blocked() ||
-                !canManage ||
-                panning ||
-                conflict
-              )
-                return;
-              moveSign(
-                sign,
-                Math.max(
-                  0,
-                  Math.min(
-                    1,
-                    sign.x +
-                      (event.key === 'ArrowRight'
-                        ? 0.01
-                        : event.key === 'ArrowLeft'
-                          ? -0.01
-                          : 0),
+                  return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (
+                  tool !== 'move' ||
+                  unsaved ||
+                  busy.current ||
+                  areaBusy ||
+                  areaRef.current?.blocked() ||
+                  !canManage ||
+                  panning ||
+                  conflict
+                )
+                  return;
+                moveSign(
+                  sign,
+                  Math.max(
+                    0,
+                    Math.min(
+                      1,
+                      sign.x +
+                        (event.key === 'ArrowRight'
+                          ? 0.01
+                          : event.key === 'ArrowLeft'
+                            ? -0.01
+                            : 0),
+                    ),
                   ),
-                ),
-                Math.max(
-                  0,
-                  Math.min(
-                    1,
-                    sign.y +
-                      (event.key === 'ArrowDown'
-                        ? 0.01
-                        : event.key === 'ArrowUp'
-                          ? -0.01
-                          : 0),
+                  Math.max(
+                    0,
+                    Math.min(
+                      1,
+                      sign.y +
+                        (event.key === 'ArrowDown'
+                          ? 0.01
+                          : event.key === 'ArrowUp'
+                            ? -0.01
+                            : 0),
+                    ),
                   ),
-                ),
-              );
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (panning || tool === 'hand') return;
-              if (suppressClick.current) {
-                suppressClick.current = false;
-                return;
-              }
-              if (leave()) select(sign);
-            }}
-            style={{
-              left: `${String((preview?.id === sign.id ? preview.x : sign.x) * 100)}%`,
-              top: `${String((preview?.id === sign.id ? preview.y : sign.y) * 100)}%`,
-              cursor:
-                panning || tool === 'hand' || canManage
-                  ? planCursor(tool, panning)
-                  : 'pointer',
-              touchAction:
-                tool === 'move' && canManage && !panning ? 'none' : 'auto',
-            }}
-            className={`absolute z-10 flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}
-          >
-            <span className="grid size-6 shrink-0 place-items-center rounded-full border border-white bg-[#f45b00] shadow-sm">
-              {arrows[directions.indexOf(sign.orientation)]}
-            </span>
-            <span
-              className="max-w-[180px] truncate rounded-sm bg-[#f45b00] px-2 leading-6"
-              title={sign.code}
+                );
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (panning || tool === 'hand') return;
+                if (suppressClick.current) {
+                  suppressClick.current = false;
+                  return;
+                }
+                if (leave()) select(sign);
+              }}
+              style={{
+                left: `${String((preview?.id === sign.id ? preview.x : sign.x) * 100)}%`,
+                top: `${String((preview?.id === sign.id ? preview.y : sign.y) * 100)}%`,
+                cursor:
+                  panning || tool === 'hand' || canManage
+                    ? planCursor(tool, panning)
+                    : 'pointer',
+                touchAction:
+                  tool === 'move' && canManage && !panning ? 'none' : 'auto',
+              }}
+              className={`absolute z-10 flex h-6 -translate-x-3 -translate-y-3 items-center gap-[2px] whitespace-nowrap text-sm text-white ${selected?.id === sign.id ? 'outline outline-2 outline-offset-4 outline-dashed outline-[#4096ff]' : ''}`}
             >
-              {sign.code}
-            </span>
-          </button>
-        ))}
+              <span className="grid size-6 shrink-0 place-items-center rounded-full border border-white bg-[#f45b00] shadow-sm">
+                {arrows[directions.indexOf(sign.orientation)]}
+              </span>
+              <span
+                className="max-w-[180px] truncate rounded-sm bg-[#f45b00] px-2 leading-6"
+                title={sign.code}
+              >
+                {sign.code}
+              </span>
+            </button>
+          ))}
       </div>
       {placement &&
         drawerHost &&

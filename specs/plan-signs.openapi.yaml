@@ -1,4 +1,4 @@
-# allocation-plan-signs REQ-001,007..012
+# allocation-plan-signs REQ-001,007..012; allocation-plan-add-linear REQ-001,004,008,010
 collection:
   parameters:
     - {
@@ -39,7 +39,7 @@ collection:
   post:
     operationId: createPlanSign
     summary: Atomically create a Sign and placement; requires MANAGE_SIGNS and exact Origin
-    description: Tenant-scoped idempotency key retries return the same Sign. Changed payload conflicts. Generated Site-wide code is editable; defaults to Plan signs group and Directional Function. Legacy stored Wayfinder values are read as Directional.
+    description: Tenant-scoped idempotency key retries return the same Sign. Changed payload conflicts. Generated Site-wide code is editable; defaults to Plan signs group and Directional Function. Legacy stored Wayfinder values are read as Directional. Linear placements require distinct endpoints and Safety Decal, default to Orange and Regulatory/Statutory, and receive Site-unique Pr.01-style codes.
     security: [{ applicationAccess: [] }]
     requestBody:
       required: true
@@ -49,7 +49,24 @@ collection:
             type: object
             additionalProperties: false
             required: [fileId, x, y, idempotencyKey]
+            allOf:
+              - if:
+                  properties: { placementKind: { const: linear } }
+                  required: [placementKind]
+                then:
+                  required: [endX, endY, mounting]
+                  properties:
+                    endX: { type: number, minimum: 0, maximum: 1 }
+                    endY: { type: number, minimum: 0, maximum: 1 }
+                    mounting: { const: Safety Decal }
+                else:
+                  properties:
+                    endX: { type: 'null' }
+                    endY: { type: 'null' }
             properties:
+              placementKind: { enum: [point, linear], default: point }
+              endX: { type: [number, 'null'], minimum: 0, maximum: 1 }
+              endY: { type: [number, 'null'], minimum: 0, maximum: 1 }
               fileId: { type: [string, 'null'], format: uuid }
               x: { type: number, minimum: 0, maximum: 1 }
               y: { type: number, minimum: 0, maximum: 1 }
@@ -108,6 +125,7 @@ item:
       }
   patch:
     operationId: updatePlanSign
+    description: Placement kind is immutable. Linear geometry updates require all four bounded coordinates and distinct endpoints; Linear Type/Colour are fixed Safety Decal/Orange. Point Colour remains Red. Geometry and shared Sign timestamp update atomically.
     summary: Update shared Sign with updatedAt concurrency; MANAGE_SIGNS and exact Origin required
     security: [{ applicationAccess: [] }]
     requestBody:
@@ -118,10 +136,13 @@ item:
             type: object
             additionalProperties: false
             minProperties: 2
-            dependentRequired: { x: [y], y: [x] }
+            dependentRequired:
+              { x: [y], y: [x], endX: [x, y, endY], endY: [x, y, endX] }
             required: [expectedUpdatedAt]
             properties:
               expectedUpdatedAt: { type: string, format: date-time }
+              endX: { type: number, minimum: 0, maximum: 1 }
+              endY: { type: number, minimum: 0, maximum: 1 }
               x: { type: number, minimum: 0, maximum: 1 }
               y: { type: number, minimum: 0, maximum: 1 }
               code: { type: string, minLength: 1, maxLength: 40 }
@@ -150,7 +171,7 @@ item:
                       Regulatory/Statutory,
                     ],
                 }
-              colour: { const: Red }
+              colour: { enum: [Red, Orange] }
               orientation:
                 {
                   enum:
@@ -236,7 +257,26 @@ sign:
       colour,
       orientation,
     ]
+  allOf:
+    - if:
+        properties: { placementKind: { const: linear } }
+        required: [placementKind]
+      then:
+        required: [endX, endY]
+        properties:
+          endX: { type: number, minimum: 0, maximum: 1 }
+          endY: { type: number, minimum: 0, maximum: 1 }
+          mounting: { const: Safety Decal }
+          colour: { const: Orange }
+      else:
+        properties:
+          endX: { type: 'null' }
+          endY: { type: 'null' }
+          colour: { const: Red }
   properties:
+    placementKind: { enum: [point, linear] }
+    endX: { type: [number, 'null'], minimum: 0, maximum: 1 }
+    endY: { type: [number, 'null'], minimum: 0, maximum: 1 }
     id: { type: string, format: uuid }
     fileId: { type: [string, 'null'], format: uuid }
     x: { type: number, minimum: 0, maximum: 1 }
@@ -263,7 +303,7 @@ sign:
         enum:
           [Identification, Directional, Informational, Regulatory/Statutory],
       }
-    colour: { const: Red }
+    colour: { enum: [Red, Orange] }
     orientation:
       {
         enum: [left, up-left, up, up-right, right, down-right, down, down-left],

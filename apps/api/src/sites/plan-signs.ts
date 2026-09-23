@@ -1,4 +1,5 @@
 /** @spec allocation-plan-signs REQ-001..004, REQ-007..012 */
+import { ZodError } from 'zod';
 import { createHash } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import {
@@ -25,6 +26,9 @@ const dto = (
   planSignSchema.parse({
     id: row.signId,
     fileId: row.fileId,
+    placementKind: row.placementKind,
+    endX: row.endX,
+    endY: row.endY,
     x: row.x,
     y: row.y,
     code: row.sign.code,
@@ -157,8 +161,13 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
             fileId: input.fileId,
             x: input.x,
             y: input.y,
+            ...(input.placementKind === 'linear'
+              ? { placementKind: 'linear', endX: input.endX, endY: input.endY }
+              : {}),
             // Preserve digests for legacy/default Wall-mounted requests.
-            ...(input.mounting && input.mounting !== 'Wall-mounted' ? { mounting: input.mounting } : {}),
+            ...(input.mounting && input.mounting !== 'Wall-mounted'
+              ? { mounting: input.mounting }
+              : {}),
           }),
         )
         .digest('hex');
@@ -190,9 +199,17 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
         });
         if (existing.length >= 5000) throw new SignageConflictError();
         const occupied = new Set(existing.map((sign) => sign.normalizedCode));
+        const linear = input.placementKind === 'linear';
+        const prefix = linear ? 'Pr.' : 'SG.';
+        const digits = linear ? 2 : 3;
         let index = 1;
-        while (occupied.has(`sg.${String(index).padStart(3, '0')}`)) index++;
-        const code = `SG.${String(index).padStart(3, '0')}`;
+        while (
+          occupied.has(
+            `${prefix}${String(index).padStart(digits, '0')}`.toLowerCase(),
+          )
+        )
+          index++;
+        const code = `${prefix}${String(index).padStart(digits, '0')}`;
         let group = await db.signType.findUnique({
           where: {
             tenantId_siteId_normalizedName: {
@@ -226,7 +243,8 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
             code,
             normalizedCode: code.toLowerCase(),
             mounting: input.mounting ?? 'Wall-mounted',
-            function: 'Directional',
+            function: linear ? 'Regulatory/Statutory' : 'Directional',
+            colour: linear ? 'Orange' : 'Red',
           },
         });
         const placement = await db.signPlacement.create({
@@ -236,6 +254,9 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
             planId,
             fileId: input.fileId,
             signId: sign.id,
+            placementKind: linear ? 'linear' : 'point',
+            endX: input.endX ?? null,
+            endY: input.endY ?? null,
             x: input.x,
             y: input.y,
           },
@@ -275,7 +296,22 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
         changes.orientation = data.orientation;
       return transact(async (db) => {
         await authorize(db, p, siteId, planId, true);
-        await placed(db, p.tenantId, siteId, planId, signId);
+        const placement = await placed(db, p.tenantId, siteId, planId, signId);
+        // REQ-008,010: validate against persisted kind, never trust a client discriminator.
+        const linear = placement.placementKind === 'linear';
+        planSignSchema.parse({ ...dto(placement), ...data });
+        if (
+          (linear && data.x !== undefined && data.endX === undefined) ||
+          (!linear && data.endX !== undefined)
+        ) {
+          throw new ZodError([
+            {
+              code: 'custom',
+              path: ['endX'],
+              message: 'Provide geometry matching the saved placement kind',
+            },
+          ]);
+        }
         const result = await db.sign.updateMany({
           where: {
             id: signId,
@@ -294,7 +330,13 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
         if (data.x !== undefined && data.y !== undefined) {
           await db.signPlacement.update({
             where: { signId },
-            data: { x: data.x, y: data.y },
+            data: {
+              x: data.x,
+              y: data.y,
+              ...(linear && data.endX !== undefined && data.endY !== undefined
+                ? { endX: data.endX, endY: data.endY }
+                : {}),
+            },
           });
         }
         return dto(await placed(db, p.tenantId, siteId, planId, signId));

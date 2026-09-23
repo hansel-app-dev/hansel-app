@@ -60,6 +60,7 @@ _Avoid_: Sign when referring to an Area annotation
 
 **Sign**:
 A managed signage record identified by a code and described by its type and state.
+A Sign may have a point or straight Linear placement on an Allocation Plan. A Linear Sign remains the same shared Sign in the Signage Schedule, with two endpoints; it is distinct from an Area annotation. The approved initial Linear appearance is Safety Decal/Orange with editable Function.
 _Avoid_: Marker, Pin
 
 **Document**:

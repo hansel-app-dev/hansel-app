@@ -10,7 +10,7 @@ export function AddSignMenu({
   onChoose,
   onDismiss,
 }: {
-  kind?: 'sign' | 'area';
+  kind?: 'sign' | 'area' | 'line';
   point: { x: number; y: number };
   bounds: { left: number; top: number; right: number; bottom: number };
   onChoose: (mounting: SignMounting) => void;
@@ -84,7 +84,13 @@ export function AddSignMenu({
     <div
       ref={setElement}
       role="menu"
-      aria-label={kind === 'area' ? 'Add area type' : 'Add sign type'}
+      aria-label={
+        kind === 'line'
+          ? 'Add linear type'
+          : kind === 'area'
+            ? 'Add area type'
+            : 'Add sign type'
+      }
       style={{
         ...position,
         maxHeight: Math.max(40, (bounds.bottom - bounds.top) / scale),
@@ -121,24 +127,31 @@ export function AddSignMenu({
       }}
     >
       <div className="flex h-10 items-center border-b border-[#e2e2e7] px-2.5 text-xs font-medium">
-        {kind === 'area' ? 'Add area' : 'Add sign'}
+        {kind === 'line'
+          ? 'Add linear sign'
+          : kind === 'area'
+            ? 'Add area'
+            : 'Add sign'}
       </div>
-      {(kind === 'area' ? (['Floor'] as const) : signMountingOptions).map(
-        (value) => (
-          <button
-            key={value}
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              onChoose(value);
-            }}
-            className="flex h-10 w-full items-center gap-2.5 border-b border-[#e2e2e7] px-2.5 text-left text-sm hover:bg-[#f4f4f5] focus-visible:bg-[#f1f5f9] focus-visible:outline-none"
-          >
-            <SignMountingIcon value={value} />
-            {value}
-          </button>
-        ),
-      )}
+      {(kind === 'line'
+        ? (['Safety Decal'] as const)
+        : kind === 'area'
+          ? (['Floor'] as const)
+          : signMountingOptions
+      ).map((value) => (
+        <button
+          key={value}
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            onChoose(value);
+          }}
+          className="flex h-10 w-full items-center gap-2.5 border-b border-[#e2e2e7] px-2.5 text-left text-sm hover:bg-[#f4f4f5] focus-visible:bg-[#f1f5f9] focus-visible:outline-none"
+        >
+          <SignMountingIcon value={value} />
+          {value}
+        </button>
+      ))}
       <button
         type="button"
         role="menuitem"

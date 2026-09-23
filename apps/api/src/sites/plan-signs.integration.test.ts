@@ -1,7 +1,8 @@
 /** @spec sign-additional-type-options REQ-001..REQ-006 */
 import { randomUUID } from 'node:crypto';
-import { PrismaClient } from '@prisma/client';
-import { expect, it } from 'vitest';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { expect, it, vi } from 'vitest';
+import { createSignageScheduleFeature } from './signage-schedule.js';
 import { createPlanSignsFeature } from './plan-signs.js';
 
 it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
@@ -41,6 +42,23 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
         },
       });
       const feature = createPlanSignsFeature(db);
+      expect(
+        (
+          await feature.load(
+            { ...principal, roleId: 'editor' },
+            siteId,
+            plan.id,
+            null,
+          )
+        ).canManageSigns,
+      ).toBe(true);
+      await expect(
+        feature.load(principal, siteId, randomUUID(), null),
+      ).rejects.toThrow();
+      await expect(
+        feature.load(principal, siteId, plan.id, randomUUID()),
+      ).rejects.toThrow();
+
       const input = {
         fileId: null,
         x: 0.4,
@@ -91,6 +109,108 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
           plan.id,
           null,
         ),
+      ).rejects.toThrow();
+      // allocation-plan-add-linear REQ-001,004,007..010: one shared Sign, atomic geometry, fixed appearance.
+      const linearInput = {
+        ...input,
+        placementKind: 'linear' as const,
+        mounting: 'Safety Decal' as const,
+        endX: 0.8,
+        endY: 0.6,
+        idempotencyKey: randomUUID(),
+      };
+      const [line, replay] = await Promise.all([
+        feature.create(principal, siteId, plan.id, linearInput),
+        feature.create(principal, siteId, plan.id, linearInput),
+      ]);
+      expect(line.id).toBe(replay.id);
+      expect(line).toMatchObject({
+        placementKind: 'linear',
+        code: 'Pr.01',
+        colour: 'Orange',
+        function: 'Regulatory/Statutory',
+        endX: 0.8,
+        endY: 0.6,
+      });
+      expect(
+        await db.sign.findUniqueOrThrow({ where: { id: line.id } }),
+      ).toMatchObject({ code: 'Pr.01', mounting: 'Safety Decal' });
+      const schedule = createSignageScheduleFeature(db);
+      expect(
+        (await schedule.load(principal, siteId)).signTypes.flatMap(
+          (group) => group.signs,
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: line.id, code: 'Pr.01' }),
+        ]),
+      );
+      for (const changes of [
+        { x: 0.1, y: 0.1 },
+        { colour: 'Red' as const },
+        { mounting: 'Floor' as const },
+      ]) {
+        await expect(
+          feature.update(principal, siteId, plan.id, line.id, {
+            expectedUpdatedAt: line.updatedAt,
+            ...changes,
+          }),
+        ).rejects.toThrow();
+      }
+      await expect(
+        feature.create(principal, siteId, plan.id, {
+          ...linearInput,
+          endX: 0.9,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        feature.update(principal, siteId, plan.id, one.id, {
+          expectedUpdatedAt: one.updatedAt,
+          colour: 'Orange',
+        }),
+      ).rejects.toThrow();
+      const moved = await feature.update(principal, siteId, plan.id, line.id, {
+        expectedUpdatedAt: line.updatedAt,
+        x: 0.1,
+        y: 0.2,
+        endX: 0.5,
+        endY: 0.9,
+        function: 'Informational',
+      });
+      expect(moved).toMatchObject({
+        x: 0.1,
+        y: 0.2,
+        endX: 0.5,
+        endY: 0.9,
+        function: 'Informational',
+      });
+      await expect(
+        feature.update(principal, siteId, plan.id, line.id, {
+          expectedUpdatedAt: line.updatedAt,
+          x: 0.2,
+          y: 0.2,
+          endX: 0.5,
+          endY: 0.9,
+        }),
+      ).rejects.toThrow();
+      await expect(
+        db.signPlacement.update({
+          where: { signId: line.id },
+          data: { endX: 0.1, endY: 0.2 },
+        }),
+      ).rejects.toThrow();
+      await feature.remove(
+        principal,
+        siteId,
+        plan.id,
+        line.id,
+        moved.updatedAt,
+      );
+      expect(
+        await db.signPlacement.findUnique({ where: { signId: line.id } }),
+      ).toBeNull();
+      await expect(
+        feature.create(principal, siteId, plan.id, linearInput),
       ).rejects.toThrow();
       const edited = await feature.update(principal, siteId, plan.id, one.id, {
         expectedUpdatedAt: one.updatedAt,
@@ -170,6 +290,98 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
           created.updatedAt,
         );
       }
+      // REQ-001,004,008: real uploaded-file ownership, shared edits and bounded transaction retries.
+      const filePlan = await db.allocationPlan.create({
+        data: {
+          tenantId: principal.tenantId,
+          siteId,
+          uploadedById: principal.userId,
+          name: 'Linear file',
+        },
+      });
+      await expect(
+        feature.load(principal, siteId, filePlan.id, null),
+      ).rejects.toThrow();
+      const batch = await db.allocationPlanUploadBatch.create({
+        data: {
+          tenantId: principal.tenantId,
+          siteId,
+          keyDigest: randomUUID(),
+          requestDigest: randomUUID(),
+        },
+      });
+      const upload = await db.allocationPlanUpload.create({
+        data: {
+          tenantId: principal.tenantId,
+          siteId,
+          uploadedById: principal.userId,
+          batchId: batch.id,
+          groupedPlanId: filePlan.id,
+          objectKey: randomUUID(),
+          filename: 'linear.png',
+          mediaType: 'image/png',
+          byteSize: 1,
+          checksumSha256: 'x'.repeat(44),
+          status: 'COMPLETED',
+          verifiedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60000),
+        },
+      });
+      const request = {
+        ...linearInput,
+        fileId: upload.id,
+        idempotencyKey: randomUUID(),
+      };
+      const saved = await feature.create(
+        principal,
+        siteId,
+        filePlan.id,
+        request,
+      );
+      expect(
+        (await feature.load(principal, siteId, filePlan.id, upload.id)).signs,
+      ).toEqual([saved]);
+      await expect(
+        feature.create(principal, siteId, plan.id, request),
+      ).rejects.toThrow();
+      const renamed = await feature.update(
+        principal,
+        siteId,
+        filePlan.id,
+        saved.id,
+        {
+          expectedUpdatedAt: saved.updatedAt,
+          code: 'Corridor strip',
+          colour: 'Orange',
+        },
+      );
+      expect(
+        (await schedule.load(principal, siteId)).signTypes.flatMap(
+          (g) => g.signs,
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: saved.id, code: 'Corridor strip' }),
+        ]),
+      );
+      await expect(
+        feature.remove(
+          principal,
+          siteId,
+          filePlan.id,
+          saved.id,
+          saved.updatedAt,
+        ),
+      ).rejects.toThrow();
+      await feature.remove(
+        principal,
+        siteId,
+        filePlan.id,
+        saved.id,
+        renamed.updatedAt,
+      );
+      await db.allocationPlanUpload.delete({ where: { id: upload.id } });
+      await db.allocationPlan.delete({ where: { id: filePlan.id } });
       // sign-mounting-options REQ-003,004: all options persist and read back without changing grouping.
       let current = two;
       const originalGroup = await db.sign.findUniqueOrThrow({
@@ -266,7 +478,32 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
       await expect(
         feature.create(principal, siteId, plan.id, input),
       ).rejects.toThrow();
+      const offline = vi
+        .spyOn(db, '$transaction')
+        .mockRejectedValueOnce(new Error('offline'));
+      await expect(
+        feature.create(principal, siteId, plan.id, {
+          ...linearInput,
+          idempotencyKey: randomUUID(),
+        }),
+      ).rejects.toThrow('offline');
+      offline.mockRestore();
+      const retryFailure = vi.spyOn(db, '$transaction').mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('retry', {
+          code: 'P2034',
+          clientVersion: 'test',
+        }),
+      );
+      await expect(
+        feature.create(principal, siteId, plan.id, {
+          ...linearInput,
+          idempotencyKey: randomUUID(),
+        }),
+      ).rejects.toThrow();
+      expect(retryFailure).toHaveBeenCalledTimes(4);
+      retryFailure.mockRestore();
     } finally {
+      vi.restoreAllMocks();
       await db.sign.deleteMany({ where: { siteId } });
       await db.site.deleteMany({ where: { id: siteId } });
       await db.$disconnect();

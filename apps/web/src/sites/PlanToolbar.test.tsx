@@ -82,7 +82,7 @@ it('REQ-001..003, REQ-007: defaults to Move, renders six tools and never creates
     within(toolbar)
       .getAllByRole('button')
       .filter((button) => button.hasAttribute('disabled')),
-  ).toHaveLength(3);
+  ).toHaveLength(2);
   fireEvent.click(drawing, { clientX: 500, clientY: 400 });
   fireEvent.keyDown(drawing, { key: 'Enter' });
   expect(api.create).not.toHaveBeenCalled();
