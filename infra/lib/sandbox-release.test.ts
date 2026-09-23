@@ -12,9 +12,13 @@ import { spawnSync } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
 
 describe('Sandbox release progression [lightsail-sandbox REQ-005]', () => {
-  it.each([0, 1])(
-    'migration exit %s gates service replacement',
-    (migrationStatus) => {
+  it.each([
+    [0, 0],
+    [1, 0],
+    [0, 1],
+  ])(
+    'migration exit %s and service exit %s gate activation',
+    (migrationStatus, serviceStatus) => {
       const scratch = realpathSync(
         mkdtempSync(join(tmpdir(), 'sandbox-release-')),
       );
@@ -45,7 +49,12 @@ describe('Sandbox release progression [lightsail-sandbox REQ-005]', () => {
           });
         writeFileSync(
           join(bin, 'docker'),
-          `#!/bin/sh\nprintf '%s\\n' "$*" >> "$CALL_LOG"\ncase "$*" in *'run --rm --no-deps api node scripts/migrate.mjs'*) exit ${String(migrationStatus)};; esac\nexit 0\n`,
+          `#!/bin/sh\nprintf '%s\\n' "$*" >> "$CALL_LOG"\ncase "$*" in *'run --rm --no-deps api node scripts/migrate.mjs'*) exit ${String(migrationStatus)};; *'up -d --wait --wait-timeout 180 api web'*) exit ${String(serviceStatus)};; esac\nexit 0\n`,
+          { mode: 0o755 },
+        );
+        writeFileSync(
+          join(bin, 'readlink'),
+          `#!/bin/sh\nprintf '%s\\n' '${root}/current'\n`,
           { mode: 0o755 },
         );
         const result = spawnSync(
@@ -60,8 +69,11 @@ describe('Sandbox release progression [lightsail-sandbox REQ-005]', () => {
             },
           },
         );
-        expect(result.status, result.stderr).toBe(migrationStatus);
+        expect(result.status, result.stderr).toBe(
+          migrationStatus || serviceStatus,
+        );
         const calls = readFileSync(join(scratch, 'calls'), 'utf8');
+        expect(calls).not.toContain(`${root}/current/release.env`);
         expect(calls.includes('up -d --wait --wait-timeout 180 api web')).toBe(
           migrationStatus === 0,
         );

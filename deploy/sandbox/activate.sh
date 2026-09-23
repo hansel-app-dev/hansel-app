@@ -17,14 +17,14 @@ docker load -i images.tar.gz
 "${compose[@]}" run --rm --no-deps api node scripts/migrate.mjs
 previous=$(readlink -f /opt/hansel-sandbox/current || true)
 if ! "${compose[@]}" up -d --wait --wait-timeout 180 api web; then
-  if [[ -n "$previous" && "$previous" != "$release" ]]; then
+  if [[ -f "$previous/release.env" && "$previous" != "$release" ]]; then
     docker compose --env-file "$previous/release.env" -f "$previous/compose.yaml" up -d --wait api web
   fi
   exit 1
 fi
 if ! curl --fail --silent --show-error --retry 18 --retry-delay 10 --retry-all-errors --max-time 10 "https://$SANDBOX_ADDRESS/api/health"; then
   echo 'HTTPS health check failed; inspect certificates and service logs.'
-  if [[ -n "$previous" && "$previous" != "$release" ]]; then
+  if [[ -f "$previous/release.env" && "$previous" != "$release" ]]; then
     docker compose --env-file "$previous/release.env" -f "$previous/compose.yaml" up -d --wait api web
   fi
   exit 1

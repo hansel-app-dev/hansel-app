@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 [[ ${1:-} == sandbox ]] || { echo 'Usage: build-release.sh sandbox /absolute/output/directory'; exit 1; }
+docker buildx version >/dev/null
+export DOCKER_BUILDKIT=1
 repo=$(git rev-parse --show-toplevel)
 revision=$(git rev-parse HEAD)
 output=${2:?absolute output directory required}
