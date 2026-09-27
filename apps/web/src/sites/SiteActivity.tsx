@@ -549,7 +549,7 @@ function SiteDetails({
             </li>
             {previewPlanId && (
               <>
-                <li aria-hidden="true">
+                <li aria-hidden="true" className="flex shrink-0 items-center">
                   <AppSymbol className="!size-4 text-[18px]">
                     chevron_right
                   </AppSymbol>
