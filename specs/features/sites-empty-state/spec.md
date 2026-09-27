@@ -4,7 +4,9 @@
 - Status: `implemented`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-09-01`
+- Last updated: `2026-09-27`
+- Domain references: `CONTEXT.md — Site; docs/domain/figjam-object-catalog.md — Objects and data points (Site 24:18), Canonical interpretation notes`
+- Accepted visual update: `User explicitly requested the supplied site_icon.svg for No sites and new Site on 2026-09-27; this asset supersedes the earlier folded-map illustration.`
 - Product approval: `User confirmed on 2026-09-01 that the supplied frame is the Sites page when no sites are available`
 - Technical review: `Independent specification and repository-standards reviews completed on 2026-09-01 with no remaining actionable findings; protected releases still require GitHub CODEOWNERS approval`
 - Design authority: `Figma Hansel App UI, Sites frame 2024:9828`
@@ -42,13 +44,13 @@ Hansel has an authenticated dashboard shell, but its Sites navigation item is un
 
 ## Requirements
 
-- REQ-001: Figma frame `2024:9828` MUST be the visual and copy authority for the authenticated Sites empty state. The application MUST reproduce the existing Hansel Beta sidebar, bordered top utility bar, selected Sites navigation item, view toggles, centered folded-map symbol, `No sites`, `Create a new site to get started.`, and both `New site` affordances without reproducing Figma or laptop chrome.
+- REQ-001: Figma frame `2024:9828` MUST be the visual and copy authority for the authenticated Sites empty state. The application MUST reproduce the existing Hansel Beta sidebar, bordered top utility bar, selected Sites navigation item, view toggles, centered supplied Site icon, `No sites`, `Create a new site to get started.`, and both `New site` affordances without reproducing Figma or laptop chrome.
 - REQ-002: `/sites` MUST be an explicit authenticated application route. It MUST load the existing private viewer context through the established dashboard-session boundary before displaying the identity block. A generic authentication rejection MUST replace navigation with `/login`; a recoverable dependency failure MUST show the existing concise retry treatment without stale identity.
 - REQ-003: The shared application navigation MUST expose `Dashboard` and `Sites` as real same-origin destinations. On `/sites`, Sites MUST be the sole item with semantic current-page state; on `/dashboard`, Dashboard MUST remain current. Existing unimplemented library destinations MUST remain unavailable.
 - REQ-004: The sidebar MUST continue using the exported Hansel Beta logo, server-derived initials/display name/role, account-menu interaction, logout operation, Figtree typography, Material Symbol treatment, Hansel tokens, and established Tailwind conventions. The feature MUST deepen the existing shell rather than duplicate its navigation, identity, retry, or logout logic in a second page.
 - REQ-005: The top-bar and centered `New site` affordances MUST match the supplied empty-state frame's copy, icon, size, spacing, and visual treatment. Because site creation is a separate unapproved feature, both MUST be exposed as unavailable controls, MUST not open the adjacent Figma wizard, navigate to an unimplemented route, mutate state, or make a network request, and MUST become active only under a later approved site-creation specification.
 - REQ-006: The grid and list view symbols MUST appear in the Figma order and selected/unselected presentation. In this empty-only slice they MUST be unavailable, MUST not imply that any site data exists, and MUST not change layout or browser state.
-- REQ-007: The empty-state symbol MUST use the exact exported Figma asset if an export becomes available; otherwise it MUST use the closest existing Material Symbol with browser-verified size, stroke weight, and neutral color. It is decorative and MUST not add a duplicate accessible name.
+- REQ-007: The empty-state symbol MUST use the user-supplied `site_icon.svg`, rendered at its native 68×68 size. It is decorative and MUST not add a duplicate accessible name.
 - REQ-008: The page MUST contain one `Sites` level-one heading for assistive technology, even if visually hidden to preserve Figma, and MUST use main, navigation, header, and status semantics with logical reading order. Current and unavailable states MUST not rely on color alone, and all available controls MUST retain visible keyboard focus.
 - REQ-009: At 320 CSS pixels and 200% zoom, the shell and empty state MUST reflow without horizontal page scrolling. Navigation, identity, retry, view-state symbols, empty copy, and unavailable creation controls MUST remain legible and ordered without inventing a hamburger menu.
 - REQ-010: The frontend MUST not persist viewer or page state in local storage, session storage, URLs, service workers, or client caches. Existing private `Cache-Control: private, no-store` behavior remains authoritative.
@@ -95,7 +97,7 @@ Hansel has an authenticated dashboard shell, but its Sites navigation item is un
 
 ## UX and accessibility
 
-The visual composition is the approved white authenticated shell. Sites is selected in the left rail. The top bar includes the Figma notification treatment and a dark `New site` affordance. Grid and list symbols sit at the upper-right of the content canvas. The empty state is centered in the remaining space with a neutral folded-map symbol, bold `No sites` heading, supporting sentence, and a second dark `New site` affordance.
+The visual composition is the approved white authenticated shell. Sites is selected in the left rail. The top bar includes the Figma notification treatment and a dark `New site` affordance. Grid and list symbols sit at the upper-right of the content canvas. The empty state is centered in the remaining space with the supplied blue Site icon, bold `No sites` heading, supporting sentence, and a second dark `New site` affordance.
 
 Until site creation is specified, the creation affordances retain the reference composition but expose an unavailable state to assistive technology and do not accept focus or activation. The view symbols follow the same rule because there is no content to transform. Available Dashboard/Sites navigation, account menu, logout, and retry actions remain keyboard operable with visible focus.
 

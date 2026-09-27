@@ -4,8 +4,9 @@
 - Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-09-10`
+- Last updated: `2026-09-27`
 - Domain references: `CONTEXT.md — Site, Site Access Scope, Membership, Organization Role, Image; docs/domain/figjam-object-catalog.md — Objects and data points (Site, User, Image), Canonical interpretation notes (Users with access and Photo / Cover), Known ambiguities 4, 8, 10, Current implementation alignment`
+- Accepted visual update: On 2026-09-27 the user explicitly requested the supplied `site_icon.svg` for the new Site icon; it supersedes the earlier name-row illustration.
 - Design authority: User-supplied `Add new site – Step 1_ Workspace.png`, 1512×982.
 - Accepted product clarification: On 2026-09-10 the user confirmed that Next creates the Site and opens the cover-image step, and the Organization screen is labelled Step 1 of 2.
 
@@ -26,7 +27,7 @@ The Organization-access first screen matches the reference within 2 CSS pixels a
 ## Requirements
 
 - REQ-001: The first screen MUST use a 500px-wide modal, approximately 456px tall in its normal Organization state, centered at x506/y263 at 1512×982. Use a blurred gray backdrop, white surface, 6px corners, subtle shadow, a 52px header, and a 72px pale footer. Errors and wrapped content may increase height with bounded scrolling at small viewports.
-- REQ-002: Show `Add new Site` in a 17px semibold heading and a 24px close control. The name row MUST start 24px below the header and contain a 40px pale icon tile, an 8px gap, and a 404×40px input. Keep the accessible Name label but hide its visual label. Start with an empty name and show `New site` as the placeholder, as explicitly requested and approved by the user on 2026-09-10. Preserve normalization, required-name validation, and error association; placeholder text is never submitted as a name.
+- REQ-002: Show `Add new Site` in a 17px semibold heading and a 24px close control. The name row MUST start 24px below the header and contain a 40px pale icon tile with the supplied `site_icon.svg` rendered at 20×20px, an 8px gap, and a 404×40px input. Keep the accessible Name label but hide its visual label. Start with an empty name and show `New site` as the placeholder, as explicitly requested and approved by the user on 2026-09-10. Preserve normalization, required-name validation, and error association; placeholder text is never submitted as a name.
 - REQ-003: Show Who has access in regular 14px type, a 452×40px access selector with the existing selected-scope icon and actual Organization name, and a 12px helper row with a decorative information icon. Preserve the existing listbox choices, keyboard behavior, validation, and scope-specific helper text.
 - REQ-004: Organization permissions MUST appear as two unboxed radio rows beneath What they can do, with 16px radio circles and approximately 40px vertical separation. Retain the exact permission labels, values, default View and comment selection, and registration. Existing explanatory text may remain screen-reader-only. No permission changes are authorized by this styling.
 - REQ-005: When coverImageEnabled is true, Organization and Private flows MUST show Next and Step 1 of 2. Next validates the existing fields and submits the existing idempotent creation request; only success opens the cover screen, labelled Step 2 of 2. Failure stays on the first screen with the existing generic error/retry behavior. Pending creation MUST prevent duplicate submission and display Creating….
