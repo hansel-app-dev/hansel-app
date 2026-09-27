@@ -403,7 +403,7 @@ export function SignageSchedule({
         ) : (
           <Button
             className="mt-8"
-            variant="secondary"
+            variant="primary"
             onClick={() => {
               setNewTypeDraft('');
             }}
