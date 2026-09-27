@@ -1,5 +1,6 @@
 /** @spec allocation-plan-comment-moving REQ-001..007,009 */
 import { createRef } from 'react';
+import type { PlanCommentThread } from '@hansel/contracts';
 import {
   render,
   screen,
@@ -65,7 +66,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-function setup(saved = true, threads = [thread]) {
+function setup(saved = true, threads: PlanCommentThread[] = [thread]) {
   const api: PlanCommentsApi = {
     markers: vi.fn().mockResolvedValue({
       threads: saved ? threads : [],
@@ -324,4 +325,39 @@ it('REQ-006: another pin prompts once per pointer click and honors decline/accep
   fireEvent.click(second, { detail: 1 });
   expect(confirm).toHaveBeenCalledTimes(2);
   expect(await screen.findByRole('textbox')).toHaveValue('');
+});
+
+/** @spec allocation-plan-comments-always-visible REQ-001,002,004 */
+it('REQ-001,002,004: resolved-only drawings load and reopen history without a visibility control, including remount', async () => {
+  const resolved = {
+    ...thread,
+    resolved: true,
+    resolvedAt: thread.updatedAt,
+    resolvedById: viewer.id,
+  };
+  const { api, view } = setup(true, [resolved]);
+  const pin = await screen.findByRole('button', {
+    name: 'Resolved comment by Viewer: Check',
+  });
+  expect(
+    screen.queryByRole('checkbox', { name: 'Show resolved' }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText('No comments')).not.toBeInTheDocument();
+  vi.mocked(api.history).mockResolvedValue({
+    thread: resolved,
+    comments: [],
+    viewer,
+    nextCursor: null,
+  });
+  fireEvent.click(pin);
+  await screen.findByRole('button', { name: 'Reopen thread' });
+  expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  fireEvent.keyDown(pin, { altKey: true, key: 'ArrowRight' });
+  expect(api.position).not.toHaveBeenCalled();
+  view.unmount();
+  setup(true, [resolved]);
+  await screen.findByRole('button', {
+    name: 'Resolved comment by Viewer: Check',
+  });
+  expect(screen.queryByText('No comments')).not.toBeInTheDocument();
 });

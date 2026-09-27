@@ -51,18 +51,9 @@ export function createPlanCommentsApi(
   const query = (cursor?: CommentCursor) =>
     cursor ? `cursor=${encodeURIComponent(JSON.stringify(cursor))}` : '';
   return {
-    markers: async (
-      fileId: string | null,
-      resolved = false,
-      cursor?: CommentCursor,
-    ) =>
+    markers: async (fileId: string | null, cursor?: CommentCursor) =>
       planCommentMarkersSchema.parse(
-        await (
-          await request(
-            fileId,
-            `?resolved=${String(resolved)}&${query(cursor)}`,
-          )
-        ).json(),
+        await (await request(fileId, `?${query(cursor)}`)).json(),
       ),
     history: async (
       fileId: string | null,

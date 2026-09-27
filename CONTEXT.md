@@ -82,7 +82,7 @@ The approved `sign-comments` scope includes one-level replies, private PNG/JPEG/
 _Avoid_: Note, Message
 
 **Allocation Plan Comment**:
-A discussion entry in a pinned thread owned by an Allocation Plan and its file, independent of Signs and the Signage Schedule. All current Site-access roles may post, reply, resolve and reopen threads. The approved scope includes private PNG/JPEG/PDF attachments, Site-access Membership mentions without notifications and emoji insertion. Resolved history is retained and read-only until reopened; open-thread pins can be repositioned within their Allocation Plan/file using normalized coordinates and guarded updates. Resolved pins remain immovable until reopened.
+A discussion entry in a pinned thread owned by an Allocation Plan and its file, independent of Signs and the Signage Schedule. All current Site-access roles may post, reply, resolve and reopen threads. The approved scope includes private PNG/JPEG/PDF attachments, Site-access Membership mentions without notifications and emoji insertion. Open and resolved pins remain visible together without a visibility filter. Resolved history is retained and read-only until reopened; open-thread pins can be repositioned within their Allocation Plan/file using normalized coordinates and guarded updates. Resolved pins remain immovable until reopened.
 _Avoid_: Plan Note, Message
 
 **Activity**:

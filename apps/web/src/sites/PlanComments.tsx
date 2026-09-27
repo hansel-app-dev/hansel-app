@@ -91,7 +91,6 @@ export function PlanComments({
   const [rows, setRows] = useState<PlanCommentThread[]>([]),
     [viewer, setViewer] = useState<CommentPerson | null>(null),
     [cursor, setCursor] = useState<CommentCursor | null>(null),
-    [showResolved, setShowResolved] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [actionError, setActionError] = useState(''),
@@ -131,7 +130,7 @@ export function PlanComments({
     setLoading(true);
     setError('');
     try {
-      const page = await api.markers(fileId, showResolved, next);
+      const page = await api.markers(fileId, next);
       if (!active.current || version !== generation.current) return;
       if (next) merge(page.threads);
       else setRows(page.threads);
@@ -152,7 +151,7 @@ export function PlanComments({
       generation.current++;
       notify.current(false);
     };
-  }, [showResolved, api, fileId]);
+  }, [api, fileId]);
   const leave = () =>
     !drag.current &&
     !moving.current &&
@@ -661,6 +660,13 @@ export function PlanComments({
       }
     }
   }
+  const hasFeedback =
+    loading ||
+    !!error ||
+    !!cursor ||
+    !!moveFailure ||
+    moving.current ||
+    rows.length === 0;
   const controls = (
     <div
       className="absolute left-4 top-[66px] z-20 flex max-w-[calc(100%-32px)] flex-wrap items-center gap-2 rounded border border-[#e2e2e7] bg-white px-2 py-1 text-xs shadow-sm"
@@ -671,26 +677,6 @@ export function PlanComments({
         e.stopPropagation();
       }}
     >
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={showResolved}
-          disabled={pending || dragging}
-          onChange={(e) => {
-            if (!leave()) return;
-            clear();
-            setShowResolved(e.target.checked);
-          }}
-        />
-        Show resolved
-      </label>
-      <span className="sr-only" role="status" aria-live="polite">
-        {announcement}
-      </span>
-      <span id="comment-move-help" className="sr-only">
-        Drag an open comment to move it, or press Alt and an arrow key to move
-        one percent. Escape cancels a drag.
-      </span>
       {moving.current && <span>Saving position…</span>}
       {moveFailure && (
         <>
@@ -741,11 +727,9 @@ export function PlanComments({
         </>
       )}
       {loading && <span role="status">Loading comments…</span>}
-      {!loading &&
-        !error &&
-        !rows.some((row) => showResolved || !row.resolved) && (
-          <span className="text-[#72727e]">No comments</span>
-        )}
+      {!loading && !error && rows.length === 0 && (
+        <span className="text-[#72727e]">No comments</span>
+      )}
       {error && (
         <button
           type="button"
@@ -774,82 +758,87 @@ export function PlanComments({
   );
   return (
     <>
+      <span className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </span>
+      <span id="comment-move-help" className="sr-only">
+        Drag an open comment to move it, or press Alt and an arrow key to move
+        one percent. Escape cancels a drag.
+      </span>
       <div
         ref={layer}
         className="pointer-events-none absolute inset-0"
         aria-label="Plan comments"
       >
-        {rows
-          .filter((r) => showResolved || !r.resolved)
-          .map((row) => (
-            <button
-              key={row.id}
-              id={`plan-comment-pin-${row.id}`}
-              type="button"
-              aria-label={`${row.resolved ? 'Resolved comment' : 'Comment'} by ${row.author.name}: ${row.preview || 'Attachment'}`}
-              aria-pressed={selected?.id === row.id}
-              aria-describedby="comment-move-help"
-              disabled={panning || tool === 'hand' || pending}
-              className={`absolute z-20 h-[23px] min-w-[30px] rounded-t rounded-br px-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${panning || tool === 'hand' ? 'pointer-events-none' : 'pointer-events-auto'} ${row.resolved ? 'bg-[#64748b]' : 'bg-[#4096ff]'}`}
-              style={{
-                left: `${String((preview?.id === row.id ? preview.x : row.x) * 100)}%`,
-                top: `${String((preview?.id === row.id ? preview.y : row.y) * 100)}%`,
-                cursor: dragging
-                  ? 'grabbing'
-                  : !row.resolved &&
-                      ['move', 'comment'].includes(tool) &&
-                      !panning &&
-                      !pending
-                    ? 'grab'
-                    : 'pointer',
-                touchAction: 'none',
-              }}
-              onPointerDown={(e) => {
-                startDrag(e, row);
-              }}
-              onPointerMove={updateDrag}
-              onPointerUp={finishDrag}
-              onPointerCancel={cancelDrag}
-              onLostPointerCapture={cancelDrag}
-              onKeyDown={(e) => {
-                moveKey(e, row);
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                const guard =
-                  e.detail !== 0 && clickGuard.current?.id === row.id
-                    ? clickGuard.current
-                    : null;
-                clickGuard.current = null;
-                if (suppressClick.current || guard?.allowed === false) {
-                  suppressClick.current = false;
-                  return;
-                }
-                if (
-                  selected?.id === row.id ||
-                  !['move', 'comment'].includes(tool) ||
-                  (!guard && (!leave() || !beforeOpen()))
-                )
-                  return;
-                clear();
-                keyboard.current = e.detail === 0;
-                setSelected(row);
-                onActivateMove();
-              }}
+        {rows.map((row) => (
+          <button
+            key={row.id}
+            id={`plan-comment-pin-${row.id}`}
+            type="button"
+            aria-label={`${row.resolved ? 'Resolved comment' : 'Comment'} by ${row.author.name}: ${row.preview || 'Attachment'}`}
+            aria-pressed={selected?.id === row.id}
+            aria-describedby="comment-move-help"
+            disabled={panning || tool === 'hand' || pending}
+            className={`absolute z-20 h-[23px] min-w-[30px] rounded-t rounded-br px-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${panning || tool === 'hand' ? 'pointer-events-none' : 'pointer-events-auto'} ${row.resolved ? 'bg-[#64748b]' : 'bg-[#4096ff]'}`}
+            style={{
+              left: `${String((preview?.id === row.id ? preview.x : row.x) * 100)}%`,
+              top: `${String((preview?.id === row.id ? preview.y : row.y) * 100)}%`,
+              cursor: dragging
+                ? 'grabbing'
+                : !row.resolved &&
+                    ['move', 'comment'].includes(tool) &&
+                    !panning &&
+                    !pending
+                  ? 'grab'
+                  : 'pointer',
+              touchAction: 'none',
+            }}
+            onPointerDown={(e) => {
+              startDrag(e, row);
+            }}
+            onPointerMove={updateDrag}
+            onPointerUp={finishDrag}
+            onPointerCancel={cancelDrag}
+            onLostPointerCapture={cancelDrag}
+            onKeyDown={(e) => {
+              moveKey(e, row);
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              const guard =
+                e.detail !== 0 && clickGuard.current?.id === row.id
+                  ? clickGuard.current
+                  : null;
+              clickGuard.current = null;
+              if (suppressClick.current || guard?.allowed === false) {
+                suppressClick.current = false;
+                return;
+              }
+              if (
+                selected?.id === row.id ||
+                !['move', 'comment'].includes(tool) ||
+                (!guard && (!leave() || !beforeOpen()))
+              )
+                return;
+              clear();
+              keyboard.current = e.detail === 0;
+              setSelected(row);
+              onActivateMove();
+            }}
+          >
+            {row.resolved ? '✓' : row.author.initials}
+            <svg
+              aria-hidden="true"
+              width="7"
+              height="7"
+              viewBox="0 0 7 7"
+              className="absolute -bottom-[7px] left-0"
+              style={{ fill: row.resolved ? '#64748b' : '#4096ff' }}
             >
-              {row.resolved ? '✓' : row.author.initials}
-              <svg
-                aria-hidden="true"
-                width="7"
-                height="7"
-                viewBox="0 0 7 7"
-                className="absolute -bottom-[7px] left-0"
-                style={{ fill: row.resolved ? '#64748b' : '#4096ff' }}
-              >
-                <path d="M0 0H7L0 7z" />
-              </svg>
-            </button>
-          ))}
+              <path d="M0 0H7L0 7z" />
+            </svg>
+          </button>
+        ))}
         {draft && (
           <button
             type="button"
@@ -890,7 +879,7 @@ export function PlanComments({
           />
         )}
       </div>
-      {host && createPortal(controls, host)}
+      {host && hasFeedback && createPortal(controls, host)}
       {point &&
         viewer &&
         host &&

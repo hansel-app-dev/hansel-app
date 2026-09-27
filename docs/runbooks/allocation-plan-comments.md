@@ -10,7 +10,7 @@ Smoke checks:
 
 1. As Viewer, select Add comment, click the drawing, submit text, and confirm Move plus an initials pin and floating thread. Reload and verify the same position. No Sign/Schedule row should appear.
 2. Reply, attach PNG/JPEG/PDF (5 MiB maximum each), mention a current Site member and insert emoji. Check thumbnails/downloads, uploader-private drafts, and retry without duplicates. Invalid/revoked inputs preserve the draft.
-3. Resolve, enable Show resolved, select history and reopen. All Site-access roles can do this; resolved threads cannot accept new replies. A 409 requires closing/reopening to reload, with the unsent-draft guard.
+3. Resolve and confirm the pin remains visible; reload, select its retained history and reopen. Open and resolved pins are listed together without a visibility control. All Site-access roles can do this; resolved threads cannot accept new replies. A 409 requires closing/reopening to reload, with the unsent-draft guard.
 4. Verify keyboard arrows/Enter placement, Escape picker/card handling, narrow/zoomed views, Site/plan navigation guards and the other five tools.
 5. Verify foreign plan/file/user rejection and plan deletion with retained cleanup ledgers. At 5,000 threads, creation returns `comment_capacity_reached`; existing paginated history remains readable.
 

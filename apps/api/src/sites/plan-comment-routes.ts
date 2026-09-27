@@ -174,6 +174,9 @@ export function registerPlanCommentRoutes(
                 JSON.parse(z.string().max(200).parse(req.query.cursor)),
               )
             : undefined;
+          // Legacy visibility values are validated but no longer filter markers.
+          if (!threadId)
+            z.enum(['true', 'false']).optional().parse(req.query.resolved);
           result = threadId
             ? await options.feature.history(
                 p,
@@ -183,16 +186,7 @@ export function registerPlanCommentRoutes(
                 threadId,
                 cursor,
               )
-            : await options.feature.markers(
-                p,
-                siteId,
-                planId,
-                fileId,
-                z
-                  .enum(['true', 'false'])
-                  .parse(req.query.resolved ?? 'false') === 'true',
-                cursor,
-              );
+            : await options.feature.markers(p, siteId, planId, fileId, cursor);
         } else if (!threadId && req.method === 'POST')
           result = await options.feature.submit(
             p,

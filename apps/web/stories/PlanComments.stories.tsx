@@ -46,6 +46,24 @@ function fixture(mode: string): PlanSignsApi {
     ],
     entries = [first],
     failed = false;
+  if (mode === 'mixed') {
+    threads.push({
+      ...initial,
+      id: '00000000-0000-4000-8000-000000000007',
+      preview: 'Resolved location discussion.',
+      x: 0.65,
+      y: 0.55,
+      resolved: true,
+      resolvedAt: now,
+      resolvedById: viewer.id,
+    });
+    entries.push({
+      ...first,
+      id: '00000000-0000-4000-8000-000000000008',
+      parentId: '00000000-0000-4000-8000-000000000007',
+      body: 'Resolved location discussion.',
+    });
+  }
   if (mode === 'attachments')
     entries = [
       {
@@ -83,9 +101,9 @@ function fixture(mode: string): PlanSignsApi {
     update: () => Promise.reject(new Error('unused')),
     remove: () => Promise.resolve(),
     planComments: {
-      markers: (_file, resolved) =>
+      markers: () =>
         Promise.resolve({
-          threads: threads.filter((t) => (resolved ?? false) || !t.resolved),
+          threads,
           nextCursor: null,
           viewer,
         }),
@@ -279,9 +297,6 @@ export const Resolved: Story = {
   play: async ({ canvasElement }) => {
     const c = within(canvasElement);
     await userEvent.click(
-      await c.findByRole('checkbox', { name: 'Show resolved' }),
-    );
-    await userEvent.click(
       await c.findByRole('button', { name: /Resolved comment by/ }),
     );
   },
@@ -355,3 +370,6 @@ export const DraftMoved: Story = {
     await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}');
   },
 };
+
+/** @spec allocation-plan-comments-always-visible REQ-001,005 */
+export const MixedVisibility: Story = { args: { mode: 'mixed' } };

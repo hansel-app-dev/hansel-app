@@ -81,12 +81,15 @@ it.skipIf(process.env.PLAN_COMMENTS_INTEGRATION !== 'true')(
         resolved: true,
         expectedUpdatedAt: root.thread.updatedAt,
       });
-      expect((await f.markers(p, siteId, plan.id, null)).threads).toHaveLength(
-        0,
-      );
-      expect(
-        (await f.markers(p, siteId, plan.id, null, true)).threads,
-      ).toHaveLength(1);
+      // @spec allocation-plan-comments-always-visible REQ-002,003,004
+      const retained = (await f.markers(p, siteId, plan.id, null)).threads;
+      expect(retained).toHaveLength(1);
+      expect(retained[0]).toMatchObject({
+        id: root.thread.id,
+        resolved: true,
+        x: 0.2,
+        y: 0.3,
+      });
       expect(
         (
           await f.state(p, siteId, plan.id, null, root.thread.id, {
@@ -254,7 +257,6 @@ it.skipIf(process.env.PLAN_COMMENTS_INTEGRATION !== 'true')(
         siteId,
         plan.id,
         null,
-        false,
         markers.nextCursor ?? undefined,
       );
       expect(more.threads).toHaveLength(100);
@@ -293,6 +295,12 @@ it.skipIf(process.env.PLAN_COMMENTS_INTEGRATION !== 'true')(
           idempotencyKey: randomUUID(),
         }),
       ).rejects.toThrow();
+      // @spec allocation-plan-comments-always-visible REQ-003,004
+      const mixed = (await f.markers(p, siteId, plan.id, null)).threads;
+      expect(mixed.some((t) => t.id === root.thread.id && t.resolved)).toBe(
+        true,
+      );
+      expect(mixed.some((t) => !t.resolved)).toBe(true);
       await db.allocationPlan.delete({ where: { id: plan.id } });
       expect(
         await db.allocationPlanComment.count({ where: { planId: plan.id } }),

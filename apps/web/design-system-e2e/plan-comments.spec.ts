@@ -30,7 +30,15 @@ test('Viewer creates, replies, resolves, views and reopens a plan thread', async
   await page.screenshot({ path: '/tmp/hansel-plan-comments-desktop.png' });
   await page.getByRole('button', { name: 'Resolve thread' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('checkbox', { name: 'Show resolved' }).check();
+  // @spec allocation-plan-comments-always-visible REQ-001,002
+  await expect(
+    page.getByRole('checkbox', { name: 'Show resolved' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', {
+      name: /Resolved comment by Jordan.*Check this/,
+    }),
+  ).toBeVisible();
   await page
     .getByRole('button', { name: /Resolved comment by Jordan.*Check this/ })
     .click();
@@ -184,6 +192,12 @@ test('Movement failure retries and conflict requires reload; resolved pin stays 
   );
   const pin = page.getByRole('button', { name: /Resolved comment by/ });
   await expect(pin).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'Show resolved' }),
+  ).toHaveCount(0);
+  await page.reload();
+  await expect(pin).toBeVisible();
+  await expect(page.getByText('No comments', { exact: true })).toHaveCount(0);
   const original = await pin.boundingBox();
   if (!original) throw new Error('Missing resolved pin');
   await pin.focus();
@@ -262,4 +276,42 @@ test('REQ-003,006,009: zoomed scrolled coordinates and Hand/Space-pan stay indep
     moved.x,
   );
   await expect(page.getByRole('button', { name: /Comment by/ })).toHaveCount(1);
+});
+
+/** @spec allocation-plan-comments-always-visible REQ-001,002,004,005 */
+test('Open and resolved pins appear together without a filter on a narrow drawing', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto(
+    '/iframe.html?id=sites-plan-comments--mixed-visibility&viewMode=story',
+  );
+  await expect(
+    page.getByRole('button', { name: /^Comment by Jordan/ }),
+  ).toHaveCount(1);
+  const resolved = page.getByRole('button', {
+    name: /^Resolved comment by Jordan/,
+  });
+  await expect(resolved).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: 'Show resolved' }),
+  ).toHaveCount(0);
+  await expect(page.getByText('No comments', { exact: true })).toHaveCount(0);
+  await resolved.click();
+  const card = page.getByRole('dialog', { name: 'Comment', exact: true });
+  await expect(card).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Reopen thread' }),
+  ).toBeVisible();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
+  await expect(
+    page.getByText('Resolved location discussion.', { exact: true }),
+  ).toBeVisible();
+  const bounds = await card.boundingBox();
+  if (!bounds) throw new Error('Missing resolved card');
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+  await page.screenshot({
+    path: '/tmp/hansel-comments-always-visible-narrow.png',
+  });
 });

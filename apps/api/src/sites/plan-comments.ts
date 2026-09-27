@@ -183,12 +183,12 @@ export function createPlanCommentsFeature(db: PrismaClient) {
         nextCursor: rows.length > 50 ? (rows[49]?.id ?? null) : null,
       };
     },
+    /** @spec allocation-plan-comments-always-visible REQ-003 */
     async markers(
       p: ApplicationPrincipal,
       siteId: string,
       planId: string,
       fileId: string | null,
-      resolved = false,
       cursor?: CommentCursor,
     ) {
       const { viewer } = await authorizePlanComment(
@@ -204,7 +204,6 @@ export function createPlanCommentsFeature(db: PrismaClient) {
           siteId,
           planId,
           fileId,
-          ...(!resolved ? { resolved: false } : {}),
           ...after(cursor),
         },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],

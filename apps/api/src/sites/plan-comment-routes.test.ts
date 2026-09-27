@@ -62,6 +62,20 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   expect((await request(app).get(base)).status).toBe(401);
   expect((await request(app).post(base)).status).toBe(403);
   expect((await get(base)).status).toBe(200);
+  // @spec allocation-plan-comments-always-visible REQ-003
+  for (const suffix of ['', '?resolved=true', '?resolved=false']) {
+    const response = await get(base + suffix);
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('private, no-store');
+    expect(feature.markers).toHaveBeenLastCalledWith(
+      await resolve('test'),
+      id,
+      id,
+      null,
+      undefined,
+    );
+  }
+  expect((await get(base + '?resolved=invalid')).status).toBe(400);
   expect(
     (
       await get(

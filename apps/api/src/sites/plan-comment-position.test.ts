@@ -44,6 +44,7 @@ function fixture() {
     $queryRaw: vi.fn(),
     allocationPlanCommentThread: {
       findFirst: vi.fn().mockResolvedValue(row),
+      findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn().mockResolvedValue({
         ...row,
         x: input.x,
@@ -138,4 +139,44 @@ it('allocation-plan-comment-moving REQ-008: missing, revoked and invalid inputs 
     feature.position(principal, id, id, null, id, { ...input, x: 2 }),
   ).rejects.toThrow();
   expect(tx.allocationPlanCommentThread.update).not.toHaveBeenCalled();
+});
+
+/** @spec allocation-plan-comments-always-visible REQ-003 */
+it('REQ-003: inclusive marker listing preserves scope, mixed-state order, page bounds and cursor', async () => {
+  const { feature, tx } = fixture();
+  const rows = Array.from({ length: 101 }, (_, i) => ({
+    ...row,
+    id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+    createdAt: new Date(now.getTime() + i),
+    resolved: i % 2 === 0,
+  }));
+  tx.allocationPlanCommentThread.findMany.mockResolvedValue(rows);
+  const result = await feature.markers(principal, id, id, null);
+  expect(tx.allocationPlanCommentThread.findMany).toHaveBeenLastCalledWith({
+    where: { tenantId: id, siteId: id, planId: id, fileId: null },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: 101,
+  });
+  expect(result.threads).toHaveLength(100);
+  expect(result.threads.some((t) => t.resolved)).toBe(true);
+  expect(result.threads.some((t) => !t.resolved)).toBe(true);
+  const last = rows.at(99);
+  if (!last) throw new Error('Missing page boundary');
+  const cursor = { id: last.id, createdAt: last.createdAt.toISOString() };
+  expect(result.nextCursor).toEqual(cursor);
+  await feature.markers(principal, id, id, null, cursor);
+  expect(tx.allocationPlanCommentThread.findMany).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      where: {
+        tenantId: id,
+        siteId: id,
+        planId: id,
+        fileId: null,
+        OR: [
+          { createdAt: { gt: new Date(cursor.createdAt) } },
+          { createdAt: new Date(cursor.createdAt), id: { gt: cursor.id } },
+        ],
+      },
+    }),
+  );
 });

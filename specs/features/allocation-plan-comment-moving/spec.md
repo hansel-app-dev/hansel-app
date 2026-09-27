@@ -10,6 +10,10 @@
 - Design authority: User request to drag the comment icon after placing it in Allocation Details; existing comment-pin appearance and viewer interaction patterns.
 - Supersedes on approval: `allocation-plan-comments Non-goals (moving saved pins), REQ-004 (immutable position), Open questions (fixed pin positions), CONTEXT.md Allocation Plan Comment fixed-position wording and the catalog's fixed-position amendment only. Other discussion, attachment, resolution and access requirements remain authoritative.`
 
+## Visibility supersession
+
+The approved `allocation-plan-comments-always-visible` amendment (2026-09-27) supersedes the Show resolved premise in AC-005. Resolved pins are always visible alongside open pins; movement remains restricted to open threads and retained history remains read-only until reopened.
+
 ## Problem
 
 Allocation Plan comment pins can be placed but not repositioned. Users need to correct their drawing location without discarding a draft or recreating a saved discussion. The existing approved specification intentionally forbids movement; this amendment explicitly changes that decision.

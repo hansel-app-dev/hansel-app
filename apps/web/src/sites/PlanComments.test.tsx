@@ -266,10 +266,11 @@ it('REQ-006,009,012: marker failure retries and stale unmounted reads have no ef
     ref.current?.place(0.5, 0.5);
   });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Show resolved' }));
-  await waitFor(() => {
-    expect(markers).toHaveBeenLastCalledWith(null, true, undefined);
-  });
+  // @spec allocation-plan-comments-always-visible REQ-001,003
+  expect(
+    screen.queryByRole('checkbox', { name: 'Show resolved' }),
+  ).not.toBeInTheDocument();
+  expect(markers).toHaveBeenLastCalledWith(null, undefined);
   view.unmount();
 });
 it('REQ-006,009,012: history, resolution errors, reopen, and marker pagination retain usable state', async () => {
@@ -385,7 +386,10 @@ it('REQ-006,009,012: history, resolution errors, reopen, and marker pagination r
   await waitFor(() => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Show resolved' }));
+  // @spec allocation-plan-comments-always-visible REQ-001,002
+  expect(
+    screen.queryByRole('checkbox', { name: 'Show resolved' }),
+  ).not.toBeInTheDocument();
   fireEvent.click(
     await screen.findByRole('button', { name: /Resolved comment/ }),
   );

@@ -14,6 +14,8 @@
 
 The approved `allocation-plan-comment-moving` amendment (2026-09-27) supersedes the immutable/fixed-position scope in Non-goals, REQ-004 and Open questions. It permits guarded movement of temporary and saved open-thread pins within their original plan/file. All other requirements remain authoritative.
 
+The approved `allocation-plan-comments-always-visible` amendment (2026-09-27) additionally supersedes Show resolved and default pin hiding in REQ-006, AC-003, UX and Open questions. Open and resolved pins are always listed together; Resolve/Reopen, history retention, read-only resolved discussion and existing card-close behavior remain authoritative.
+
 ## Problem
 
 The sixth toolbar button is disabled. Users need to pin discussions to locations on an Allocation Plan, reply in place, and mark discussions resolved without losing their history.

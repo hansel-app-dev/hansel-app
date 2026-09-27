@@ -50,11 +50,15 @@ it('REQ-001,005..010: client scopes every operation to plan/file, validates resu
   respond({ threads: [thread], viewer, nextCursor: null });
   await api.markers(null);
   expect(fetcher).toHaveBeenLastCalledWith(
-    expect.stringContaining(`/files/legacy/comments?resolved=false&`),
+    expect.stringContaining(`/files/legacy/comments?`),
     expect.objectContaining({ credentials: 'include' }),
   );
+  expect(String(fetcher.mock.calls.at(-1)?.[0])).not.toContain('resolved=');
   respond({ threads: [thread], viewer, nextCursor: null });
-  await api.markers(id, true, { id, createdAt: now });
+  await api.markers(id, { id, createdAt: now });
+  // @spec allocation-plan-comments-always-visible REQ-003
+  expect(String(fetcher.mock.calls.at(-1)?.[0])).not.toContain('resolved=');
+  expect(String(fetcher.mock.calls.at(-1)?.[0])).toContain('cursor=');
   respond({ thread, comments: [comment], viewer, nextCursor: null });
   await api.history(id, id, { id, createdAt: now });
   respond({ thread, comments: [comment], viewer, nextCursor: null });
