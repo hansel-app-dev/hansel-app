@@ -1,7 +1,8 @@
 # Feature: Library Files and reuse
 
 - ID: `library-files`
-- Status: `draft`
+- Status: `approved`
+- Approval: `User approved this published specification in the Codex task on 2026-09-27.`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-27`
@@ -39,8 +40,7 @@ Removing one attachment does not break any other use of its file.
 
 ## Requirements
 
-These requirements include the confirmed decisions. Obtain specification approval
-before application changes.
+These requirements include the confirmed decisions and approved scope.
 
 - REQ-001: A completed Allocation Plan upload, Sign Document upload or Sign Photo upload MUST register a private Library File in the current Organization. Failed, pending, expired, abandoned and rejected uploads MUST NOT appear. Registration and completion retries MUST be atomic and idempotent, producing one entry per completed upload rather than one per retry. Only a committed Allocation Plan file becomes eligible; an uncommitted upload draft is not a library asset.
 - REQ-002: Each Library File MUST retain its stable ID, Organization, source Site, safe original filename, verified media type, size/checksum, uploader and completion time, plus private original and available thumbnail references. The source Site is an authorization boundary, not merely display metadata. Storage keys and presigned URLs MUST NOT appear in ordinary list DTOs.
@@ -180,4 +180,4 @@ Do not revert to destructive per-attachment cleanup or remove shared mappings.
 
 - None. The user confirmed all three access, reuse and backfill decisions.
 
-Specification approval remains required before implementation.
+The user approved this specification on 2026-09-27.
