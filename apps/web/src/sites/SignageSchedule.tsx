@@ -19,14 +19,7 @@ const colors = {
   RED: { text: 'text-[#ff3b3b]', rail: 'border-l-[#ff3b3b]' },
   TEAL: { text: 'text-[#00b8a9]', rail: 'border-l-[#00b8a9]' },
 } as const;
-type SignStatus = Sign['status'];
-const statusLabel: Record<SignStatus, string> = {
-  UNSPECIFIED: 'Unspecified',
-  IN_PROGRESS: 'In progress',
-  APPROVED: 'Approved',
-};
-type EditableField =
-  'code' | 'quantity' | 'location' | 'content' | 'comments' | 'status';
+type EditableField = 'code' | 'quantity' | 'location' | 'content' | 'comments';
 type Sort = 'AZ' | 'ZA' | 'NEWEST' | 'OLDEST';
 
 export function SignageSchedule({
@@ -50,9 +43,6 @@ export function SignageSchedule({
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('AZ');
   const [typeFilters, setTypeFilters] = useState<Set<string>>(new Set());
-  const [statusFilters, setStatusFilters] = useState<Set<SignStatus>>(
-    new Set(),
-  );
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [newTypeDraft, setNewTypeDraft] = useState<string>();
@@ -69,19 +59,14 @@ export function SignageSchedule({
         .map((type) => ({
           ...type,
           signs: type.signs
-            .filter(
-              (sign) =>
-                (statusFilters.size === 0 || statusFilters.has(sign.status)) &&
-                [
-                  type.name,
-                  sign.code,
-                  sign.location,
-                  sign.content,
-                  sign.comments,
-                  statusLabel[sign.status],
-                ].some((value) =>
-                  value.toLocaleLowerCase().includes(normalized),
-                ),
+            .filter((sign) =>
+              [
+                type.name,
+                sign.code,
+                sign.location,
+                sign.content,
+                sign.comments,
+              ].some((value) => value.toLocaleLowerCase().includes(normalized)),
             )
             .sort((left, right) => {
               if (sort === 'NEWEST' || sort === 'OLDEST') {
@@ -95,7 +80,7 @@ export function SignageSchedule({
               return sort === 'ZA' ? -result : result;
             }),
         })),
-    [normalized, sort, statusFilters, typeFilters, types],
+    [normalized, sort, typeFilters, types],
   );
   const replaceType = (next: SignType) => {
     setTypes((current) =>
@@ -164,19 +149,6 @@ export function SignageSchedule({
                 {type.name}
               </label>
             ))}
-            <div className="mt-3 font-semibold">Statuses</div>
-            {(Object.keys(statusLabel) as SignStatus[]).map((status) => (
-              <label className="mt-2 flex gap-2" key={status}>
-                <input
-                  checked={statusFilters.has(status)}
-                  type="checkbox"
-                  onChange={() => {
-                    toggle(setStatusFilters, status);
-                  }}
-                />
-                {statusLabel[status]}
-              </label>
-            ))}
           </fieldset>
         </details>
         <label className="relative flex items-center gap-2 focus-within:outline-2 focus-within:outline-focus">
@@ -238,7 +210,7 @@ export function SignageSchedule({
             {!collapsed.has(type.id) ? (
               <div className="mt-4 max-w-full overflow-x-auto">
                 <table
-                  className={`w-full min-w-[1148px] table-fixed border-separate border-spacing-0 text-left text-sm [&_thead_th]:border-t [&_thead_th:last-child]:border-r [&_thead_th:last-child]:rounded-tr-md [&_thead_th:first-child]:rounded-tl-md [&_tbody_td:last-child]:border-r [&_tbody_tr:last-child_td]:border-b [&_thead]:bg-white [&_tbody]:bg-white [&_thead_th:first-child]:border-l-[6px] [&_tbody_td:first-child]:border-l-[6px] ${type.color === 'RED' ? '[&_thead_th:first-child]:border-l-[#ff3b3b] [&_tbody_td:first-child]:border-l-[#ff3b3b]' : type.color === 'TEAL' ? '[&_thead_th:first-child]:border-l-[#00b8a9] [&_tbody_td:first-child]:border-l-[#00b8a9]' : '[&_thead_th:first-child]:border-l-[#62748d] [&_tbody_td:first-child]:border-l-[#62748d]'}`}
+                  className={`w-full min-w-[998px] table-fixed border-separate border-spacing-0 text-left text-sm [&_thead_th]:border-t [&_thead_th:last-child]:border-r [&_thead_th:last-child]:rounded-tr-md [&_thead_th:first-child]:rounded-tl-md [&_tbody_td:last-child]:border-r [&_tbody_tr:last-child_td]:border-b [&_thead]:bg-white [&_tbody]:bg-white [&_thead_th:first-child]:border-l-[6px] [&_tbody_td:first-child]:border-l-[6px] ${type.color === 'RED' ? '[&_thead_th:first-child]:border-l-[#ff3b3b] [&_tbody_td:first-child]:border-l-[#ff3b3b]' : type.color === 'TEAL' ? '[&_thead_th:first-child]:border-l-[#00b8a9] [&_tbody_td:first-child]:border-l-[#00b8a9]' : '[&_thead_th:first-child]:border-l-[#62748d] [&_tbody_td:first-child]:border-l-[#62748d]'}`}
                 >
                   <colgroup>
                     <col className="w-[40px]" />
@@ -248,7 +220,6 @@ export function SignageSchedule({
                     <col className="w-[34px]" />
                     <col className="w-[136px]" />
                     <col className="w-[34px]" />
-                    <col className="w-[150px]" />
                     <col className="w-[150px]" />
                     <col />
                   </colgroup>
@@ -289,9 +260,6 @@ export function SignageSchedule({
                         Content
                       </th>
                       <th className="border-b border-r border-control-border px-3 font-normal">
-                        Status
-                      </th>
-                      <th className="border-b border-r border-control-border px-3 font-normal">
                         Comments
                       </th>
                       <th
@@ -318,7 +286,10 @@ export function SignageSchedule({
                     {initial.canManageSigns ? (
                       <tr>
                         <td className="h-[35px] border-r border-control-border" />
-                        <td colSpan={9} className="h-[35px] border-control-border px-3 text-content-muted">
+                        <td
+                          colSpan={8}
+                          className="h-[35px] border-control-border px-3 text-content-muted"
+                        >
                           {Object.hasOwn(signDrafts, type.id) ? (
                             <DraftInput
                               label={`New sign code in ${type.name}`}
@@ -394,7 +365,7 @@ export function SignageSchedule({
                         )}
                       </td>
                       <td
-                        colSpan={7}
+                        colSpan={6}
                         className="rounded-br-md border-b border-r border-control-border bg-white"
                       />
                     </tr>
@@ -579,21 +550,13 @@ function SignRow({
           'quantity',
           'location',
           'content',
-          'status',
           'comments',
         ] as EditableField[]
       ).map((field) => (
         <Fragment key={field}>
           <SignCell canEdit={canEdit} field={field} sign={sign} save={save} />
-          {field === 'location' ? (
-            <IndicatorCell
-              glyph="map"
-              tone={sign.status === 'APPROVED' ? 'green' : 'orange'}
-            />
-          ) : null}
-          {field === 'content' ? (
-            <IndicatorCell glyph="visibility" tone="grey" />
-          ) : null}
+          {field === 'location' ? <IndicatorCell glyph="map" /> : null}
+          {field === 'content' ? <IndicatorCell glyph="visibility" /> : null}
         </Fragment>
       ))}
       <td className="border-b border-control-border" aria-hidden="true" />
@@ -628,49 +591,24 @@ function SignCell({
       setSaving(false);
     }
   };
-  const statusClass =
-    field === 'status' && sign.status === 'APPROVED'
-      ? 'bg-[#70b000] text-white'
-      : field === 'status' && sign.status === 'IN_PROGRESS'
-        ? 'bg-[#ff9638] text-white'
-        : '';
   return (
-    <td
-      className={`border-b border-r border-control-border p-0 ${statusClass}`}
-    >
-      {field === 'status' ? (
-        <select
-          aria-label={`${sign.code} status`}
-          disabled={!canEdit || saving}
-          className="h-[34px] w-full appearance-none bg-transparent px-3 text-center font-normal"
-          value={value}
-          onChange={(event) => {
-            setValue(event.target.value);
-            void persist(event.target.value);
-          }}
-        >
-          <option value="UNSPECIFIED"></option>
-          <option value="IN_PROGRESS">In progress</option>
-          <option value="APPROVED">Approved</option>
-        </select>
-      ) : (
-        <input
-          aria-describedby={error ? `${sign.id}-${field}-error` : undefined}
-          aria-label={`${sign.code} ${field}`}
-          className="h-[34px] w-full min-w-0 truncate bg-transparent px-3 outline-none"
-          disabled={!canEdit || saving}
-          value={value}
-          type={field === 'quantity' ? 'number' : 'text'}
-          onChange={(event) => {
-            setValue(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void persist();
-            if (event.key === 'Escape') setValue(String(sign[field]));
-          }}
-          onBlur={() => void persist()}
-        />
-      )}
+    <td className="border-b border-r border-control-border p-0">
+      <input
+        aria-describedby={error ? `${sign.id}-${field}-error` : undefined}
+        aria-label={`${sign.code} ${field}`}
+        className="h-[34px] w-full min-w-0 truncate bg-transparent px-3 outline-none"
+        disabled={!canEdit || saving}
+        value={value}
+        type={field === 'quantity' ? 'number' : 'text'}
+        onChange={(event) => {
+          setValue(event.target.value);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') void persist();
+          if (event.key === 'Escape') setValue(String(sign[field]));
+        }}
+        onBlur={() => void persist()}
+      />
       {saving ? (
         <span className="sr-only" role="status">
           Saving {field}
@@ -689,22 +627,10 @@ function SignCell({
   );
 }
 
-function IndicatorCell({
-  glyph,
-  tone,
-}: {
-  glyph: 'map' | 'visibility';
-  tone: 'green' | 'orange' | 'grey';
-}) {
-  const toneClass =
-    tone === 'green'
-      ? 'text-[#55b800]'
-      : tone === 'orange'
-        ? 'text-[#ff9638]'
-        : 'text-[#a8adb5]';
+function IndicatorCell({ glyph }: { glyph: 'map' | 'visibility' }) {
   return (
     <td
-      className={`border-b border-r border-control-border text-center align-middle ${toneClass}`}
+      className="border-b border-r border-control-border text-center align-middle text-[#a8adb5]"
       aria-hidden="true"
     >
       <AppSymbol className="!size-[18px] text-[18px]" weight={100}>

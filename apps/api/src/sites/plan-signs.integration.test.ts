@@ -255,6 +255,11 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
         mounting: 'Floor',
       });
       // allocation-plan-add-sign-tool REQ-004,006: chosen mounting is atomic.
+      // signage-schedule-remove-status REQ-003,004: canonical point and Linear records.
+      expect(one).not.toHaveProperty('status');
+      expect(
+        await db.sign.findUniqueOrThrow({ where: { id: one.id } }),
+      ).not.toHaveProperty('status');
       expect(two.mounting).toBe('Floor');
       for (const mounting of [
         'Freestanding',
@@ -344,6 +349,10 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
       await expect(
         feature.create(principal, siteId, plan.id, request),
       ).rejects.toThrow();
+      expect(saved).not.toHaveProperty('status');
+      expect(
+        await db.sign.findUniqueOrThrow({ where: { id: saved.id } }),
+      ).not.toHaveProperty('status');
       const renamed = await feature.update(
         principal,
         siteId,
@@ -387,6 +396,39 @@ it.skipIf(process.env.PLAN_SIGNS_INTEGRATION !== 'true')(
       const originalGroup = await db.sign.findUniqueOrThrow({
         where: { id: two.id },
       });
+      // signage-schedule-remove-status AC-002: real schedule create/edit/reload.
+      const scheduleSign = await schedule.createSign(
+        principal,
+        siteId,
+        originalGroup.signTypeId,
+        {
+          code: 'Schedule.001',
+          quantity: 2,
+          location: 'Lobby',
+          content: '',
+          comments: '',
+        },
+      );
+      expect(scheduleSign).not.toHaveProperty('status');
+      const changed = await schedule.updateSign(
+        principal,
+        siteId,
+        scheduleSign.id,
+        {
+          field: 'content',
+          value: 'Main entry',
+          expectedUpdatedAt: scheduleSign.updatedAt,
+        },
+      );
+      expect(changed.content).toBe('Main entry');
+      const reloaded = await schedule.load(principal, siteId);
+      expect(reloaded.signTypes.flatMap((group) => group.signs)).toEqual(
+        expect.arrayContaining([changed]),
+      );
+      expect(
+        await db.sign.findUniqueOrThrow({ where: { id: changed.id } }),
+      ).not.toHaveProperty('status');
+      await db.sign.delete({ where: { id: changed.id } });
       for (const mounting of [
         'Freestanding',
         'Wall-mounted',

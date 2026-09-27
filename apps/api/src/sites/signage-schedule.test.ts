@@ -25,7 +25,6 @@ const sign = {
   location: 'G001',
   content: '',
   comments: '',
-  status: 'APPROVED',
   createdAt: now,
   updatedAt: now,
   tenantId: 'tenant',
@@ -76,6 +75,8 @@ describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017; 
     );
     const schedule = await feature.load(principal, 'site');
     expect(() => signageScheduleResponseSchema.parse(schedule)).not.toThrow();
+    // signage-schedule-remove-status REQ-003: canonical responses omit status.
+    expect(schedule.signTypes[0]?.signs[0]).not.toHaveProperty('status');
     expect(schedule).toMatchObject({
       canManageSigns: true,
       signTypes: [{ quantityTotal: 2, signs: [{ code: 'RS.2' }] }],
@@ -99,7 +100,6 @@ describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017; 
         location: 'G001',
         content: '',
         comments: '',
-        status: 'APPROVED',
       }),
     ).resolves.toMatchObject({ code: 'RS.2' });
     await expect(
@@ -158,7 +158,6 @@ describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017; 
         location: '',
         content: '',
         comments: '',
-        status: 'UNSPECIFIED',
       }),
     ).rejects.toBeInstanceOf(SignageConflictError);
     const missingType = makePrisma();
@@ -172,7 +171,6 @@ describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017; 
         location: '',
         content: '',
         comments: '',
-        status: 'UNSPECIFIED',
       }),
     ).rejects.toBeInstanceOf(SignageNotFoundError);
     for (const prisma of [makePrisma(), makePrisma()]) {

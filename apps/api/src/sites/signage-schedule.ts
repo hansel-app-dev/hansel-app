@@ -35,7 +35,6 @@ const signDto = (record: {
   location: string;
   content: string;
   comments: string;
-  status: string;
   createdAt: Date;
   updatedAt: Date;
 }): Sign => ({
@@ -46,7 +45,6 @@ const signDto = (record: {
   location: record.location,
   content: record.content,
   comments: record.comments,
-  status: record.status as Sign['status'],
   createdAt: record.createdAt.toISOString(),
   updatedAt: record.updatedAt.toISOString(),
 });
@@ -231,7 +229,6 @@ export function createSignageScheduleFeature(
         location: string;
         content: string;
         comments: string;
-        status: Sign['status'];
       },
     ): Promise<Sign> {
       await authorize(principal, siteId, true);

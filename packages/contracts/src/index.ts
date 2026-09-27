@@ -838,11 +838,6 @@ const signageText = (maximum: number) =>
     .trim()
     .transform((value) => value.normalize('NFC'))
     .pipe(z.string().refine((value) => Array.from(value).length <= maximum));
-export const signStatusSchema = z.enum([
-  'UNSPECIFIED',
-  'IN_PROGRESS',
-  'APPROVED',
-]);
 export const signTypeColorSchema = z.enum(['SLATE', 'RED', 'TEAL']);
 export const signSchema = z
   .object({
@@ -853,7 +848,6 @@ export const signSchema = z
     location: signageText(200),
     content: signageText(200),
     comments: signageText(1_000),
-    status: signStatusSchema,
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
   })
@@ -893,7 +887,6 @@ export const signValuesSchema = z
     location: signageText(200),
     content: signageText(200),
     comments: signageText(1_000),
-    status: signStatusSchema,
   })
   .strict();
 export const createSignRequestSchema = signValuesSchema;
@@ -931,13 +924,6 @@ export const updateSignRequestSchema = z.discriminatedUnion('field', [
     .object({
       field: z.literal('comments'),
       value: signageText(1_000),
-      ...expectedUpdate,
-    })
-    .strict(),
-  z
-    .object({
-      field: z.literal('status'),
-      value: signStatusSchema,
       ...expectedUpdate,
     })
     .strict(),

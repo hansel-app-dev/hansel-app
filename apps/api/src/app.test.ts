@@ -222,6 +222,50 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       .expect(400);
   });
 
+  it('rejects removed Sign status without mutation [signage-schedule-remove-status REQ-003]', async () => {
+    const fixture = create();
+    const signId = '00000000-0000-4000-8000-000000000011';
+    const values = {
+      code: 'SG.001',
+      quantity: 1,
+      location: '',
+      content: '',
+      comments: '',
+    };
+    const canonical = {
+      ...values,
+      id: signId,
+      signTypeId: '00000000-0000-4000-8000-000000000010',
+      createdAt: '2026-09-27T00:00:00.000Z',
+      updatedAt: '2026-09-27T00:00:00.000Z',
+    };
+    fixture.sites.createSign.mockResolvedValue(canonical);
+    await request(fixture.app)
+      .post(`/api/sites/${siteId}/sign-types/${canonical.signTypeId}/signs`)
+      .set('Cookie', 'hansel_access=access-token')
+      .send(values)
+      .expect(201, canonical);
+    fixture.sites.createSign.mockClear();
+    for (const status of ['UNSPECIFIED', 'IN_PROGRESS', 'APPROVED']) {
+      await request(fixture.app)
+        .post(`/api/sites/${siteId}/sign-types/${canonical.signTypeId}/signs`)
+        .set('Cookie', 'hansel_access=access-token')
+        .send({ ...values, status })
+        .expect(400);
+      await request(fixture.app)
+        .patch(`/api/sites/${siteId}/signs/${signId}`)
+        .set('Cookie', 'hansel_access=access-token')
+        .send({
+          field: 'status',
+          value: status,
+          expectedUpdatedAt: canonical.updatedAt,
+        })
+        .expect(400);
+    }
+    expect(fixture.sites.createSign).not.toHaveBeenCalled();
+    expect(fixture.sites.updateSign).not.toHaveBeenCalled();
+  });
+
   it('reads and creates signage schedule records privately [site-signage-schedule AC-001, AC-002]', async () => {
     const fixture = create();
     const cookie = 'hansel_access=access-token';
@@ -289,7 +333,6 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
         location: '',
         content: '',
         comments: '',
-        status: 'UNSPECIFIED',
       })
       .expect(401);
     await request(create().app)

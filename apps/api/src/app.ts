@@ -414,7 +414,6 @@ export interface SitesModule {
       location: string;
       content: string;
       comments: string;
-      status: Sign['status'];
     },
   ): Promise<Sign | null>;
   updateSign?(

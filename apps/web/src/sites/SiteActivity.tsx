@@ -80,7 +80,7 @@ interface SharedSiteDetailsProps {
   createSign?: (typeId: string, code: string) => Promise<Sign>;
   updateSign?: (
     sign: Sign,
-    field: 'code' | 'quantity' | 'location' | 'content' | 'comments' | 'status',
+    field: 'code' | 'quantity' | 'location' | 'content' | 'comments',
     value: string | number,
   ) => Promise<Sign>;
   loadSiteActivityPage?: (

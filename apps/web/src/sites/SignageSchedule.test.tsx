@@ -19,7 +19,6 @@ const sign: Sign = {
   location: 'G001',
   content: 'Fire safety',
   comments: '',
-  status: 'APPROVED',
   createdAt: now,
   updatedAt: now,
 };
@@ -67,9 +66,9 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
       />,
     );
     expect(screen.getByDisplayValue('RS.101')).toBeVisible();
-    expect(screen.getByRole('combobox', { name: 'RS.101 status' })).toHaveValue(
-      'APPROVED',
-    );
+    // signage-schedule-remove-status REQ-001,002
+    expect(screen.queryByRole('columnheader', { name: 'Status' })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /status/i })).toBeNull();
     expect(screen.getByDisplayValue('1')).toBeVisible();
     expect(
       screen.getByRole('columnheader', { name: 'Location' }),
@@ -77,13 +76,17 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
     expect(
       screen.getByRole('columnheader', { name: 'Content' }),
     ).toHaveAttribute('colspan', '2');
-    expect(screen.getByRole('table')).toHaveClass('min-w-[1148px]');
-    expect(screen.getByText('map').closest('td')).toHaveClass('align-middle');
+    expect(screen.getByRole('table')).toHaveClass('min-w-[998px]');
+    expect(screen.getByText('map').closest('td')).toHaveClass(
+      'align-middle',
+      'text-[#a8adb5]',
+    );
     expect(screen.getByText('visibility').closest('td')).toHaveClass(
       'align-middle',
     );
+    // Status labels must not remain hidden searchable attributes.
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search signs' }), {
-      target: { value: 'missing' },
+      target: { value: 'approved' },
     });
     expect(screen.queryByDisplayValue('RS.101')).toBeNull();
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: '' } });
@@ -127,7 +130,6 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
       ...sign,
       id: '00000000-0000-4000-8000-000000000012',
       code: 'RS.2',
-      status: 'IN_PROGRESS' as const,
       createdAt: '2026-09-05T00:00:00.000Z',
     };
     const initial = {
@@ -159,9 +161,8 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
       target: { value: 'OLDEST' },
     });
     fireEvent.click(screen.getByText('Filter'));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Approved' }));
-    expect(screen.queryByDisplayValue('RS.2')).toBeNull();
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Approved' }));
+    expect(screen.queryByText('Statuses')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Approved' })).toBeNull();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Regulatory Signs' }));
     expect(screen.getByDisplayValue('RS.2')).toBeVisible();
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select sign RS.2' }));
@@ -205,9 +206,7 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
     fireEvent.blur(location);
     expect(await screen.findByText(/Could not save this value/)).toBeVisible();
     fireEvent.keyDown(location, { key: 'Escape' });
-    fireEvent.change(screen.getByRole('combobox', { name: 'RS.101 status' }), {
-      target: { value: 'IN_PROGRESS' },
-    });
+    expect(screen.queryByRole('combobox', { name: /status/i })).toBeNull();
   });
 
   it('renders viewers without mutation controls', () => {

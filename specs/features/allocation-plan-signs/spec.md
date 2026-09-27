@@ -84,3 +84,7 @@ Gate reads and mutations behind allocationPlanSignsEnabled, default off in produ
 ## Open questions
 
 - None beyond approving the explicitly proposed generated-code prefix and Plan signs grouping above.
+
+## Sign status removal amendment — 2026-09-27
+
+The approved `signage-schedule-remove-status` specification supersedes this specification only where it requires Sign status/state, status defaults, status UI/search/filter behavior or status-derived styling. Shared Signs no longer expose or persist status; the schedule has no Status column or status filters. All other behavior remains governed by this specification and its existing amendments. See the removal specification for strict contracts, migration, validation and rollout requirements.

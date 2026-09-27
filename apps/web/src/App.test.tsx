@@ -599,7 +599,6 @@ describe('App [REQ-002]', () => {
       location: '',
       content: '',
       comments: '',
-      status: 'UNSPECIFIED',
       createdAt: now,
       updatedAt: now,
     };

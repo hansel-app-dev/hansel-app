@@ -1455,14 +1455,7 @@ paths:
                           field:
                             {
                               enum:
-                                [
-                                  code,
-                                  quantity,
-                                  location,
-                                  content,
-                                  comments,
-                                  status,
-                                ],
+                                [code, quantity, location, content, comments],
                             },
                           value: {},
                           expectedUpdatedAt:
@@ -2380,7 +2373,6 @@ components:
           location,
           content,
           comments,
-          status,
           createdAt,
           updatedAt,
         ]
@@ -2392,7 +2384,6 @@ components:
         location: { type: string, maxLength: 200 }
         content: { type: string, maxLength: 200 }
         comments: { type: string, maxLength: 1000 }
-        status: { enum: [UNSPECIFIED, IN_PROGRESS, APPROVED] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     SignType:
@@ -2418,14 +2409,13 @@ components:
     CreateSignRequest:
       type: object
       additionalProperties: false
-      required: [code, quantity, location, content, comments, status]
+      required: [code, quantity, location, content, comments]
       properties:
         code: { type: string, minLength: 1, maxLength: 40 }
         quantity: { type: integer, minimum: 1, maximum: 9999 }
         location: { type: string, maxLength: 200 }
         content: { type: string, maxLength: 200 }
         comments: { type: string, maxLength: 1000 }
-        status: { enum: [UNSPECIFIED, IN_PROGRESS, APPROVED] }
     HealthResponse:
       type: object
       additionalProperties: false

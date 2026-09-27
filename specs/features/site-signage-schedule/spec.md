@@ -150,3 +150,7 @@ Deploy the additive migration, API, and frontend with `signageScheduleEnabled=fa
 ## Open questions
 
 - None. Approval accepts the bounded fields, validation, three statuses, automatic color cycle, inline interaction, role permissions, API surface, optimistic concurrency, record limits, local-only selection/filter/sort state, and explicit non-goals above.
+
+## Sign status removal amendment — 2026-09-27
+
+The approved `signage-schedule-remove-status` specification supersedes this specification only where it requires Sign status/state, status defaults, status UI/search/filter behavior or status-derived styling. Shared Signs no longer expose or persist status; the schedule has no Status column or status filters. All other behavior remains governed by this specification and its existing amendments. See the removal specification for strict contracts, migration, validation and rollout requirements.

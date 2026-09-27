@@ -190,7 +190,6 @@ describe('signage schedule API [site-signage-schedule REQ-016]', () => {
     location: '',
     content: '',
     comments: '',
-    status: 'UNSPECIFIED',
     createdAt: now,
     updatedAt: now,
   };
@@ -224,7 +223,17 @@ describe('signage schedule API [site-signage-schedule REQ-016]', () => {
     await createSignType(siteId, 'Regulatory', '', fetcher);
     await updateSignType(siteId, type as never, 'Safety', '', fetcher);
     await createSign(siteId, typeId, 'A.1', '', fetcher);
-    await updateSign(siteId, sign as never, 'quantity', 2, '', fetcher);
+    // signage-schedule-remove-status REQ-003: no legacy field is sent.
+    expect(fetcher.mock.calls.at(-1)?.[1]?.body).toBe(
+      JSON.stringify({
+        code: 'A.1',
+        quantity: 1,
+        location: '',
+        content: '',
+        comments: '',
+      }),
+    );
+    await updateSign(siteId, sign, 'quantity', 2, '', fetcher);
     expect(fetcher).toHaveBeenCalledTimes(5);
   });
 

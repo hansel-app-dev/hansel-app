@@ -154,7 +154,6 @@ export const createSign = async (
           location: '',
           content: '',
           comments: '',
-          status: 'UNSPECIFIED',
         }),
       },
       fetcher,
@@ -163,7 +162,7 @@ export const createSign = async (
 export const updateSign = async (
   siteId: string,
   sign: Sign,
-  field: 'code' | 'quantity' | 'location' | 'content' | 'comments' | 'status',
+  field: 'code' | 'quantity' | 'location' | 'content' | 'comments',
   value: string | number,
   baseUrl: string,
   fetcher: typeof fetch = fetch,
