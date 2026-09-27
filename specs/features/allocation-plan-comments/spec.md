@@ -10,6 +10,10 @@
 - Design authority: `references/composer.png and references/thread.png. User explicitly confirmed plan-owned comments independent of Signs/Schedule, participation by all Site-access roles, reuse of existing attachment/mention/emoji behaviors, and resolving threads with access to view and reopen them.`
 - Supersedes on approval: `The disabled sixth toolbar tool and source-only Allocation Plan Comment scope. Existing Sign Comments retain their own ownership and decorative checkmark; no change to Sign, Area or Linear behavior.`
 
+## Supersession
+
+The approved `allocation-plan-comment-moving` amendment (2026-09-27) supersedes the immutable/fixed-position scope in Non-goals, REQ-004 and Open questions. It permits guarded movement of temporary and saved open-thread pins within their original plan/file. All other requirements remain authoritative.
+
 ## Problem
 
 The sixth toolbar button is disabled. Users need to pin discussions to locations on an Allocation Plan, reply in place, and mark discussions resolved without losing their history.

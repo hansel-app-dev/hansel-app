@@ -90,6 +90,23 @@ export function createPlanCommentsApi(
           })
         ).json(),
       ),
+    /** @spec allocation-plan-comment-moving REQ-005,008 */
+    position: async (
+      fileId: string | null,
+      id: string,
+      x: number,
+      y: number,
+      expectedUpdatedAt: string,
+    ) =>
+      planCommentThreadSchema.parse(
+        await (
+          await request(fileId, `/${id}/position`, 'PUT', {
+            x,
+            y,
+            expectedUpdatedAt,
+          })
+        ).json(),
+      ),
     people: async (fileId: string | null, q: string, cursor?: string) =>
       commentPeopleSchema.parse(
         await (

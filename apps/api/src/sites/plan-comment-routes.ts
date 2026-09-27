@@ -38,6 +38,7 @@ export function registerPlanCommentRoutes(
       `${base}/attachments/:attachmentId/thumbnail`,
       `${base}/:threadId`,
       `${base}/:threadId/state`,
+      `${base}/:threadId/position`,
     ],
     async (req, res) => {
       res.set({
@@ -139,6 +140,19 @@ export function registerPlanCommentRoutes(
         else if (
           threadId &&
           req.method === 'PUT' &&
+          req.path.endsWith('/position')
+        )
+          result = await options.feature.position(
+            p,
+            siteId,
+            planId,
+            fileId,
+            threadId,
+            req.body,
+          );
+        else if (
+          threadId &&
+          req.method === 'PUT' &&
           req.path.endsWith('/state')
         )
           result = await options.feature.state(
@@ -152,6 +166,7 @@ export function registerPlanCommentRoutes(
         else if (
           req.method === 'GET' &&
           !req.path.endsWith('/state') &&
+          !req.path.endsWith('/position') &&
           (threadId || req.path.endsWith('/comments'))
         ) {
           const cursor = req.query.cursor

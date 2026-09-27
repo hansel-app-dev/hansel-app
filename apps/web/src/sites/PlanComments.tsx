@@ -8,6 +8,7 @@ import {
   useState,
   type Ref,
   type KeyboardEvent,
+  type PointerEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type {
@@ -28,6 +29,23 @@ export interface PlanCommentsHandle {
   clear: () => void;
   keyDown: (e: KeyboardEvent<HTMLDivElement>) => void;
 }
+interface Point {
+  x: number;
+  y: number;
+}
+type MoveIntent = Point & { thread: PlanCommentThread };
+interface PinDrag {
+  pointerId: number;
+  target: HTMLButtonElement;
+  thread: PlanCommentThread | null;
+  origin: Point;
+  start: Point;
+  offset: Point;
+  moved: boolean;
+  next: Point;
+}
+const step = (value: number, delta: number) =>
+  Math.round(clamp(value + delta) * 10000) / 10000;
 const clamp = (v: number, min = 0, max = 1) => Math.max(min, Math.min(max, v));
 export function PlanComments({
   ref,
@@ -56,7 +74,20 @@ export function PlanComments({
     generation = useRef(0),
     state = useRef({ busy: false, dirty: false }),
     resolving = useRef(false),
-    keyboard = useRef(false);
+    keyboard = useRef(false),
+    drag = useRef<PinDrag | null>(null),
+    moving = useRef(false),
+    draftAttempted = useRef(false),
+    scope = useRef(0),
+    suppressClick = useRef(false),
+    clickGuard = useRef<{ id: string; allowed: boolean } | null>(null);
+  const [preview, setPreview] = useState<(Point & { id: string }) | null>(null),
+    [dragging, setDragging] = useState(false),
+    [draftLocked, setDraftLocked] = useState(false),
+    [moveFailure, setMoveFailure] = useState<
+      (MoveIntent & { conflict: boolean }) | null
+    >(null),
+    [announcement, setAnnouncement] = useState('');
   const [rows, setRows] = useState<PlanCommentThread[]>([]),
     [viewer, setViewer] = useState<CommentPerson | null>(null),
     [cursor, setCursor] = useState<CommentCursor | null>(null),
@@ -123,6 +154,8 @@ export function PlanComments({
     };
   }, [showResolved, api, fileId]);
   const leave = () =>
+    !drag.current &&
+    !moving.current &&
     !resolving.current &&
     !state.current.busy &&
     (!state.current.dirty || window.confirm('Discard unsent comment?'));
@@ -140,7 +173,13 @@ export function PlanComments({
       }
     };
     const unload = (event: BeforeUnloadEvent) => {
-      if (state.current.busy || state.current.dirty || resolving.current)
+      if (
+        state.current.busy ||
+        state.current.dirty ||
+        resolving.current ||
+        moving.current ||
+        drag.current
+      )
         event.preventDefault();
     };
     document.addEventListener('click', navigate, true);
@@ -150,7 +189,63 @@ export function PlanComments({
       window.removeEventListener('beforeunload', unload);
     };
   }, []);
+  function cancelDrag() {
+    const current = drag.current;
+    if (!current) return;
+    drag.current = null;
+    suppressClick.current = current.moved;
+    setTimeout(() => {
+      suppressClick.current = false;
+    }, 0);
+    setPreview(null);
+    setDragging(false);
+    if (current.target.hasPointerCapture(current.pointerId))
+      current.target.releasePointerCapture(current.pointerId);
+    notify.current(state.current.busy || resolving.current || moving.current);
+  }
+  useEffect(() => {
+    scope.current++;
+    moving.current = false;
+    resolving.current = false;
+    state.current = { busy: false, dirty: false };
+    setPending(false);
+    setPreview(null);
+    setActionError('');
+    notify.current(false);
+    setSelected(null);
+    setDraft(null);
+    setRows([]);
+    setViewer(null);
+    setCursor(null);
+    setMoveFailure(null);
+    draftAttempted.current = false;
+    setDraftLocked(false);
+    return () => {
+      scope.current++;
+      cancelDrag();
+    };
+  }, [api, fileId]);
+  useEffect(() => {
+    cancelDrag();
+  }, [tool, panning]);
+  useEffect(() => {
+    const cancel = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && drag.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelDrag();
+      }
+    };
+    window.addEventListener('keydown', cancel, true);
+    return () => {
+      window.removeEventListener('keydown', cancel, true);
+    };
+  }, []);
   const clear = () => {
+    cancelDrag();
+    draftAttempted.current = false;
+    setDraftLocked(false);
+    setMoveFailure(null);
     setSelected(null);
     setDraft(null);
     setActionError('');
@@ -213,7 +308,209 @@ export function PlanComments({
   useEffect(() => {
     if (tool !== 'comment' || panning) setPlacementCursor(null);
   }, [tool, panning]);
-  const point = draft ?? selected;
+  async function savePosition(intent: MoveIntent) {
+    if (moving.current || resolving.current || state.current.busy) return;
+    const version = scope.current;
+    const restoreFocus =
+      document.activeElement?.id === `plan-comment-pin-${intent.thread.id}`;
+    moving.current = true;
+    setPending(true);
+    setMoveFailure(null);
+    setPreview({ id: intent.thread.id, x: intent.x, y: intent.y });
+    notify.current(true);
+    setAnnouncement('Saving comment position…');
+    try {
+      const updated = await api.position(
+        fileId,
+        intent.thread.id,
+        intent.x,
+        intent.y,
+        intent.thread.updatedAt,
+      );
+      if (version !== scope.current || !active.current) return;
+      merge([updated]);
+      setSelected((current) =>
+        current?.id === updated.id ? updated : current,
+      );
+      setAnnouncement('Comment position saved.');
+    } catch (reason) {
+      if (!active.current || version !== scope.current) return;
+      setMoveFailure({
+        ...intent,
+        conflict:
+          reason instanceof CommentRequestError && reason.status === 409,
+      });
+      setAnnouncement('Comment position was not saved.');
+    } finally {
+      if (version === scope.current) {
+        moving.current = false;
+        if (active.current) {
+          setPending(false);
+          setPreview(null);
+          notify.current(state.current.busy);
+          if (restoreFocus)
+            requestAnimationFrame(() => {
+              if (
+                active.current &&
+                version === scope.current &&
+                document.activeElement === document.body
+              )
+                document
+                  .getElementById(`plan-comment-pin-${intent.thread.id}`)
+                  ?.focus({ preventScroll: true });
+            });
+        }
+      }
+    }
+  }
+  function canMove(row: PlanCommentThread | null) {
+    return (
+      ['move', 'comment'].includes(tool) &&
+      !panning &&
+      !row?.resolved &&
+      !moving.current &&
+      !resolving.current &&
+      !state.current.busy &&
+      !drag.current &&
+      (row !== null || !draftAttempted.current) &&
+      !(moveFailure?.conflict && moveFailure.thread.id === row?.id)
+    );
+  }
+  function prepareMove(row: PlanCommentThread | null) {
+    if (!canMove(row)) return false;
+    // Keep an unsent reply when moving its own pin.
+    if (row && selected?.id !== row.id && (!leave() || !beforeOpen()))
+      return false;
+    return true;
+  }
+  function startDrag(
+    e: PointerEvent<HTMLButtonElement>,
+    row: PlanCommentThread | null,
+  ) {
+    e.stopPropagation();
+    suppressClick.current = false;
+    clickGuard.current = null;
+    if (e.button !== 0 || !e.isPrimary || !canMove(row)) return;
+    const allowed = prepareMove(row);
+    if (row) clickGuard.current = { id: row.id, allowed };
+    if (!allowed) return;
+    const bounds = layer.current?.getBoundingClientRect(),
+      origin = row ?? draft;
+    if (!bounds?.width || !bounds.height || !origin) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = {
+      pointerId: e.pointerId,
+      target: e.currentTarget,
+      thread: row,
+      origin,
+      start: { x: e.clientX, y: e.clientY },
+      offset: {
+        x: e.clientX - bounds.left - origin.x * bounds.width,
+        y: e.clientY - bounds.top - origin.y * bounds.height,
+      },
+      moved: false,
+      next: origin,
+    };
+    notify.current(true);
+  }
+  function updateDrag(e: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    if (current?.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+    if (
+      !current.moved &&
+      Math.hypot(e.clientX - current.start.x, e.clientY - current.start.y) < 3
+    )
+      return;
+    if (
+      !current.moved &&
+      current.thread &&
+      selected?.id !== current.thread.id
+    ) {
+      // The discard guard ran at pointer down, before acquiring capture.
+      setDraft(null);
+      draftAttempted.current = false;
+      setDraftLocked(false);
+      setSelected(current.thread);
+      setActionError('');
+      state.current = { busy: false, dirty: false };
+    }
+    const bounds = layer.current?.getBoundingClientRect();
+    if (!bounds?.width || !bounds.height) return;
+    current.moved = true;
+    current.next = {
+      x: clamp((e.clientX - bounds.left - current.offset.x) / bounds.width),
+      y: clamp((e.clientY - bounds.top - current.offset.y) / bounds.height),
+    };
+    setDragging(true);
+    setPreview({ id: current.thread?.id ?? draft?.id ?? '', ...current.next });
+  }
+  function finishDrag(e: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    setTimeout(() => {
+      clickGuard.current = null;
+    }, 0);
+    if (current?.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+    updateDrag(e);
+    drag.current = null;
+    suppressClick.current = current.moved;
+    setTimeout(() => {
+      suppressClick.current = false;
+    }, 0);
+    setDragging(false);
+    setPreview(null);
+    if (current.target.hasPointerCapture(current.pointerId))
+      current.target.releasePointerCapture(current.pointerId);
+    notify.current(state.current.busy || resolving.current);
+    if (!current.moved) return;
+    if (current.thread) {
+      if (
+        current.next.x !== current.origin.x ||
+        current.next.y !== current.origin.y
+      )
+        void savePosition({ thread: current.thread, ...current.next });
+    } else {
+      setDraft((value) => (value ? { ...value, ...current.next } : value));
+      setAnnouncement('Comment position updated.');
+    }
+  }
+  function moveKey(
+    e: KeyboardEvent<HTMLButtonElement>,
+    row: PlanCommentThread | null,
+  ) {
+    if (!e.altKey || !e.key.startsWith('Arrow')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!prepareMove(row)) return;
+    const origin = row ?? draft;
+    if (!origin) return;
+    const next = {
+      x: step(
+        origin.x,
+        e.key === 'ArrowRight' ? 0.01 : e.key === 'ArrowLeft' ? -0.01 : 0,
+      ),
+      y: step(
+        origin.y,
+        e.key === 'ArrowDown' ? 0.01 : e.key === 'ArrowUp' ? -0.01 : 0,
+      ),
+    };
+    if (next.x === origin.x && next.y === origin.y) return;
+    if (row) {
+      if (selected?.id !== row.id) {
+        clear();
+        setSelected(row);
+      }
+      void savePosition({ thread: row, ...next });
+    } else {
+      setDraft((value) => (value ? { ...value, ...next } : value));
+      setAnnouncement('Comment position updated.');
+    }
+  }
+  const point =
+    preview && preview.id === (draft?.id ?? selected?.id)
+      ? preview
+      : (draft ?? selected);
   useLayoutEffect(() => {
     if (!point) return;
     const update = () => {
@@ -270,8 +567,9 @@ export function PlanComments({
             nextCursor: null,
             viewer: viewer ?? { id: '', name: '', initials: '' },
           };
+        const version = scope.current;
         const result = await api.history(fileId, selected.id, next);
-        if (active.current) {
+        if (active.current && version === scope.current) {
           setSelected((current) =>
             current?.id === result.thread.id &&
             current.updatedAt <= result.thread.updatedAt
@@ -283,6 +581,11 @@ export function PlanComments({
         return result;
       },
       submit: async (_owner, input) => {
+        const version = scope.current;
+        if (draft) {
+          draftAttempted.current = true;
+          setDraftLocked(true);
+        }
         const result = await api.submit(fileId, {
           idempotencyKey: input.idempotencyKey,
           body: input.body,
@@ -292,7 +595,7 @@ export function PlanComments({
           x: draft?.x ?? null,
           y: draft?.y ?? null,
         });
-        if (active.current) {
+        if (active.current && version === scope.current) {
           merge([result.thread]);
           setSelected(result.thread);
           setDraft(null);
@@ -325,6 +628,7 @@ export function PlanComments({
   );
   async function changeState() {
     if (!selected || !leave()) return;
+    const version = scope.current;
     resolving.current = true;
     setPending(true);
     notify.current(true);
@@ -336,22 +640,24 @@ export function PlanComments({
         !selected.resolved,
         selected.updatedAt,
       );
-      if (!active.current) return;
+      if (!active.current || version !== scope.current) return;
       merge([updated]);
       if (updated.resolved) clear();
       else setSelected(updated);
     } catch (reason) {
-      if (active.current)
+      if (active.current && version === scope.current)
         setActionError(
           reason instanceof CommentRequestError && reason.status === 409
             ? 'This thread changed. Close and reopen it to reload.'
             : 'Couldn’t update thread. Please retry.',
         );
     } finally {
-      resolving.current = false;
-      if (active.current) {
-        setPending(false);
-        notify.current(false);
+      if (version === scope.current) {
+        resolving.current = false;
+        if (active.current) {
+          setPending(false);
+          notify.current(false);
+        }
       }
     }
   }
@@ -369,7 +675,7 @@ export function PlanComments({
         <input
           type="checkbox"
           checked={showResolved}
-          disabled={pending}
+          disabled={pending || dragging}
           onChange={(e) => {
             if (!leave()) return;
             clear();
@@ -378,6 +684,62 @@ export function PlanComments({
         />
         Show resolved
       </label>
+      <span className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </span>
+      <span id="comment-move-help" className="sr-only">
+        Drag an open comment to move it, or press Alt and an arrow key to move
+        one percent. Escape cancels a drag.
+      </span>
+      {moving.current && <span>Saving position…</span>}
+      {moveFailure && (
+        <>
+          <span role="alert">
+            {moveFailure.conflict
+              ? 'This thread changed. Reload before moving it.'
+              : 'Couldn’t save comment position.'}
+          </span>
+          <button
+            type="button"
+            className="underline"
+            disabled={pending || dragging}
+            onClick={() => {
+              if (!moveFailure.conflict) {
+                void savePosition(moveFailure);
+                return;
+              }
+              const version = scope.current;
+              moving.current = true;
+              setPending(true);
+              notify.current(true);
+              void api
+                .history(fileId, moveFailure.thread.id)
+                .then((result) => {
+                  if (!active.current || version !== scope.current) return;
+                  merge([result.thread]);
+                  setSelected((current) =>
+                    current?.id === result.thread.id ? result.thread : current,
+                  );
+                  setMoveFailure(null);
+                  setAnnouncement('Comment reloaded.');
+                })
+                .catch(() => {
+                  if (active.current && version === scope.current)
+                    setAnnouncement('Couldn’t reload comment.');
+                })
+                .finally(() => {
+                  if (version === scope.current) {
+                    moving.current = false;
+                    setPending(false);
+                    notify.current(state.current.busy);
+                  }
+                });
+            }}
+          >
+            {moveFailure.conflict ? 'Reload comment' : 'Retry comment move'}
+          </button>
+        </>
+      )}
       {loading && <span role="status">Loading comments…</span>}
       {!loading &&
         !error &&
@@ -387,6 +749,7 @@ export function PlanComments({
       {error && (
         <button
           type="button"
+          disabled={pending || dragging}
           onClick={() => {
             void load();
           }}
@@ -398,7 +761,7 @@ export function PlanComments({
       {cursor && (
         <button
           type="button"
-          disabled={loading}
+          disabled={loading || pending || dragging}
           onClick={() => {
             void load(cursor);
           }}
@@ -425,23 +788,47 @@ export function PlanComments({
               type="button"
               aria-label={`${row.resolved ? 'Resolved comment' : 'Comment'} by ${row.author.name}: ${row.preview || 'Attachment'}`}
               aria-pressed={selected?.id === row.id}
+              aria-describedby="comment-move-help"
               disabled={panning || tool === 'hand' || pending}
               className={`absolute z-20 h-[23px] min-w-[30px] rounded-t rounded-br px-1 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 ${panning || tool === 'hand' ? 'pointer-events-none' : 'pointer-events-auto'} ${row.resolved ? 'bg-[#64748b]' : 'bg-[#4096ff]'}`}
               style={{
-                left: `${String(row.x * 100)}%`,
-                top: `${String(row.y * 100)}%`,
-                cursor: 'pointer',
+                left: `${String((preview?.id === row.id ? preview.x : row.x) * 100)}%`,
+                top: `${String((preview?.id === row.id ? preview.y : row.y) * 100)}%`,
+                cursor: dragging
+                  ? 'grabbing'
+                  : !row.resolved &&
+                      ['move', 'comment'].includes(tool) &&
+                      !panning &&
+                      !pending
+                    ? 'grab'
+                    : 'pointer',
+                touchAction: 'none',
               }}
               onPointerDown={(e) => {
-                e.stopPropagation();
+                startDrag(e, row);
+              }}
+              onPointerMove={updateDrag}
+              onPointerUp={finishDrag}
+              onPointerCancel={cancelDrag}
+              onLostPointerCapture={cancelDrag}
+              onKeyDown={(e) => {
+                moveKey(e, row);
               }}
               onClick={(e) => {
                 e.stopPropagation();
+                const guard =
+                  e.detail !== 0 && clickGuard.current?.id === row.id
+                    ? clickGuard.current
+                    : null;
+                clickGuard.current = null;
+                if (suppressClick.current || guard?.allowed === false) {
+                  suppressClick.current = false;
+                  return;
+                }
                 if (
                   selected?.id === row.id ||
                   !['move', 'comment'].includes(tool) ||
-                  !leave() ||
-                  !beforeOpen()
+                  (!guard && (!leave() || !beforeOpen()))
                 )
                   return;
                 clear();
@@ -464,12 +851,30 @@ export function PlanComments({
             </button>
           ))}
         {draft && (
-          <span
-            aria-hidden="true"
-            className="absolute z-20 h-5 w-5 rounded-t rounded-br bg-[#4096ff]"
+          <button
+            type="button"
+            aria-label="New comment pin"
+            aria-describedby="comment-move-help"
+            disabled={draftLocked || pending || panning || tool === 'hand'}
+            onPointerDown={(e) => {
+              startDrag(e, null);
+            }}
+            onPointerMove={updateDrag}
+            onPointerUp={finishDrag}
+            onPointerCancel={cancelDrag}
+            onLostPointerCapture={cancelDrag}
+            onKeyDown={(e) => {
+              moveKey(e, null);
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            className="pointer-events-auto absolute z-20 h-5 w-5 rounded-t rounded-br bg-[#4096ff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
             style={{
-              left: `${String(draft.x * 100)}%`,
-              top: `${String(draft.y * 100)}%`,
+              left: `${String((preview?.id === draft.id ? preview.x : draft.x) * 100)}%`,
+              top: `${String((preview?.id === draft.id ? preview.y : draft.y) * 100)}%`,
+              touchAction: 'none',
+              cursor: dragging ? 'grabbing' : 'grab',
               clipPath: 'polygon(0 0,100% 0,100% 75%,25% 75%,0 100%)',
             }}
           />
@@ -522,7 +927,7 @@ export function PlanComments({
                     title={
                       selected.resolved ? 'Reopen thread' : 'Resolve thread'
                     }
-                    disabled={pending}
+                    disabled={pending || dragging}
                     onClick={() => {
                       void changeState();
                     }}
@@ -546,7 +951,7 @@ export function PlanComments({
                   <button
                     type="button"
                     aria-label="Close comment"
-                    disabled={pending}
+                    disabled={pending || dragging}
                     onClick={close}
                     className="text-lg text-[#72727e]"
                   >
@@ -569,20 +974,85 @@ export function PlanComments({
                 {actionError}
               </p>
             )}
-            <SignComments
-              key={selected?.id ?? draft?.id ?? 'draft'}
-              api={composerApi}
-              signId={selected?.id ?? 'draft'}
-              compact={{
-                draft: !!draft,
-                readOnly: !!selected?.resolved || pending,
-                onSubmitted: () => undefined,
-              }}
-              onStateChange={(s) => {
-                state.current = s;
-                notify.current(s.busy || resolving.current);
-              }}
-            />
+            {draft && (
+              <div
+                className="flex flex-wrap gap-2 border-b border-[#e2e2e7] px-3 py-2 text-xs"
+                role="group"
+                aria-label="Comment position"
+              >
+                <span>
+                  {draftLocked
+                    ? 'Position locked for submission retry.'
+                    : 'Drag pin to move, or use these controls.'}
+                </span>
+                {(['left', 'right', 'up', 'down'] as const).map((direction) => (
+                  <button
+                    key={direction}
+                    type="button"
+                    aria-label={`Move comment ${direction}`}
+                    disabled={
+                      draftLocked ||
+                      pending ||
+                      dragging ||
+                      panning ||
+                      tool === 'hand'
+                    }
+                    className="underline"
+                    onClick={() => {
+                      if (draftAttempted.current || state.current.busy) return;
+                      setDraft((value) =>
+                        value
+                          ? {
+                              ...value,
+                              x: step(
+                                value.x,
+                                direction === 'right'
+                                  ? 0.01
+                                  : direction === 'left'
+                                    ? -0.01
+                                    : 0,
+                              ),
+                              y: step(
+                                value.y,
+                                direction === 'down'
+                                  ? 0.01
+                                  : direction === 'up'
+                                    ? -0.01
+                                    : 0,
+                              ),
+                            }
+                          : value,
+                      );
+                      setAnnouncement('Comment position updated.');
+                    }}
+                  >
+                    {direction}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="contents" inert={pending || dragging}>
+              <SignComments
+                key={selected?.id ?? draft?.id ?? 'draft'}
+                api={composerApi}
+                signId={selected?.id ?? 'draft'}
+                compact={{
+                  draft: !!draft,
+                  readOnly:
+                    !!selected?.resolved || (pending && !moving.current),
+                  onSubmitted: () => undefined,
+                }}
+                onStateChange={(s) => {
+                  state.current = s;
+                  notify.current(
+                    s.busy ||
+                      resolving.current ||
+                      moving.current ||
+                      !!drag.current,
+                  );
+                }}
+              />
+            </div>
           </div>,
           host,
         )}

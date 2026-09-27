@@ -73,3 +73,13 @@ export const planCommentSubmissionSchema = z.object({
 });
 export type PlanCommentCreate = z.infer<typeof planCommentCreateSchema>;
 export type PlanCommentThread = z.infer<typeof planCommentThreadSchema>;
+
+/** @spec allocation-plan-comment-moving REQ-005,008 */
+export const planThreadPositionSchema = z
+  .object({
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    expectedUpdatedAt: z.iso.datetime(),
+  })
+  .strict();
+export type PlanThreadPosition = z.infer<typeof planThreadPositionSchema>;

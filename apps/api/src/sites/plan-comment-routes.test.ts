@@ -17,6 +17,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
     markers: vi.fn().mockResolvedValue({ threads: [] }),
     history: vi.fn().mockResolvedValue({ comments: [] }),
     submit: vi.fn().mockResolvedValue({}),
+    position: vi.fn().mockResolvedValue({ id, x: 0.2, y: 0.3 }),
     state: vi.fn().mockResolvedValue({}),
     people: vi.fn().mockResolvedValue({ people: [] }),
   };
@@ -69,6 +70,75 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
     ).status,
   ).toBe(200);
   expect((await get(`${base}/${id}`)).status).toBe(200);
+  // @spec allocation-plan-comment-moving REQ-008
+  const positionUrl = `${base}/${id}/position`;
+  const positionBody = {
+    x: 0.2,
+    y: 0.3,
+    expectedUpdatedAt: '2026-09-27T00:00:00.000Z',
+  };
+  const moved = await request(app)
+    .put(positionUrl)
+    .set('Origin', origin)
+    .set('Cookie', 'hansel_access=test')
+    .send(positionBody);
+  expect(moved.status).toBe(200);
+  expect(moved.headers['cache-control']).toBe('private, no-store');
+  expect(feature.position).toHaveBeenCalledWith(
+    await resolve('test'),
+    id,
+    id,
+    null,
+    id,
+    positionBody,
+  );
+  expect(
+    (
+      await request(app)
+        .put(positionUrl)
+        .set('Origin', origin)
+        .send(positionBody)
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await request(app)
+        .put(positionUrl)
+        .set('Cookie', 'hansel_access=test')
+        .send(positionBody)
+    ).status,
+  ).toBe(403);
+  expect((await get(positionUrl)).status).toBe(405);
+  expect((await post(positionUrl, positionBody)).status).toBe(405);
+  for (const [error, status] of [
+    [new SignageConflictError(), 409],
+    [new SignageNotFoundError(), 404],
+    [new SignageForbiddenError(), 403],
+    [new Error('offline'), 503],
+  ] as const) {
+    feature.position.mockRejectedValueOnce(error);
+    expect(
+      (
+        await request(app)
+          .put(positionUrl)
+          .set('Origin', origin)
+          .set('Cookie', 'hansel_access=test')
+          .send(positionBody)
+      ).status,
+    ).toBe(status);
+  }
+  options.enabled = false;
+  expect(
+    (
+      await request(app)
+        .put(positionUrl)
+        .set('Origin', origin)
+        .set('Cookie', 'hansel_access=test')
+        .send(positionBody)
+    ).status,
+  ).toBe(404);
+  options.enabled = true;
+
   expect((await get(`${base}/people?q=Test`)).status).toBe(200);
   expect(
     (

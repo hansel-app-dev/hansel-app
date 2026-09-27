@@ -78,6 +78,22 @@ it('REQ-001,005..010: client scopes every operation to plan/file, validates resu
   );
   respond(thread);
   await api.state(null, id, true, now);
+  // @spec allocation-plan-comment-moving REQ-005,008
+  respond({ ...thread, x: 0.2, y: 0.3 });
+  expect(await api.position(null, id, 0.2, 0.3, now)).toMatchObject({
+    x: 0.2,
+    y: 0.3,
+  });
+  expect(fetcher).toHaveBeenLastCalledWith(
+    expect.stringContaining(`/files/legacy/comments/${id}/position`),
+    expect.objectContaining({
+      method: 'PUT',
+      credentials: 'include',
+      body: JSON.stringify({ x: 0.2, y: 0.3, expectedUpdatedAt: now }),
+    }),
+  );
+  respond({});
+  await expect(api.position(id, id, 0.2, 0.3, now)).rejects.toThrow();
   respond({ people: [viewer], nextCursor: null });
   await api.people(null, 'View');
   respond({ people: [viewer], nextCursor: null });

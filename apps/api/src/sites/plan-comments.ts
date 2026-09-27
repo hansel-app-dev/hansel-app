@@ -8,6 +8,7 @@ import type {
 import {
   planCommentCreateSchema,
   planThreadStateSchema,
+  planThreadPositionSchema,
   planCommentThreadSchema,
   signCommentSchema,
   type CommentCursor,
@@ -132,6 +133,42 @@ export function createPlanCommentsFeature(db: PrismaClient) {
     });
   }
   return {
+    /** @spec allocation-plan-comment-moving REQ-001,005,007,008 */
+    async position(
+      p: ApplicationPrincipal,
+      siteId: string,
+      planId: string,
+      fileId: string | null,
+      id: string,
+      raw: unknown,
+    ) {
+      const input = planThreadPositionSchema.parse(raw);
+      return db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "AllocationPlan" WHERE "id" = ${planId}::uuid FOR UPDATE`;
+        await authorizePlanComment(tx, p, siteId, planId, fileId);
+        const row = await tx.allocationPlanCommentThread.findFirst({
+          where: { id, tenantId: p.tenantId, siteId, planId, fileId },
+        });
+        if (!row) throw new SignageNotFoundError();
+        if (row.resolved) throw new SignageConflictError();
+        // An uncertain successful request can safely be retried without rewriting.
+        if (row.x === input.x && row.y === input.y) return threadDto(row);
+        if (row.updatedAt.toISOString() !== input.expectedUpdatedAt)
+          throw new SignageConflictError();
+        return threadDto(
+          await tx.allocationPlanCommentThread.update({
+            where: { id },
+            data: {
+              x: input.x,
+              y: input.y,
+              updatedAt: new Date(
+                Math.max(Date.now(), row.updatedAt.getTime() + 1),
+              ),
+            },
+          }),
+        );
+      });
+    },
     async people(
       p: ApplicationPrincipal,
       siteId: string,

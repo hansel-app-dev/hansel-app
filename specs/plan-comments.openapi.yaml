@@ -707,3 +707,48 @@ schemas:
       createdAt:
         type: string
         format: date-time
+
+# @spec allocation-plan-comment-moving REQ-001,005,007,008
+position:
+  parameters:
+    - *a12
+    - *a13
+    - *a14
+    - name: threadId
+      in: path
+      required: true
+      schema: *a1
+  put:
+    operationId: movePlanCommentThread
+    description: Current COMMENT participant may move an open thread. Coordinates and timestamp update atomically. Resolved or stale differing positions conflict. An already applied open position replays without another timestamp update.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [x, y, expectedUpdatedAt]
+            properties:
+              x:
+                type: number
+                minimum: 0
+                maximum: 1
+              y:
+                type: number
+                minimum: 0
+                maximum: 1
+              expectedUpdatedAt: *a2
+    responses:
+      '200':
+        description: Canonical thread; private, no-store
+        content:
+          application/json:
+            schema: *a4
+      '400': *a5
+      '401': *a6
+      '403': *a7
+      '404': *a8
+      '409':
+        description: Thread resolved or timestamp stale with a different current position
+      '503': *a11

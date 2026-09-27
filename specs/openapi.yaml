@@ -9,6 +9,8 @@ paths:
     $ref: './plan-comments.openapi.yaml#/history'
   /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/{threadId}/state:
     $ref: './plan-comments.openapi.yaml#/state'
+  /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/{threadId}/position:
+    $ref: './plan-comments.openapi.yaml#/position'
   /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/people:
     $ref: './plan-comments.openapi.yaml#/people'
   /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/attachments:

@@ -4,6 +4,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import type { PlanCommentThread, SignComment } from '@hansel/contracts';
 import type { PlanSignsApi } from '../src/sites/plan-signs-api.js';
+import { CommentRequestError } from '../src/sites/sign-comments-api.js';
 import { AllocationPlanViewer } from '../src/sites/AllocationPlanViewer.js';
 const viewer = {
     id: '00000000-0000-4000-8000-000000000003',
@@ -141,6 +142,33 @@ function fixture(mode: string): PlanSignsApi {
         };
         threads = threads.map((t) => (t.id === id ? thread : t));
         return Promise.resolve(thread);
+      },
+      position: async (_file, id, x, y, expectedUpdatedAt) => {
+        if (mode === 'move-saving') await new Promise(() => undefined);
+        if (mode === 'move-failure' && !failed) {
+          failed = true;
+          throw new Error('offline');
+        }
+        const current = threads.find((t) => t.id === id) ?? initial;
+        if (mode === 'move-conflict' && !failed) {
+          failed = true;
+          threads = threads.map((t) =>
+            t.id === id
+              ? { ...t, x: 0.6, updatedAt: new Date().toISOString() }
+              : t,
+          );
+          throw new CommentRequestError(409, 'comment_request_failed');
+        }
+        if (current.resolved || current.updatedAt !== expectedUpdatedAt)
+          throw new CommentRequestError(409, 'comment_request_failed');
+        const updated = {
+          ...current,
+          x,
+          y,
+          updatedAt: new Date().toISOString(),
+        };
+        threads = threads.map((t) => (t.id === id ? updated : t));
+        return updated;
       },
       people: () => Promise.resolve({ people: [viewer], nextCursor: null }),
       initiate: () =>
@@ -288,5 +316,41 @@ export const Zoomed: Story = {
         c.getByRole('button', { name: 'Increase plan zoom' }),
       );
     await select(canvasElement);
+  },
+};
+
+/** @spec allocation-plan-comment-moving REQ-010 */
+const move = async (element: HTMLElement) => {
+  await select(element);
+  within(element)
+    .getByRole('button', { name: /Comment by Jordan/ })
+    .focus();
+  await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}');
+};
+export const Moved: Story = {
+  play: async ({ canvasElement }) => move(canvasElement),
+};
+export const MoveSaving: Story = {
+  args: { mode: 'move-saving' },
+  play: async ({ canvasElement }) => move(canvasElement),
+};
+export const MoveFailure: Story = {
+  args: { mode: 'move-failure' },
+  play: async ({ canvasElement }) => move(canvasElement),
+};
+export const MoveConflict: Story = {
+  args: { mode: 'move-conflict' },
+  play: async ({ canvasElement }) => move(canvasElement),
+};
+export const DraftMoved: Story = {
+  play: async ({ canvasElement }) => {
+    await compose(canvasElement);
+    await userEvent.type(
+      within(canvasElement).getByRole('textbox'),
+      'Keep this draft.',
+    );
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'Move comment right' }),
+    );
   },
 };
