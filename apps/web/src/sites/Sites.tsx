@@ -168,12 +168,14 @@ export function Sites({
             </button>
           </div>
           <div className="flex max-w-sm flex-col items-center text-center">
-            <AppSymbol
-              weight={100}
-              className="!size-14 text-[56px] text-[#a7a7a7]"
-            >
-              map
-            </AppSymbol>
+            <img
+              src="/assets/site-icon.svg"
+              alt=""
+              aria-hidden="true"
+              width={68}
+              height={68}
+              className="size-[68px]"
+            />
             <h2
               id="sites-empty-heading"
               className="mt-5 text-[18px] font-semibold leading-7"

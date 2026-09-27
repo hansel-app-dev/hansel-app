@@ -55,6 +55,12 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
       <AddSiteModal {...baseProps} coverImageEnabled createSite={createSite} />,
     );
     expect(screen.getByPlaceholderText('New site')).toHaveValue('');
+    const icon = screen
+      .getByRole('dialog', { name: 'Add new site' })
+      .querySelector('img');
+    expect(icon).toHaveAttribute('src', '/assets/site-icon.svg');
+    expect(icon).toHaveAttribute('alt', '');
+    expect(icon).toHaveAttribute('width', '20');
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Enter a site name',

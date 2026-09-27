@@ -59,6 +59,12 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     expect(screen.queryByText('No sites')).not.toBeInTheDocument();
     resolveSites?.(emptyPage);
     expect(await screen.findByText('No sites')).toBeVisible();
+    const icon = screen
+      .getByRole('region', { name: 'No sites' })
+      .querySelector('img');
+    expect(icon).toHaveAttribute('src', '/assets/site-icon.svg');
+    expect(icon).toHaveAttribute('alt', '');
+    expect(icon).toHaveAttribute('width', '68');
   });
 
   it('opens the same add-site modal from both Figma actions', async () => {

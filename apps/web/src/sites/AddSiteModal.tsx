@@ -333,19 +333,14 @@ export function AddSiteModal({
           <div className="grid gap-6 px-6 pb-8 pt-6">
             <div className="grid grid-cols-[40px_minmax(0,1fr)] items-start gap-2 [&>div>label]:sr-only [&>div]:gap-0">
               <span className="grid size-10 place-items-center rounded bg-[#f4f4f5]">
-                <svg
+                <img
+                  src="/assets/site-icon.svg"
+                  alt=""
                   aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  className="size-5 rounded-[2px] bg-[#4096ff] p-[2px] text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M3 21V10l7-4 7 4v11h-5v-6H8v6H3Z" />
-                  <path d="M13 7V3h8v18h-4M17 6h1M17 10h1M20 14h1M20 18h1M6 11h1M12 11h1" />
-                </svg>
+                  width={20}
+                  height={20}
+                  className="size-5"
+                />
               </span>
               <TextField
                 className="h-10 min-w-0 px-[15px] py-0 font-normal shadow-none"
