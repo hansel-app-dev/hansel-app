@@ -96,3 +96,131 @@ describe('SiteActivityFeed [site-activity-feed-comments REQ-011..REQ-019, AC-001
     expect(screen.getByText('Ready for review.')).toBeVisible();
   });
 });
+
+it('renders every activity kind and paginates without duplicate items, with retry and keyboard comments', async () => {
+  const kinds = [
+    'SITE_CREATED',
+    'ALLOCATION_PLAN_ADDED',
+    'SIGN_TYPE_CREATED',
+    'SIGN_TYPE_RENAMED',
+    'SIGN_UPDATED',
+  ] as const;
+  const items = kinds.map((kind, index) => ({
+    ...action,
+    id: String(index),
+    kind,
+    subjectLabel: 'Subject',
+  }));
+  const older = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({ items: [action, comment], nextCursor: null });
+  render(
+    <SiteActivityFeed
+      viewer={{ displayName: 'Owner', initials: 'O' }}
+      initial={{ items: [...items, action], nextCursor: 'cursor' }}
+      loadOlder={older}
+      submitComment={vi.fn().mockResolvedValue(comment)}
+      now={new Date('2026-09-06T01:00:00Z')}
+    />,
+  );
+  for (const text of [
+    /created this Site/,
+    /added allocation plan/,
+    /created sign type/,
+    /renamed a sign type/,
+    /updated sign/,
+  ])
+    expect(screen.getByText(text)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Load older activity' }));
+  await screen.findByRole('alert');
+  fireEvent.click(screen.getByRole('button', { name: 'Load older activity' }));
+  await screen.findByText('Ready for review.');
+  expect(screen.getAllByText(/created sign /)).toHaveLength(1);
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Ready for review.' },
+  });
+  fireEvent.keyDown(screen.getByRole('textbox'), {
+    key: 'Enter',
+    ctrlKey: true,
+  });
+  await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+  expect(screen.getAllByText('Ready for review.')).toHaveLength(1);
+});
+it('suppresses pending work after unmount and delegates unavailable comment failures', async () => {
+  for (const operation of ['comment', 'older'] as const) {
+    for (const outcome of ['resolve', 'reject'] as const) {
+      let resolve: (value: never) => void = () => undefined,
+        reject: (error: Error) => void = () => undefined;
+      const pending = new Promise<never>((yes, no) => {
+        resolve = yes;
+        reject = no;
+      });
+      const view = render(
+        <SiteActivityFeed
+          initial={{ items: [], nextCursor: 'cursor' }}
+          loadOlder={() => pending}
+          submitComment={() => pending}
+        />,
+      );
+      if (operation === 'comment') {
+        fireEvent.keyDown(screen.getByRole('textbox'), {
+          key: 'Enter',
+          metaKey: true,
+        });
+        fireEvent.change(screen.getByRole('textbox'), {
+          target: { value: 'Comment' },
+        });
+        fireEvent.keyDown(screen.getByRole('textbox'), {
+          key: 'Enter',
+          metaKey: true,
+        });
+        fireEvent.keyDown(screen.getByRole('textbox'), {
+          key: 'Enter',
+          metaKey: true,
+        });
+      } else
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Load older activity' }),
+        );
+      view.unmount();
+      if (outcome === 'resolve')
+        resolve(
+          (operation === 'comment'
+            ? comment
+            : { items: [], nextCursor: null }) as never,
+        );
+      else reject(new Error('offline'));
+      await pending.catch(() => undefined);
+    }
+  }
+  const unavailable = vi.fn().mockReturnValue(true);
+  render(
+    <SiteActivityFeed
+      initial={{ items: [], nextCursor: null }}
+      loadOlder={vi.fn()}
+      submitComment={vi.fn().mockRejectedValue(new Error('unauthorized'))}
+      onUnavailable={unavailable}
+    />,
+  );
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Comment' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Comment' }));
+  await waitFor(() => {
+    expect(unavailable).toHaveBeenCalled();
+  });
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
+it('shows a recoverable pagination failure without an unavailable callback', async () => {
+  render(
+    <SiteActivityFeed
+      initial={{ items: [action], nextCursor: 'cursor' }}
+      loadOlder={() => Promise.reject(new Error('offline'))}
+      submitComment={() => Promise.resolve(comment)}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Load older activity' }));
+  await screen.findByText('We couldn’t load older activity. Please try again.');
+});

@@ -97,3 +97,23 @@ describe('S3 Allocation Plan objects [site-allocation-plans-add REQ-009..REQ-014
     );
   });
 });
+it('sign-photos REQ-010: writes derived private PNG thumbnails', async () => {
+  const send = vi.fn().mockResolvedValue({}),
+    store = createS3AllocationPlanObjectStore({
+      bucketName: 'private',
+      client: { send } as never,
+    });
+  const bytes = new Uint8Array([1]);
+  await store.write('thumbnail', bytes);
+  expect(send).toHaveBeenCalledWith(
+    expect.objectContaining({
+      input: expect.objectContaining({
+        Bucket: 'private',
+        Key: 'thumbnail',
+        Body: bytes,
+        ContentType: 'image/png',
+      }),
+    }),
+    expect.objectContaining({ abortSignal: expect.any(AbortSignal) }),
+  );
+});

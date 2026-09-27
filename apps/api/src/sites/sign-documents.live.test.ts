@@ -64,8 +64,7 @@ it.skipIf(process.env.SIGN_DOCUMENTS_LIVE !== 'true')(
         checksumSha256: createHash('sha256').update(bytes).digest('base64'),
       });
       documentId = intent.id;
-    if (!intent.uploadUrl)
-        throw new Error('Expected upload URL');
+      if (!intent.uploadUrl) throw new Error('Expected upload URL');
       const put = await fetch(intent.uploadUrl, {
         method: 'PUT',
         headers: intent.headers,

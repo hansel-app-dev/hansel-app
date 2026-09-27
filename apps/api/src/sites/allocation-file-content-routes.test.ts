@@ -7,12 +7,10 @@ it('allocation-details-design AC-003: file endpoint validates identifiers, sessi
   const siteId = '00000000-0000-4000-8000-000000000001';
   const planId = '00000000-0000-4000-8000-000000000002';
   const fileId = '00000000-0000-4000-8000-000000000003';
-  const load = vi
-    .fn()
-    .mockResolvedValue({
-      mediaType: 'image/png',
-      bytes: new Uint8Array([1, 2, 3]),
-    });
+  const load = vi.fn().mockResolvedValue({
+    mediaType: 'image/png',
+    bytes: new Uint8Array([1, 2, 3]),
+  });
   const sites: SitesModule = {
     load: vi.fn(),
     create: vi.fn(),

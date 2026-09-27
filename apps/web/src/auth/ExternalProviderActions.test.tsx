@@ -6,12 +6,17 @@ describe('External provider actions [google-local-auth REQ-001, REQ-003]', () =>
   it('leaves providers disabled for unsuccessful capability responses', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }));
     render(<ExternalProviderActions intent="login" />);
-    await waitFor(() => { expect(fetch).toHaveBeenCalled(); });
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalled();
+    });
     expect(
       screen.getByRole('button', { name: 'Continue with Google' }),
     ).toBeDisabled();
   });
-  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
   it('disables unavailable providers and exposes a native Google login link', async () => {
     vi.stubGlobal(
       'fetch',

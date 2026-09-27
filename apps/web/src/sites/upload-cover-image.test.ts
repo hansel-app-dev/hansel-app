@@ -63,3 +63,49 @@ it('does not upload bytes when authorization fails', async () => {
   ).rejects.toThrow();
   expect(fetcher).toHaveBeenCalledOnce();
 });
+
+it('rejects malformed intent and destination responses', async () => {
+  for (const body of [{}, { uploadId: 'invalid' }])
+    await expect(
+      uploadSiteCoverImage(
+        siteId,
+        image(),
+        '',
+        vi.fn().mockResolvedValue(Response.json(body)),
+      ),
+    ).rejects.toThrow();
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(Response.json({ uploadId }))
+    .mockResolvedValueOnce(Response.json({}));
+  await expect(
+    uploadSiteCoverImage(siteId, image(), '', fetcher),
+  ).rejects.toThrow();
+});
+
+it('maps unavailable and expired sessions and rejects a different destination', async () => {
+  await expect(
+    uploadSiteCoverImage(
+      siteId,
+      image(),
+      '',
+      vi.fn().mockResolvedValue(Response.json({}, { status: 503 })),
+    ),
+  ).rejects.toThrow('cover_image_start_failed');
+  for (const status of [401, 200]) {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ uploadId }))
+      .mockResolvedValueOnce(
+        Response.json(
+          {
+            destination: '/sites/00000000-0000-4000-8000-000000000001/activity',
+          },
+          { status },
+        ),
+      );
+    await expect(
+      uploadSiteCoverImage(siteId, image(), '', fetcher),
+    ).rejects.toThrow();
+  }
+});

@@ -1,3 +1,4 @@
+import { nextPageCursor } from './pagination.js';
 /** @spec sign-photos REQ-004..008 */
 import { createSignPhotoThumbnail } from './sign-photo-image.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -107,7 +108,7 @@ export function createSignPhotosFeature(
       });
       return {
         photos: rows.slice(0, 50).map(dto),
-        nextCursor: rows.length > 50 ? (rows[49]?.id ?? null) : null,
+        nextCursor: nextPageCursor(rows),
       };
     },
     async initiate(

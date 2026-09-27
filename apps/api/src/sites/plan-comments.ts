@@ -1,3 +1,4 @@
+import { nextPageCursor } from './pagination.js';
 /** @spec allocation-plan-comments REQ-001,004..006,008..012 */
 import { createHash } from 'node:crypto';
 import type {
@@ -180,7 +181,7 @@ export function createPlanCommentsFeature(db: PrismaClient) {
       const rows = await eligible(db, p, siteId, planId, fileId, query, cursor);
       return {
         people: rows.slice(0, 50),
-        nextCursor: rows.length > 50 ? (rows[49]?.id ?? null) : null,
+        nextCursor: nextPageCursor(rows),
       };
     },
     /** @spec allocation-plan-comments-always-visible REQ-003 */
@@ -370,8 +371,8 @@ export function createPlanCommentsFeature(db: PrismaClient) {
               siteId,
               planId,
               fileId,
-              x: input.x ?? 0,
-              y: input.y ?? 0,
+              x: Number(input.x),
+              y: Number(input.y),
               authorId: p.membershipId,
               authorName: viewer.name,
               preview: Array.from(input.body).slice(0, 160).join(''),

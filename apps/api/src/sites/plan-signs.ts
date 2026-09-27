@@ -111,22 +111,23 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
     if (!row) throw new SignageNotFoundError();
     return row;
   }
-  async function transact<T>(work: (db: Database) => Promise<T>): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await prisma.$transaction(work, {
-          isolationLevel: 'Serializable',
-        });
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          ['P2034', 'P2002'].includes(error.code)
-        ) {
-          if (attempt < 3) continue;
-          throw new SignageConflictError();
-        }
-        throw error;
+  async function transact<T>(
+    work: (db: Database) => Promise<T>,
+    attempt = 0,
+  ): Promise<T> {
+    try {
+      return await prisma.$transaction(work, {
+        isolationLevel: 'Serializable',
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        ['P2034', 'P2002'].includes(error.code)
+      ) {
+        if (attempt < 3) return transact(work, attempt + 1);
+        throw new SignageConflictError();
       }
+      throw error;
     }
   }
   return {
@@ -231,7 +232,7 @@ export function createPlanSignsFeature(prisma: PrismaClient) {
               siteId,
               name: 'Plan signs',
               normalizedName: 'plan signs',
-              color: colours[count % 3] ?? 'SLATE',
+              color: colours[(count % 3) as 0 | 1 | 2],
             },
           });
         }

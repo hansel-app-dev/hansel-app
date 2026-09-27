@@ -42,6 +42,7 @@ type SiteDetailsLoadState =
       dashboard: DashboardResponse;
       siteContext: SiteActivityResponse;
       sitesPage: SitesPageResponse;
+      selectedSite: SitesPageResponse['sites'][number];
       allocationPlans: AllocationPlansResponse;
       signageSchedule: SignageScheduleResponse;
       activityPage: SiteActivityPageResponse | null;
@@ -357,6 +358,7 @@ function SiteDetails({
         dashboard,
         siteContext,
         sitesPage,
+        selectedSite: visibleSite,
         allocationPlans,
         signageSchedule,
         activityPage,
@@ -497,13 +499,11 @@ function SiteDetails({
     dashboard,
     siteContext,
     sitesPage,
+    selectedSite,
     allocationPlans,
     signageSchedule,
     activityPage,
   } = currentState;
-  const selectedSite = sitesPage.sites.find(
-    (site) => site.id === siteContext.site.id,
-  );
   const siteId = encodeURIComponent(siteContext.site.id);
   const activityDestination = `/sites/${siteId}/activity`;
   const allocationsDestination = `/sites/${siteId}/allocations`;
@@ -515,8 +515,8 @@ function SiteDetails({
       siteHeader
       headerActions={
         <SiteShareControls
-          memberPreview={selectedSite?.memberPreview ?? []}
-          memberCount={selectedSite?.memberCount ?? 0}
+          memberPreview={selectedSite.memberPreview}
+          memberCount={selectedSite.memberCount}
         />
       }
       headerLeading={

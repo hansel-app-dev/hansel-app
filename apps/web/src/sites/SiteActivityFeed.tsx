@@ -99,12 +99,11 @@ export function SiteActivityFeed({
       if (active.current) setSubmitting(false);
     }
   };
-  const older = async () => {
-    if (!nextCursor || loadingOlder) return;
+  const older = async (cursor: string) => {
     setLoadingOlder(true);
     setOlderError('');
     try {
-      const page = await loadOlder(nextCursor);
+      const page = await loadOlder(cursor);
       if (!active.current) return;
       setItems((current) => {
         const known = new Set(current.map((item) => item.id));
@@ -172,8 +171,11 @@ export function SiteActivityFeed({
                     >
                       {relativeTime(item.createdAt, now).replace(
                         / (minute|hour|day|month|year)s? ago$/,
-                        (_match, unit: string) =>
-                          `${({ minute: 'm', hour: 'h', day: 'd', month: 'mo', year: 'y' } as Record<string, string>)[unit] ?? unit} ago`,
+                        (
+                          _match,
+                          unit: 'minute' | 'hour' | 'day' | 'month' | 'year',
+                        ) =>
+                          `${{ minute: 'm', hour: 'h', day: 'd', month: 'mo', year: 'y' }[unit]} ago`,
                       )}
                     </time>
                   </div>
@@ -192,7 +194,7 @@ export function SiteActivityFeed({
         <div className="mb-5 text-center">
           <Button
             disabled={loadingOlder}
-            onClick={() => void older()}
+            onClick={() => void older(nextCursor)}
             type="button"
             variant="secondary"
           >

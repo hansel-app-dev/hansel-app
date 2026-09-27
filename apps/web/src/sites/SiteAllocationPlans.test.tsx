@@ -7,7 +7,7 @@ import {
   waitFor,
   within,
 } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   DashboardResponse,
   SiteActivityResponse,
@@ -15,7 +15,14 @@ import type {
 } from '@hansel/contracts';
 import { SiteAllocationPlans } from './SiteActivity.js';
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-06T10:00:00Z'));
+});
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const dashboard: DashboardResponse = {
   viewer: { displayName: 'Nabin Singh', initials: 'NS', roleLabel: 'Owner' },
@@ -151,8 +158,12 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
     fireEvent.click(screen.getByRole('button', { name: 'Grid view' }));
     expect(screen.getByText('No plans match your search.')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
-    expect(screen.getByRole('dialog', { name: 'Add new Allocation' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Close Add Allocation' }));
+    expect(
+      screen.getByRole('dialog', { name: 'Add new Allocation' }),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close Add Allocation' }),
+    );
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).toBeNull();
     });

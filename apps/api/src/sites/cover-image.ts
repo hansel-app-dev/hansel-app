@@ -149,11 +149,9 @@ export function createCoverImageRoutes(options: {
     } catch (error) {
       const missing = error instanceof Error && error.name === 'NoSuchKey';
       if (!missing) options.recordEvent?.('cover_image_read_failed');
-      response
-        .status(missing ? 404 : 503)
-        .json({
-          error: missing ? 'site_not_found' : 'cover_image_unavailable',
-        });
+      response.status(missing ? 404 : 503).json({
+        error: missing ? 'site_not_found' : 'cover_image_unavailable',
+      });
     }
   });
   router.use(

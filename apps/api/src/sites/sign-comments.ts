@@ -1,3 +1,4 @@
+import { nextPageCursor } from './pagination.js';
 /** @spec sign-comments REQ-004..006,009,010,012 */
 import { createHash } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -110,7 +111,7 @@ export function createSignCommentsFeature(db: PrismaClient) {
       const rows = await eligible(db, p, siteId, signId, query, cursor);
       return {
         people: rows.slice(0, 50),
-        nextCursor: rows.length > 50 ? (rows[49]?.id ?? null) : null,
+        nextCursor: nextPageCursor(rows),
       };
     },
     async react(

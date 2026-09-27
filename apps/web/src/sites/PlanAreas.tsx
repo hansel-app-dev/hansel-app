@@ -476,7 +476,9 @@ export function PlanAreas({
     gesture.current = null;
     if (g.element.hasPointerCapture(g.pointerId))
       g.element.releasePointerCapture(g.pointerId);
-    const box = canvas.current?.getBoundingClientRect();
+    // Pointer release runs on the mounted drawing.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const box = canvas.current!.getBoundingClientRect();
     suppress.current = !g.area || g.moved;
     setPreview(null);
     setMoving(null);
@@ -499,17 +501,18 @@ export function PlanAreas({
       }
       return;
     }
-    if (!box) return;
     const rect = areaRectangle(g.start, g.last);
     if (rect.width * box.width < 4 || rect.height * box.height < 4) return;
     setArmed(false);
     create({ ...rect, fileId, idempotencyKey: crypto.randomUUID() });
   }
   function resized(area: PlanArea, handle: AreaResizeHandle, delta: AreaPoint) {
-    const box = canvas.current?.getBoundingClientRect();
+    // Resize callbacks belong to handles on the mounted drawing.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const box = canvas.current!.getBoundingClientRect();
     return resizeArea(area, handle, delta, {
-      x: 4 / Math.max(1, box?.width ?? 1),
-      y: 4 / Math.max(1, box?.height ?? 1),
+      x: 4 / Math.max(1, box.width),
+      y: 4 / Math.max(1, box.height),
     });
   }
   function geometryChanged(

@@ -838,7 +838,9 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
         enabledProviders: ['google', 'microsoft', 'apple'] as const,
         startExternal: vi
           .fn()
-          .mockResolvedValue(`https://provider.example/${provider}?state=state`),
+          .mockResolvedValue(
+            `https://provider.example/${provider}?state=state`,
+          ),
         callbackExternal: vi.fn(),
       };
       const response = await request(
@@ -887,7 +889,12 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
       undefined,
       undefined,
       undefined,
-      { login: vi.fn(), enabledProviders: ['google', 'apple'], startExternal: vi.fn(), callbackExternal },
+      {
+        login: vi.fn(),
+        enabledProviders: ['google', 'apple'],
+        startExternal: vi.fn(),
+        callbackExternal,
+      },
     );
     const accepted = await request(externalApp)
       .get('/auth/callback/google?code=code&state=state')
@@ -933,7 +940,9 @@ describe('login routes [user-login REQ-003..REQ-008, REQ-016]', () => {
     expect(response.text).toContain('autocomplete="current-password"');
     expect(response.text.match(/class="auth-field"/g)).toHaveLength(2);
     for (const provider of ['google', 'microsoft', 'apple'])
-      expect(response.text).not.toContain(`/auth/start/${provider}?intent=login`);
+      expect(response.text).not.toContain(
+        `/auth/start/${provider}?intent=login`,
+      );
     for (const provider of ['google', 'microsoft', 'apple'])
       expect(response.text).toContain(`src="/assets/${provider}-logo.svg"`);
     expect(response.text).toContain('data-testid="login-provider-divider"');

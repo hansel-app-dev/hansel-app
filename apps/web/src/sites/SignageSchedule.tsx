@@ -172,6 +172,7 @@ export function SignageSchedule({
         {selected.size} signs selected
       </p>
       {shown.map((type) => {
+        const draft = signDrafts[type.id];
         const ids = type.signs.map((sign) => sign.id);
         const allSelected =
           ids.length > 0 && ids.every((id) => selected.has(id));
@@ -290,10 +291,10 @@ export function SignageSchedule({
                           colSpan={8}
                           className="h-[35px] border-control-border px-3 text-content-muted"
                         >
-                          {Object.hasOwn(signDrafts, type.id) ? (
+                          {draft !== undefined ? (
                             <DraftInput
                               label={`New sign code in ${type.name}`}
-                              value={signDrafts[type.id] ?? ''}
+                              value={draft}
                               error={signDraftErrors[type.id]}
                               onChange={(value) => {
                                 setSignDrafts((current) => ({

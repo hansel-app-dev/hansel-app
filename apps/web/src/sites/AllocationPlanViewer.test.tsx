@@ -446,3 +446,195 @@ describe('AllocationPlanViewer [site-allocation-plan-preview REQ-005..REQ-013]',
     });
   });
 });
+
+it('observes drawing dimensions, handles image failures and navigates the plan selector by keyboard', async () => {
+  const callbacks: (() => void)[] = [];
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(update: () => void) {
+        callbacks.push(update);
+      }
+      observe() {
+        return undefined;
+      }
+      disconnect() {
+        return undefined;
+      }
+    },
+  );
+  const other = { ...plan, id: 'second', filename: 'Second.png' };
+  const view = render(
+    <AllocationPlanViewer
+      plan={plan}
+      plans={[plan, other]}
+      onSelectPlan={vi.fn()}
+      loadContent={() => Promise.resolve(new Blob())}
+      render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })}
+    />,
+  );
+  try {
+    const image = await screen.findByRole('img', { name: plan.filename });
+    Object.defineProperties(image, {
+      naturalWidth: { value: 1000 },
+      naturalHeight: { value: 800 },
+    });
+    const viewport = screen.getByTestId('plan-pan-viewport');
+    Object.defineProperties(viewport, {
+      clientWidth: { value: 800 },
+      clientHeight: { value: 600 },
+    });
+    callbacks.forEach((fn) => {
+      fn();
+    });
+    fireEvent.load(image);
+    fireEvent.dragStart(image);
+    for (const key of ['ArrowDown', 'ArrowUp', 'Home', 'End']) {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select allocation plan' }),
+      );
+      fireEvent.keyDown(screen.getByRole('menu'), { key });
+      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    }
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Select allocation plan' }),
+    );
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Tab' });
+    fireEvent.error(image);
+    await screen.findByRole('button', { name: 'Retry' });
+  } finally {
+    view.unmount();
+    vi.unstubAllGlobals();
+  }
+});
+it('releases an obsolete rendered preview and destroys PDF work when aborted', async () => {
+  let settle: (value: { src: string; release: () => void }) => void = () =>
+    undefined;
+  const release = vi.fn();
+  const renderer = () =>
+    new Promise<{ src: string; release: () => void }>((resolve) => {
+      settle = resolve;
+    });
+  const view = render(
+    <AllocationPlanViewer
+      plan={plan}
+      loadContent={() => Promise.resolve(new Blob())}
+      render={renderer}
+    />,
+  );
+  await waitFor(() => {
+    expect(settle.toString()).not.toContain('undefined');
+  });
+  view.unmount();
+  settle({ src: 'old.png', release });
+  await waitFor(() => {
+    expect(release).toHaveBeenCalled();
+  });
+  const controller = new AbortController();
+  pdf.getPage.mockImplementation(() => {
+    controller.abort();
+    return Promise.reject(new Error('aborted'));
+  });
+  await expect(
+    renderPlan(
+      {
+        type: 'application/pdf',
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)),
+      } as Blob,
+      controller.signal,
+    ),
+  ).rejects.toThrow('aborted');
+});
+
+it('closes an open selector on outside pointer input and decreases annotated plan zoom', async () => {
+  const api = {
+    load: vi.fn().mockResolvedValue({ signs: [], canManageSigns: true }),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+  };
+  render(
+    <AllocationPlanViewer
+      onSelectPlan={vi.fn()}
+      plan={plan}
+      plans={[plan, { ...plan, id: 'other' }]}
+      planSignsApi={api}
+      loadContent={() => Promise.resolve(new Blob())}
+      render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })}
+    />,
+  );
+  await screen.findByRole('img', { name: plan.filename });
+  fireEvent.click(screen.getByRole('button', { name: 'Decrease plan zoom' }));
+  expect(screen.getByLabelText('Plan zoom')).toHaveTextContent('75%');
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Select allocation plan' }),
+  );
+  await screen.findByRole('menu');
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole('menu')).toBeNull();
+});
+
+it('dismisses an open selector on outside pointer input and supports empty plan metadata', async () => {
+  const view = render(
+    <AllocationPlanViewer
+      onSelectPlan={vi.fn()}
+      plan={plan}
+      loadContent={() => Promise.resolve(new Blob())}
+      render={() => Promise.resolve({ src: 'blob:plan', release: vi.fn() })}
+      plans={[plan, { ...plan, id: 'other' }]}
+    />,
+  );
+  await screen.findByRole('img', { name: plan.filename });
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Select allocation plan' }),
+  );
+  await screen.findByRole('menu');
+  fireEvent.pointerDown(document.body);
+  expect(screen.queryByRole('menu')).toBeNull();
+  view.unmount();
+});
+
+it('ignores keyboard zoom while editing and ignores unrelated pan keys', async () => {
+  render(
+    <AllocationPlanViewer
+      planSignsApi={{
+        load: vi.fn().mockResolvedValue({ signs: [], canManageSigns: true }),
+        create: vi.fn(),
+        update: vi.fn(),
+        remove: vi.fn(),
+      }}
+      onSelectPlan={vi.fn()}
+      plan={plan}
+      plans={[plan, { ...plan, id: 'other' }]}
+      loadContent={() => Promise.resolve(new Blob())}
+      render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })}
+    />,
+  );
+  await screen.findByRole('img', { name: plan.filename });
+  const section = screen.getByLabelText(`${plan.filename} preview`);
+  const editor = document.createElement('input');
+  section.append(editor);
+  fireEvent.keyDown(editor, { key: '+' });
+  expect(screen.getByLabelText('Plan zoom')).toHaveTextContent('100%');
+  editor.remove();
+  fireEvent.click(screen.getByRole('button', { name: 'Hand' }));
+  const viewport = screen.getByLabelText('Plan viewport');
+  fireEvent.keyDown(viewport, { key: 'x' });
+  expect(screen.getByLabelText('Plan zoom')).toHaveTextContent('100%');
+});
+
+it('uses a fallback label for incomplete legacy metadata', async () => {
+  render(
+    <AllocationPlanViewer
+      plan={{
+        id: plan.id,
+        createdAt: plan.createdAt,
+        modifiedAt: plan.modifiedAt,
+        uploadedBy: plan.uploadedBy,
+      }}
+      loadContent={() => Promise.resolve(new Blob())}
+      render={() => Promise.resolve({ src: 'plan.png', release: vi.fn() })}
+    />,
+  );
+  expect(await screen.findByRole('img', { name: 'Plan' })).toBeVisible();
+});

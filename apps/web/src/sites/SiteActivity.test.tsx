@@ -538,3 +538,35 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
     await Promise.resolve();
   });
 });
+
+it('recovers from site read failure and inaccessible comments and retries older activity failures', async () => {
+  const loadActivity = vi
+    .fn()
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValue({ site });
+  const loadPage = vi
+    .fn()
+    .mockResolvedValue({ items: [], nextCursor: 'cursor' });
+  const createComment = vi.fn().mockRejectedValue(new Error('unavailable'));
+  render(
+    <SiteActivity
+      {...props}
+      loadActivity={loadActivity}
+      loadSiteActivityPage={loadPage}
+      createSiteComment={createComment}
+      isSiteActivityNotFound={() => true}
+    />,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+  await screen.findByRole('textbox', { name: 'Add your comment' });
+  loadPage.mockResolvedValueOnce(null);
+  fireEvent.click(screen.getByRole('button', { name: 'Load older activity' }));
+  await screen.findByText('We couldn’t load older activity. Please try again.');
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Comment' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Comment' }));
+  await screen.findByText("We couldn't load this site.");
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await screen.findByRole('textbox', { name: 'Add your comment' });
+});

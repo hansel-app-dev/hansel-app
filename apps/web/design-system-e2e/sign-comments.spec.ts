@@ -69,13 +69,11 @@ test('sign-comments retries attachment verification and preserves failed submiss
     '/iframe.html?id=sites-sign-comments--network&viewMode=story',
   );
   await expect(page.getByText('There are no comments yet.')).toBeVisible();
-  await page
-    .getByLabel('Comment attachments')
-    .setInputFiles({
-      name: file.filename,
-      mimeType: file.mediaType,
-      buffer: Buffer.from('%PDF-1.7'),
-    });
+  await page.getByLabel('Comment attachments').setInputFiles({
+    name: file.filename,
+    mimeType: file.mediaType,
+    buffer: Buffer.from('%PDF-1.7'),
+  });
   await page.getByRole('button', { name: 'Retry upload' }).click();
   await expect(page.getByText('Ready', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Submit', exact: true }).click();

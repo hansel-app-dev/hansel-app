@@ -334,3 +334,35 @@ describe('Allocation Plans [site-allocation-plans-add REQ-001..REQ-019]', () => 
     }
   });
 });
+it('allocation-plan-multiple-files REQ-001,008: binds grouped draft batches and rejects finalized or expired replay', async () => {
+  const s = setup(),
+    input = {
+      idempotencyKey: 'k'.repeat(32),
+      files: [
+        {
+          filename: upload.filename,
+          mediaType: upload.mediaType,
+          byteSize: upload.byteSize,
+          checksumSha256: upload.checksumSha256,
+        },
+      ],
+    };
+  await s.feature.createBatch(principal, siteId, input, true);
+  for (const value of [
+    { ...upload, status: 'COMPLETED' },
+    { ...upload, expiresAt: new Date(0) },
+  ]) {
+    s.spies.createBatch.mockResolvedValueOnce({
+      status: 'replayed',
+      uploads: [value],
+    });
+    await expect(
+      s.feature.createBatch(principal, siteId, input, true),
+    ).rejects.toThrow();
+  }
+  s.spies.findUpload.mockResolvedValueOnce({ ...upload, grouped: true });
+  await expect(
+    s.feature.finalize(principal, siteId, upload.id),
+  ).rejects.toThrow();
+  await s.feature.content(principal, siteId, upload.id, upload.id);
+});

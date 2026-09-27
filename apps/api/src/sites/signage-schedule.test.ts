@@ -201,3 +201,49 @@ describe('signage schedule persistence [site-signage-schedule REQ-002..REQ-017; 
     ).rejects.toThrow();
   });
 });
+it('site-signage-schedule REQ-002..017: uses current access roles and maps database or missing-record conflicts', async () => {
+  const db = makePrisma(),
+    api = createSignageScheduleFeature(db as never);
+  await api.load({ ...principal, roleId: 'viewer' }, 'site');
+  db.sign.create.mockRejectedValueOnce(new Error('offline'));
+  await expect(
+    api.createSign(principal, 'site', 'type', {
+      code: 'A',
+      quantity: 1,
+      location: '',
+      content: '',
+      comments: '',
+    }),
+  ).rejects.toThrow();
+  db.sign.updateMany.mockRejectedValueOnce(new Error('offline'));
+  await expect(
+    api.updateSign(principal, 'site', 'sign', {
+      field: 'code',
+      value: 'New',
+      expectedUpdatedAt: now.toISOString(),
+    }),
+  ).rejects.toThrow();
+  db.sign.findFirst.mockResolvedValueOnce(null);
+  await expect(
+    api.updateSign(principal, 'site', 'sign', {
+      field: 'code',
+      value: 'New',
+      expectedUpdatedAt: now.toISOString(),
+    }),
+  ).rejects.toThrow();
+  db.signType.updateMany.mockResolvedValueOnce({ count: 0 });
+  await expect(
+    api.updateType(principal, 'site', 'type', 'New', now.toISOString()),
+  ).rejects.toThrow();
+});
+
+it('scopes an Owner to the organization without individual Site grants', async () => {
+  const db = makePrisma();
+  await createSignageScheduleFeature(db as never).load(
+    { ...principal, roleId: 'owner' },
+    'site',
+  );
+  expect(db.site.count).toHaveBeenCalledWith({
+    where: { id: 'site', tenantId: principal.tenantId },
+  });
+});

@@ -35,6 +35,7 @@ interface Point {
 }
 type MoveIntent = Point & { thread: PlanCommentThread };
 interface PinDrag {
+  id: string;
   pointerId: number;
   target: HTMLButtonElement;
   thread: PlanCommentThread | null;
@@ -398,6 +399,7 @@ export function PlanComments({
     if (!bounds?.width || !bounds.height || !origin) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = {
+      id: origin.id,
       pointerId: e.pointerId,
       target: e.currentTarget,
       thread: row,
@@ -442,7 +444,7 @@ export function PlanComments({
       y: clamp((e.clientY - bounds.top - current.offset.y) / bounds.height),
     };
     setDragging(true);
-    setPreview({ id: current.thread?.id ?? draft?.id ?? '', ...current.next });
+    setPreview({ id: current.id, ...current.next });
   }
   function finishDrag(e: PointerEvent<HTMLButtonElement>) {
     const current = drag.current;
@@ -470,20 +472,19 @@ export function PlanComments({
       )
         void savePosition({ thread: current.thread, ...current.next });
     } else {
-      setDraft((value) => (value ? { ...value, ...current.next } : value));
+      setDraft({ id: current.id, ...current.next });
       setAnnouncement('Comment position updated.');
     }
   }
   function moveKey(
     e: KeyboardEvent<HTMLElement>,
     row: PlanCommentThread | null,
+    origin: Point & { id: string },
   ) {
     if (!e.altKey || !e.key.startsWith('Arrow')) return;
     e.preventDefault();
     e.stopPropagation();
     if (!prepareMove(row)) return;
-    const origin = row ?? draft;
-    if (!origin) return;
     const next = {
       x: step(
         origin.x,
@@ -564,7 +565,9 @@ export function PlanComments({
           return {
             comments: [],
             nextCursor: null,
-            viewer: viewer ?? { id: '', name: '', initials: '' },
+            // Draft placement requires a discovered viewer.
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            viewer: viewer!,
           };
         const version = scope.current;
         const result = await api.history(fileId, selected.id, next);
@@ -801,7 +804,7 @@ export function PlanComments({
             onPointerCancel={cancelDrag}
             onLostPointerCapture={cancelDrag}
             onKeyDown={(e) => {
-              moveKey(e, row);
+              moveKey(e, row, row);
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -853,7 +856,7 @@ export function PlanComments({
             onPointerCancel={cancelDrag}
             onLostPointerCapture={cancelDrag}
             onKeyDown={(e) => {
-              moveKey(e, null);
+              moveKey(e, null, draft);
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -900,7 +903,8 @@ export function PlanComments({
             }}
             onKeyDown={(e) => {
               e.stopPropagation();
-              if (draft && e.target === e.currentTarget) moveKey(e, null);
+              if (draft && e.target === e.currentTarget)
+                moveKey(e, null, draft);
               if (e.key === 'Escape') {
                 e.preventDefault();
                 close();
@@ -968,7 +972,7 @@ export function PlanComments({
             )}
             <div className="contents" inert={pending || dragging}>
               <SignComments
-                key={selected?.id ?? draft?.id ?? 'draft'}
+                key={point.id}
                 api={composerApi}
                 signId={selected?.id ?? 'draft'}
                 compact={{

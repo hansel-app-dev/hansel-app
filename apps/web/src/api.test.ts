@@ -36,6 +36,9 @@ import {
   updateSign,
   loadSiteActivityPage,
   createSiteComment,
+  createAllocationPlanDraft,
+  verifyAllocationPlanDraft,
+  commitAllocationPlanDraft,
 } from './api.js';
 import {
   countryOptions,
@@ -472,7 +475,7 @@ describe('Allocation Plans API [site-allocation-plans-add REQ-006..REQ-017]', ()
     );
     expect(request.send).toHaveBeenCalledWith(file);
 
-    for (const outcome of ['load', 'error'] as const) {
+    for (const outcome of ['load', 'error', 'timeout'] as const) {
       request.status = 503;
       const failed = uploadAllocationPlan(
         'https://uploads.example/plan',
@@ -482,7 +485,11 @@ describe('Allocation Plans API [site-allocation-plans-add REQ-006..REQ-017]', ()
         { onProgress: progress, signal: new AbortController().signal },
       );
       listeners.get(outcome)?.(new ProgressEvent(outcome));
-      await expect(failed).rejects.toThrow('allocation_plan_upload_failed');
+      await expect(failed).rejects.toThrow(
+        outcome === 'timeout'
+          ? 'allocation_plan_upload_timed_out'
+          : 'allocation_plan_upload_failed',
+      );
     }
 
     const cancelController = new AbortController();
@@ -1110,4 +1117,70 @@ describe('createOnboardingAccount [REQ-005, REQ-049]', () => {
       ),
     ).rejects.toThrow('Account request failed with 400');
   });
+});
+
+it('maps activity and draft request failures and rejected upload bodies without starting further requests', async () => {
+  const id = '00000000-0000-4000-8000-000000000001';
+  for (const status of [401, 404, 503]) {
+    const fetcher = vi.fn().mockResolvedValue(Response.json({}, { status }));
+    await expect(
+      loadSiteActivityPage(id, 'cursor', '', fetcher),
+    ).rejects.toThrow();
+    await expect(
+      createSiteComment(id, 'Comment', '', fetcher),
+    ).rejects.toThrow();
+    await expect(
+      verifyAllocationPlanDraft(id, id, '', fetcher),
+    ).rejects.toThrow();
+  }
+  for (const body of [
+    null,
+    'conflict',
+    {},
+    { error: 'other' },
+    { error: 'allocation_draft_upload_rejected' },
+  ])
+    await expect(
+      createAllocationPlanDraft(
+        id,
+        { idempotencyKey: 'a'.repeat(32), files: [] },
+        '',
+        vi.fn().mockResolvedValue(Response.json(body, { status: 409 })),
+      ),
+    ).rejects.toThrow();
+  const fetcher = vi
+    .fn()
+    .mockResolvedValue(Response.json({ uploadId: id, verified: true }));
+  await expect(verifyAllocationPlanDraft(id, id, '', fetcher)).resolves.toEqual(
+    { uploadId: id, verified: true },
+  );
+  await expect(
+    commitAllocationPlanDraft(
+      id,
+      { idempotencyKey: 'a'.repeat(32), name: 'Plan', uploadIds: [id] },
+      '',
+      vi.fn().mockResolvedValue(Response.json({})),
+    ),
+  ).rejects.toThrow();
+});
+
+it('loads named allocation file content from its scoped URL', async () => {
+  const id = '00000000-0000-4000-8000-000000000001',
+    fetcher = vi
+      .fn()
+      .mockResolvedValue(
+        new Response('png', { headers: { 'content-type': 'image/png' } }),
+      );
+  await loadAllocationPlanContent(
+    id,
+    id,
+    '',
+    fetcher,
+    id,
+    new AbortController().signal,
+  );
+  expect(fetcher).toHaveBeenCalledWith(
+    `/api/sites/${id}/allocation-plans/${id}/files/${id}/content`,
+    expect.objectContaining({ credentials: 'include' }),
+  );
 });

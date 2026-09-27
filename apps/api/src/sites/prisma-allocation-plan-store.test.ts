@@ -273,3 +273,50 @@ describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-0
     ).rejects.toThrow('upload_not_pending');
   });
 });
+it('allocation-plan-multiple-files REQ-002,008: renders named files and serializes grouped intent creation', async () => {
+  const s = fixture();
+  s.prisma.allocationPlan.findMany.mockResolvedValue([
+    {
+      ...plan,
+      name: 'Named',
+      filename: null,
+      mediaType: null,
+      byteSize: null,
+      files: [
+        {
+          id: 'file',
+          filename: 'file.png',
+          mediaType: 'image/png',
+          byteSize: 8,
+        },
+      ],
+      uploadedBy: { email: 'owner@example.com', personalProfile: null },
+    },
+  ]);
+  expect((await s.store.list(principal, 's'))[0]).toMatchObject({
+    name: 'Named',
+    files: [{ id: 'file' }],
+    uploadedBy: 'owner',
+  });
+  s.prisma.allocationPlan.findFirst.mockResolvedValueOnce({
+    objectKey: 'plan',
+    mediaType: null,
+  });
+  await expect(s.store.findContent(principal, 's', 'p')).resolves.toBeNull();
+  const input = {
+    principal,
+    siteId: 's',
+    request: { idempotencyKey: 'k', files: [] },
+    requestDigest: 'd',
+    keyDigest: 'k',
+    grouped: true,
+    expiresAt: now,
+    uploads: [],
+  };
+  s.tx.allocationPlanUploadBatch.findUnique.mockResolvedValue({
+    requestDigest: 'd',
+    uploads: [],
+  });
+  Object.assign(s.tx, { $queryRaw: vi.fn().mockResolvedValue([]) });
+  await s.store.createBatch(input);
+});

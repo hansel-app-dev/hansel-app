@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -74,9 +75,7 @@ async function setup(remove: () => Promise<void>) {
   fireEvent.click(
     await screen.findByRole('button', { name: 'Select sign SG.001' }),
   );
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Delete sign' }),
-  );
+  fireEvent.click(screen.getByRole('button', { name: 'Delete sign' }));
   return api;
 }
 it('plan-sign-delete-dialog REQ-001,005: opening and cancelling make no request', async () => {
@@ -120,4 +119,42 @@ it('plan-sign-delete-dialog REQ-006: stale deletion requires reload without retr
     expect(api.load).toHaveBeenCalledTimes(2);
   });
   expect(api.remove).toHaveBeenCalledTimes(1);
+});
+
+it('ignores delete failures and completions after the surface unmounts', async () => {
+  for (const outcome of ['resolve', 'reject'] as const) {
+    let finish: () => void = () => undefined,
+      fail: (error: Error) => void = () => undefined;
+    const api = await setup(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          finish = resolve;
+          fail = reject;
+        }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    cleanup();
+    if (outcome === 'resolve') finish();
+    else fail(new Error('offline'));
+    await waitFor(() => {
+      expect(api.remove).toHaveBeenCalledOnce();
+    });
+  }
+});
+
+it('retains the delete target after a transport failure and retries the same version', async () => {
+  const api = await setup(() => Promise.resolve());
+  api.remove.mockRejectedValueOnce(new Error('offline'));
+  act(() => {
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  });
+  await screen.findByText('We couldn’t delete this sign. Please try again.');
+  fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+  await waitFor(() => {
+    expect(
+      screen.queryByRole('dialog', { name: 'Delete sign SG.001' }),
+    ).toBeNull();
+  });
+  expect(api.remove).toHaveBeenCalledTimes(2);
 });

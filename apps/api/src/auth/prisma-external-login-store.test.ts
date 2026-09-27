@@ -17,14 +17,12 @@ describe('Prisma external login store [user-login REQ-011, REQ-013, REQ-014]', (
     };
     for (const code of ['P2002', 'P2034']) {
       const store = createPrismaExternalLoginStore({
-        $transaction: vi
-          .fn()
-          .mockRejectedValue(
-            new Prisma.PrismaClientKnownRequestError('conflict', {
-              code,
-              clientVersion: 'test',
-            }),
-          ),
+        $transaction: vi.fn().mockRejectedValue(
+          new Prisma.PrismaClientKnownRequestError('conflict', {
+            code,
+            clientVersion: 'test',
+          }),
+        ),
       } as never);
       await expect(store.completeIdentityLogin(input)).resolves.toBeNull();
     }

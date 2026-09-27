@@ -23,7 +23,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/main.tsx', 'src/test-setup.ts'],
+      exclude: ['src/main.tsx', 'src/test-setup.ts', 'src/**/*.stories.tsx'],
       thresholds: {
         branches: 100,
         functions: 100,

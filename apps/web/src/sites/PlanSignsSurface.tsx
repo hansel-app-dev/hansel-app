@@ -706,9 +706,6 @@ export function PlanSignsSurface({
                         }}
                       />
                     }
-                    onChange={() => {
-                      // Both placement kinds currently have one fixed colour.
-                    }}
                   />
                   <fieldset>
                     <legend>Orientation</legend>

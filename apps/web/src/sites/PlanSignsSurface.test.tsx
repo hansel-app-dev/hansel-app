@@ -41,5 +41,7 @@ it('allocation-plan-signs REQ-002: viewers cannot create and disabled tabs remai
     screen.queryByRole('button', { name: 'Delete sign' }),
   ).not.toBeInTheDocument();
   fireEvent.click(screen.getByLabelText('Plan drawing'));
-  await waitFor(() => { expect(api.create).not.toHaveBeenCalled(); });
+  await waitFor(() => {
+    expect(api.create).not.toHaveBeenCalled();
+  });
 });

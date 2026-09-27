@@ -195,7 +195,10 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
       },
       applicationSessionFamily: { update: vi.fn() },
       membership: {
-        findUnique: vi.fn().mockResolvedValue({ roleId: 'owner' }),
+        findUnique: vi.fn().mockResolvedValue({
+          roleId: 'owner',
+          tenant: { name: null, memberships: [] },
+        }),
       },
     };
     const prisma = {
@@ -388,7 +391,10 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
         },
         applicationSessionFamily: { update: vi.fn() },
         membership: {
-          findUnique: vi.fn().mockResolvedValue({ roleId: 'owner' }),
+          findUnique: vi.fn().mockResolvedValue({
+            roleId: 'owner',
+            tenant: { name: null, memberships: [] },
+          }),
         },
       };
       const recordEvent = vi.fn();
@@ -433,4 +439,82 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
       );
     }
   });
+});
+
+it('keeps optional viewer metadata consistent across access and refresh credentials', async () => {
+  for (const memberships of [
+    [],
+    [{ user: { planSelection: null } }],
+    [{ user: { planSelection: { planId: 'free' } } }],
+  ]) {
+    const user = {
+      email: 'owner@example.com',
+      personalProfile: { firstName: 'Nabin', lastName: 'Singh' },
+    };
+    const credential = {
+      id: 'credential',
+      kind: 'ACCESS',
+      consumedAt: null,
+      expiresAt: future,
+      family: {
+        id: 'family',
+        userId: 'user',
+        tenantId: 'tenant',
+        revokedAt: null,
+        absoluteExpiresAt: future,
+        user,
+      },
+    };
+    const db = {
+      applicationSessionCredential: {
+        findUnique: vi.fn().mockResolvedValue(credential),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        createMany: vi.fn(),
+      },
+      membership: {
+        findUnique: vi.fn().mockResolvedValue({
+          roleId: 'owner',
+          tenant: { name: null, memberships },
+        }),
+      },
+    };
+    const store = createPrismaDashboardSessionStore(
+      {
+        ...db,
+        $transaction: (callback: (value: typeof db) => Promise<unknown>) =>
+          callback(db),
+      } as never,
+      vi.fn(),
+    );
+    await expect(
+      store.authorizeAccess({ credentialDigest: 'access', now }),
+    ).resolves.toMatchObject({ email: user.email });
+    credential.kind = 'REFRESH';
+    db.membership.findUnique.mockResolvedValue({
+      roleId: 'owner',
+      tenant: { name: 'Hansel', memberships },
+    });
+    await expect(
+      store.rotateRefresh({
+        credentialDigest: 'refresh',
+        accessCredentialDigest: 'a',
+        refreshCredentialDigest: 'r',
+        now,
+        accessExpiresAt: future,
+        refreshExpiresAt: future,
+      }),
+    ).resolves.toMatchObject({
+      status: 'accepted',
+      viewer: {
+        email: user.email,
+        organizationName: 'Hansel',
+        ...(memberships[0]?.user.planSelection ? { planId: 'free' } : {}),
+      },
+    });
+    credential.kind = 'ACCESS';
+    Object.assign(user, { email: null });
+    await expect(
+      store.authorizeAccess({ credentialDigest: 'access', now }),
+    ).resolves.toMatchObject({ firstName: 'Nabin' });
+  }
 });

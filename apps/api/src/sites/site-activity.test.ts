@@ -94,3 +94,49 @@ describe('Site Activity persistence [site-activity-feed-comments REQ-002..REQ-01
     expect(page.nextCursor).toEqual(expect.any(String));
   });
 });
+it('site-activity-feed-comments REQ-002..010: validates cursor shapes and scopes older pages, tolerating missing display metadata', async () => {
+  const db = makePrisma(),
+    api = createSiteActivityFeature(db as never);
+  for (const value of [
+    'invalid',
+    Buffer.from('{}').toString('base64url'),
+    Buffer.from(
+      JSON.stringify({ createdAt: record.createdAt.toISOString() }),
+    ).toString('base64url'),
+  ])
+    await expect(api.list(principal, siteId, value)).rejects.toThrow();
+  db.activity.findMany.mockResolvedValue([
+    {
+      ...record,
+      subjectLabel: null,
+      actor: { user: { email: 'member@example.com', personalProfile: null } },
+    },
+  ]);
+  const cursor = Buffer.from(
+    JSON.stringify({
+      id: record.id,
+      createdAt: record.createdAt.toISOString(),
+    }),
+  ).toString('base64url');
+  expect(
+    (await api.list({ ...principal, roleId: 'owner' }, siteId, cursor))
+      .items[0],
+  ).toMatchObject({
+    actor: { displayName: 'Member', initials: 'M' },
+    subjectLabel: '',
+  });
+  db.activity.findMany.mockResolvedValue([
+    {
+      ...record,
+      kind: 'SITE_COMMENT_ADDED',
+      commentText: null,
+      actor: {
+        user: { email: '', personalProfile: { firstName: '', lastName: '' } },
+      },
+    },
+  ]);
+  expect((await api.list(principal, siteId)).items[0]).toMatchObject({
+    commentText: '',
+    actor: { initials: '' },
+  });
+});

@@ -68,8 +68,9 @@ export function SignDeleteDialog({
     };
   }, [host]);
   useLayoutEffect(() => {
-    const element = dialog.current;
-    if (!element) return;
+    // This dialog is always rendered before its layout effect runs.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const element = dialog.current!;
     const previous = document.activeElement;
     element.showModal();
     cancel.current?.focus();

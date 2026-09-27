@@ -17,15 +17,13 @@ describe('OpenID provider adapter [user-login REQ-013..REQ-015]', () => {
           discover: vi.fn().mockResolvedValue({}),
           calculateChallenge: vi.fn(),
           buildUrl: vi.fn(),
-          exchangeCode: vi
-            .fn()
-            .mockResolvedValue({
-              claims: () => ({
-                sub: 'subject',
-                email: 'user@example.com',
-                email_verified: verified,
-              }),
+          exchangeCode: vi.fn().mockResolvedValue({
+            claims: () => ({
+              sub: 'subject',
+              email: 'user@example.com',
+              email_verified: verified,
             }),
+          }),
         },
       );
       const result = await adapter.exchange({

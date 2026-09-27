@@ -1,3 +1,4 @@
+import { nextPageCursor } from './pagination.js';
 /** @spec sign-documents REQ-004..008 */
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
@@ -103,7 +104,7 @@ export function createSignDocumentsFeature(
       });
       return {
         documents: rows.slice(0, 50).map(dto),
-        nextCursor: rows.length > 50 ? (rows[49]?.id ?? null) : null,
+        nextCursor: nextPageCursor(rows),
       };
     },
     async initiate(

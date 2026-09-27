@@ -1,7 +1,22 @@
 /** @spec allocation-plan-comments REQ-001,005..010 */
 import express from 'express';
+import type { Server } from 'node:http';
+const servers: Server[] = [];
+afterEach(async () => {
+  await Promise.all(
+    servers.splice(0).map(
+      (server) =>
+        new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        }),
+    ),
+  );
+});
 import request from 'supertest';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { registerPlanCommentRoutes } from './plan-comment-routes.js';
 import {
   SignageConflictError,
@@ -51,17 +66,23 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   const app = express();
   app.use(express.json());
   registerPlanCommentRoutes(app, options);
+  const server = app.listen(0);
+  servers.push(server);
   const get = (path: string) =>
-    request(app).get(path).set('Cookie', 'hansel_access=test');
+    request(server).get(path).set('Cookie', 'hansel_access=test');
   const post = (path: string, body: object = {}) =>
-    request(app)
+    request(server)
       .post(path)
       .set('Origin', origin)
       .set('Cookie', 'hansel_access=test')
       .send(body);
-  expect((await request(app).get(base)).status).toBe(401);
-  expect((await request(app).post(base)).status).toBe(403);
+  expect((await request(server).get(base)).status).toBe(401);
+  expect((await request(server).post(base)).status).toBe(403);
   expect((await get(base)).status).toBe(200);
+  expect((await get(base.replace('files/legacy', 'files/' + id))).status).toBe(
+    200,
+  );
+  expect((await get(base + '/people')).status).toBe(200);
   // @spec allocation-plan-comments-always-visible REQ-003
   for (const suffix of ['', '?resolved=true', '?resolved=false']) {
     const response = await get(base + suffix);
@@ -91,7 +112,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
     y: 0.3,
     expectedUpdatedAt: '2026-09-27T00:00:00.000Z',
   };
-  const moved = await request(app)
+  const moved = await request(server)
     .put(positionUrl)
     .set('Origin', origin)
     .set('Cookie', 'hansel_access=test')
@@ -108,7 +129,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   );
   expect(
     (
-      await request(app)
+      await request(server)
         .put(positionUrl)
         .set('Origin', origin)
         .send(positionBody)
@@ -116,7 +137,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   ).toBe(401);
   expect(
     (
-      await request(app)
+      await request(server)
         .put(positionUrl)
         .set('Cookie', 'hansel_access=test')
         .send(positionBody)
@@ -133,7 +154,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
     feature.position.mockRejectedValueOnce(error);
     expect(
       (
-        await request(app)
+        await request(server)
           .put(positionUrl)
           .set('Origin', origin)
           .set('Cookie', 'hansel_access=test')
@@ -144,7 +165,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   options.enabled = false;
   expect(
     (
-      await request(app)
+      await request(server)
         .put(positionUrl)
         .set('Origin', origin)
         .set('Cookie', 'hansel_access=test')
@@ -169,7 +190,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   ).toBe(200);
   expect(
     (
-      await request(app)
+      await request(server)
         .put(`${base}/${id}/state`)
         .set('Origin', origin)
         .set('Cookie', 'hansel_access=test')
@@ -192,7 +213,7 @@ it('REQ-001,005..010: routes enforce feature/session/origin and dispatch every p
   expect((await get(`${base}/attachments/${id}/thumbnail`)).status).toBe(200);
   expect(
     (
-      await request(app)
+      await request(server)
         .delete(`${base}/attachments/${id}`)
         .set('Origin', origin)
         .set('Cookie', 'hansel_access=test')

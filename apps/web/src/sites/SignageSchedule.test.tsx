@@ -271,3 +271,105 @@ describe('SignageSchedule [site-signage-schedule AC-001..AC-005]', () => {
     ).toBeVisible();
   });
 });
+
+it('preserves sibling Types and Signs through edits and toggles group selection in all colour groups', async () => {
+  const sibling = {
+    ...sign,
+    id: '00000000-0000-4000-8000-000000000012',
+    code: 'RS.102',
+    quantity: 2,
+  };
+  const teal = {
+      ...type,
+      id: '00000000-0000-4000-8000-000000000020',
+      name: 'Teal',
+      color: 'TEAL' as const,
+      signs: [],
+    },
+    slate = {
+      ...teal,
+      id: '00000000-0000-4000-8000-000000000030',
+      name: 'Slate',
+      color: 'SLATE' as const,
+    };
+  const updateType = vi.fn(async (_type: SignType, name: string) => ({
+      ...type,
+      name,
+      signs: [sign, sibling],
+    })),
+    updateSign = vi.fn(
+      async (_sign: Sign, field: string, value: string | number) => ({
+        ...sign,
+        [field]: value,
+      }),
+    );
+  const createSign = vi.fn(async () => sibling),
+    createType = vi.fn(async () => teal);
+  render(
+    <SignageSchedule
+      initial={{
+        canManageSigns: true,
+        signTypes: [{ ...type, signs: [sign, sibling] }, teal, slate],
+      }}
+      createType={createType}
+      updateType={updateType}
+      createSign={createSign}
+      updateSign={updateSign}
+    />,
+  );
+  const select = screen.getByRole('checkbox', {
+    name: 'Select all visible signs in Regulatory Signs',
+  });
+  fireEvent.click(select);
+  expect(select).toBeChecked();
+  fireEvent.click(select);
+  expect(select).not.toBeChecked();
+  const name = screen.getByRole('textbox', { name: 'Regulatory Signs name' });
+  fireEvent.keyDown(name, { key: 'Enter' });
+  expect(updateType).not.toHaveBeenCalled();
+  fireEvent.change(name, { target: { value: 'Renamed' } });
+  fireEvent.keyDown(name, { key: 'Enter' });
+  fireEvent.blur(name);
+  await waitFor(() => {
+    expect(updateType).toHaveBeenCalledOnce();
+  });
+  expect(screen.getByDisplayValue('Teal')).toBeVisible();
+  const quantity = screen.getByRole('spinbutton', { name: 'RS.101 quantity' });
+  fireEvent.keyDown(quantity, { key: 'Enter' });
+  expect(updateSign).not.toHaveBeenCalled();
+  fireEvent.change(quantity, { target: { value: '3' } });
+  fireEvent.keyDown(quantity, { key: 'Escape' });
+  expect(quantity).toHaveValue(1);
+  fireEvent.change(quantity, { target: { value: '3' } });
+  fireEvent.keyDown(quantity, { key: 'Enter' });
+  await waitFor(() => {
+    expect(updateSign).toHaveBeenCalledOnce();
+  });
+  expect(screen.getByDisplayValue('RS.102')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: /New sign type/ }));
+  const input = screen.getByRole('textbox', { name: 'New sign type name' });
+  fireEvent.keyDown(input, { key: 'Escape' });
+  expect(
+    screen.queryByRole('textbox', { name: 'New sign type name' }),
+  ).toBeNull();
+});
+
+it('creates a Type through the draft Enter shortcut', async () => {
+  const createType = vi.fn().mockResolvedValue(type);
+  render(
+    <SignageSchedule
+      initial={{ canManageSigns: true, signTypes: [] }}
+      createType={createType}
+      updateType={vi.fn()}
+      createSign={vi.fn()}
+      updateSign={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: /New sign type/ }));
+  const input = screen.getByRole('textbox', { name: 'New sign type name' });
+  fireEvent.change(input, { target: { value: 'Regulatory Signs' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  await waitFor(() => {
+    expect(createType).toHaveBeenCalledWith('Regulatory Signs');
+  });
+});

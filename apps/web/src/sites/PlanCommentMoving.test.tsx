@@ -94,20 +94,19 @@ function setup(saved = true, threads: PlanCommentThread[] = [thread]) {
     download: vi.fn(),
   };
   const ref = createRef<PlanCommentsHandle>();
-  const view = render(
-    <PlanComments
-      ref={ref}
-      api={api}
-      fileId={null}
-      tool={saved ? 'move' : 'comment'}
-      panning={false}
-      host={document.body}
-      beforeOpen={() => true}
-      onActivateMove={() => undefined}
-      onBusyChange={() => undefined}
-    />,
-  );
-  return { api, ref, view };
+  const props = {
+    ref,
+    api,
+    fileId: null,
+    tool: saved ? ('move' as const) : ('comment' as const),
+    panning: false,
+    host: document.body,
+    beforeOpen: () => true,
+    onActivateMove: () => undefined,
+    onBusyChange: () => undefined,
+  };
+  const view = render(<PlanComments {...props} />);
+  return { api, ref, view, props };
 }
 it('REQ-001,003,004: saves one normalized offset-preserving drag and suppresses placement', async () => {
   const { api } = setup();
@@ -173,7 +172,10 @@ it('REQ-004,006,009: keyboard save restores canonical position on failure and re
   fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
   await screen.findByRole('button', { name: 'Retry comment move' });
   expect(pin.style.left).toBe('20%');
-  fireEvent.click(screen.getByRole('button', { name: 'Retry comment move' }));
+  act(() => {
+    fireEvent.click(screen.getByRole('button', { name: 'Retry comment move' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Retry comment move' }));
+  });
   await waitFor(() => {
     expect(api.position).toHaveBeenCalledTimes(2);
   });
@@ -360,4 +362,293 @@ it('REQ-001,002,004: resolved-only drawings load and reopen history without a vi
     name: 'Resolved comment by Viewer: Check',
   });
   expect(screen.queryByText('No comments')).not.toBeInTheDocument();
+});
+
+it('moves a new comment pin by dragging, guards navigation and closes with Escape', async () => {
+  const { api, ref } = setup(false);
+  await waitFor(() => {
+    expect(api.markers).toHaveBeenCalled();
+  });
+  for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'])
+    act(() =>
+      ref.current?.keyDown({
+        key,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      } as never),
+    );
+  act(() => ref.current?.place(0.2, 0.3));
+  const pin = screen.getByRole('button', { name: 'New comment pin' });
+  fireEvent.pointerDown(pin, { clientX: 300, clientY: 200, button: 0 });
+  fireEvent.pointerMove(pin, { clientX: 400, clientY: 250 });
+  fireEvent.pointerUp(pin, { clientX: 400, clientY: 250 });
+  expect(api.position).not.toHaveBeenCalled();
+  fireEvent.click(pin);
+  fireEvent.keyDown(pin, { key: 'ArrowUp', altKey: true });
+  const input = await screen.findByRole('textbox', { name: 'Write a comment' });
+  fireEvent.change(input, { target: { value: 'Draft' } });
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  const link = document.createElement('a');
+  link.href = '/sites';
+  document.body.append(link);
+  const navigation = new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+  });
+  link.dispatchEvent(navigation);
+  expect(navigation.defaultPrevented).toBe(true);
+  link.remove();
+  const leave = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(leave);
+  expect(leave.defaultPrevented).toBe(true);
+  fireEvent.pointerDown(screen.getByRole('dialog'));
+  fireEvent.click(screen.getByRole('dialog'));
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  expect(screen.getByRole('dialog')).toBeVisible();
+  confirm.mockReturnValue(true);
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  act(() =>
+    ref.current?.keyDown({
+      key: 'Escape',
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as never),
+  );
+});
+it('reports reload failures after a move conflict and suppresses resolution work after unmount', async () => {
+  const { api, view } = setup();
+  vi.mocked(api.position).mockRejectedValueOnce(
+    new CommentRequestError(409, 'conflict'),
+  );
+  const pin = await screen.findByRole('button', {
+    name: 'Comment by Viewer: Check',
+  });
+  fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
+  vi.mocked(api.history).mockRejectedValueOnce(new Error('offline'));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Reload comment' }),
+  );
+  await screen.findByText('Couldn’t reload comment.');
+  vi.mocked(api.history).mockResolvedValue({
+    thread,
+    comments: [],
+    viewer,
+    nextCursor: null,
+  });
+  fireEvent.click(pin);
+  await screen.findByRole('button', { name: 'Resolve thread' });
+  let settle: (value: PlanCommentThread) => void = () => undefined;
+  vi.mocked(api.state).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Resolve thread' }));
+  view.unmount();
+  await act(() => {
+    settle(thread);
+    return Promise.resolve();
+  });
+});
+
+it('restores pin focus after keyboard movement and guards unload during a pointer gesture', async () => {
+  const { api } = setup();
+  const pin = await screen.findByRole('button', {
+    name: 'Comment by Viewer: Check',
+  });
+  pin.focus();
+  let finish: (value: PlanCommentThread) => void = () => undefined;
+  vi.mocked(api.position).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
+  const feedback = screen.getByText('Saving position…');
+  fireEvent.pointerDown(feedback);
+  fireEvent.click(feedback);
+  const focused = document.activeElement;
+  if (focused instanceof HTMLElement) focused.blur();
+  await act(() => {
+    finish({ ...thread, x: 0.21 });
+    return Promise.resolve();
+  });
+  await waitFor(() => expect(pin).toHaveFocus());
+  fireEvent.pointerDown(pin, { clientX: 310, clientY: 210, button: 0 });
+  const leave = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(leave);
+  expect(leave.defaultPrevented).toBe(true);
+  fireEvent.pointerCancel(pin);
+});
+
+it('reports resolution conflicts and guards unload while resolution is pending', async () => {
+  const { api } = setup();
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Comment by Viewer: Check' }),
+  );
+  await screen.findByRole('button', { name: 'Resolve thread' });
+  let reject: (error: Error) => void = () => undefined;
+  vi.mocked(api.state).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Resolve thread' }));
+  const leave = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(leave);
+  expect(leave.defaultPrevented).toBe(true);
+  await act(() => {
+    reject(new CommentRequestError(409, 'conflict'));
+    return Promise.resolve();
+  });
+  await screen.findByText(
+    'This thread changed. Close and reopen it to reload.',
+  );
+});
+
+it('ignores obsolete marker, movement and reload responses after a file switch', async () => {
+  for (const operation of ['markers', 'position', 'history'] as const) {
+    const { api, props, view } = setup();
+    const pin = await screen.findByRole('button', {
+      name: 'Comment by Viewer: Check',
+    });
+    let resolve: (value: unknown) => void = () => undefined,
+      reject: (error: Error) => void = () => undefined;
+    const pending = new Promise<never>((done, fail) => {
+      resolve = (value) => {
+        done(value as never);
+      };
+      reject = fail;
+    });
+    vi.mocked(api[operation]).mockReturnValueOnce(pending);
+    if (operation === 'markers') {
+      view.rerender(<PlanComments {...props} fileId="second" />);
+    } else if (operation === 'position')
+      fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
+    else {
+      vi.mocked(api.position).mockRejectedValueOnce(
+        new CommentRequestError(409, 'conflict'),
+      );
+      fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Reload comment' }),
+      );
+    }
+    view.rerender(<PlanComments {...props} fileId="third" />);
+    await waitFor(() => {
+      expect(api.markers).toHaveBeenCalledWith('third', undefined);
+    });
+    await act(() => {
+      if (operation === 'position') reject(new Error('offline'));
+      else
+        resolve(
+          operation === 'markers'
+            ? { threads: [thread], viewer, nextCursor: null }
+            : { thread, comments: [], viewer, nextCursor: null },
+        );
+      return Promise.resolve();
+    });
+    expect(screen.queryByText('Couldn’t reload comment.')).toBeNull();
+    view.unmount();
+  }
+});
+it('rejects secondary pointers, stale pointer ids and zero-height drag bounds, and clamps keyboard movement', async () => {
+  const { api } = setup();
+  const pin = await screen.findByRole('button', {
+    name: 'Comment by Viewer: Check',
+  });
+  fireEvent.pointerDown(pin, { button: 2 });
+  fireEvent.pointerMove(pin, { pointerId: 2 });
+  expect(api.position).not.toHaveBeenCalled();
+  const layer = screen.getByLabelText('Plan comments');
+  const bounds = vi
+    .spyOn(layer, 'getBoundingClientRect')
+    .mockReturnValue(new DOMRect(0, 0, 1000, 0));
+  fireEvent.pointerDown(pin, { button: 0, clientX: 200, clientY: 200 });
+  expect(api.position).not.toHaveBeenCalled();
+  bounds.mockReturnValue(new DOMRect(0, 0, 1000, 500));
+  fireEvent.pointerDown(pin, { button: 0, clientX: 200, clientY: 200 });
+  const wrong = new Event('pointermove', { bubbles: true });
+  Object.assign(wrong, { pointerId: 2 });
+  fireEvent(pin, wrong);
+  bounds.mockReturnValue(new DOMRect(0, 0, 1000, 0));
+  fireEvent.pointerMove(pin, { clientX: 300, clientY: 300 });
+  fireEvent.pointerCancel(pin);
+  expect(api.position).not.toHaveBeenCalled();
+});
+
+it('does not reopen a cleared selection when movement or conflict reload completes', async () => {
+  for (const operation of ['position', 'history'] as const) {
+    const { api, ref } = setup();
+    const pin = await screen.findByRole('button', {
+      name: 'Comment by Viewer: Check',
+    });
+    let finish: () => void = () => undefined;
+    if (operation === 'position')
+      vi.mocked(api.position).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () => {
+              resolve(thread);
+            };
+          }),
+      );
+    else {
+      vi.mocked(api.position).mockRejectedValueOnce(
+        new CommentRequestError(409, 'conflict'),
+      );
+      vi.mocked(api.history).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = () => {
+              resolve({ thread, comments: [], viewer, nextCursor: null });
+            };
+          }),
+      );
+    }
+    fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
+    if (operation === 'history')
+      fireEvent.click(
+        await screen.findByRole('button', { name: 'Reload comment' }),
+      );
+    act(() => {
+      ref.current?.clear();
+    });
+    await act(() => {
+      finish();
+      return Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    cleanup();
+  }
+});
+it('does not save a keyboard move beyond the drawing boundary', async () => {
+  const { api } = setup(true, [{ ...thread, x: 0, y: 0 }]);
+  const pin = await screen.findByRole('button', {
+    name: 'Comment by Viewer: Check',
+  });
+  fireEvent.keyDown(pin, { key: 'ArrowLeft', altKey: true });
+  expect(api.position).not.toHaveBeenCalled();
+});
+
+it('does not recreate a cleared draft from a queued keyboard event', async () => {
+  const { api, ref } = setup(false);
+  await waitFor(() => {
+    expect(api.markers).toHaveBeenCalled();
+  });
+  act(() => {
+    ref.current?.place(0.5, 0.5);
+  });
+  const pin = screen.getByRole('button', { name: 'New comment pin' });
+  act(() => {
+    ref.current?.clear();
+    fireEvent.keyDown(pin, { key: 'ArrowRight', altKey: true });
+  });
+  expect(screen.queryByRole('button', { name: 'New comment pin' })).toBeNull();
 });

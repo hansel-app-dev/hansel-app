@@ -80,12 +80,9 @@ export function AddPlansModal({
     current.current = next;
     renderRows(next);
   }
-  function patch(id: string, value: Partial<Row>) {
-    update(
-      current.current.map((row) =>
-        row.id === id ? { ...row, ...value } : row,
-      ),
-    );
+  function patch(value: Partial<Row>) {
+    // Only one file is selected; each transfer callback checks its generation.
+    update(current.current.map((row) => ({ ...row, ...value })));
   }
   function abandon() {
     generation.current++;
@@ -101,6 +98,9 @@ export function AddPlansModal({
   dismissRef.current = dismiss;
   useEffect(() => {
     const invoker = document.activeElement;
+    // The dialog is rendered unconditionally before this effect.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const element = dialog.current!;
     dialog.current?.focus();
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -109,9 +109,9 @@ export function AddPlansModal({
       }
       if (event.key !== 'Tab') return;
       const controls = Array.from(
-        dialog.current?.querySelectorAll<HTMLElement>(
+        element.querySelectorAll<HTMLElement>(
           'button:not(:disabled), input:not(:disabled):not([type=file]), [tabindex="0"]',
-        ) ?? [],
+        ),
       ).filter((element) => !element.closest('[inert]'));
       const first = controls[0],
         last = controls.at(-1);
@@ -204,7 +204,7 @@ export function AddPlansModal({
       run === generation.current &&
       !controller.signal.aborted &&
       current.current.some((entry) => entry.id === id);
-    patch(id, { state: 'uploading', progress: 0, controller });
+    patch({ state: 'uploading', progress: 0, controller });
     try {
       if (new Date(row.intent.expiresAt).getTime() <= Date.now())
         throw new Error('expired');
@@ -212,17 +212,17 @@ export function AddPlansModal({
         signal: controller.signal,
         onProgress: (percentage) => {
           if (alive())
-            patch(id, {
+            patch({
               progress: Math.round(Math.min(100, Math.max(0, percentage))),
             });
         },
       });
       if (!alive()) return;
-      patch(id, { state: 'verifying', progress: 100 });
+      patch({ state: 'verifying', progress: 100 });
       await finalize(row.intent.uploadId);
-      if (alive()) patch(id, { state: 'verified' });
+      if (alive()) patch({ state: 'verified' });
     } catch {
-      if (alive()) patch(id, { state: 'failed' });
+      if (alive()) patch({ state: 'failed' });
     }
   }
   async function start() {
@@ -242,13 +242,6 @@ export function AddPlansModal({
           checksumSha256: await checksum(file),
         })),
       );
-      const identities = files.map((file) =>
-        JSON.stringify([file.filename, file.byteSize, file.checksumSha256]),
-      );
-      if (new Set(identities).size !== files.length) {
-        setError('Remove duplicate files before continuing.');
-        return;
-      }
       if (run !== generation.current) return;
       const result = await createBatch({
         idempotencyKey: batchKey.current,
@@ -299,9 +292,9 @@ export function AddPlansModal({
     commitPayload.current ??= {
       name: validName.data,
       idempotencyKey: crypto.randomUUID(),
-      uploadIds: rows.flatMap((row) =>
-        row.intent ? [row.intent.uploadId] : [],
-      ),
+      uploadIds: rows
+        .map((row) => row.intent?.uploadId)
+        .filter((id): id is string => id !== undefined),
     };
     try {
       await commit(commitPayload.current);
@@ -544,11 +537,9 @@ export function AddPlansModal({
                               ? ' • Uploading…'
                               : row.state === 'verifying'
                                 ? ' • Verifying…'
-                                : row.state === 'queued' && stage === 'upload'
-                                  ? ' • Queued'
-                                  : row.state === 'failed'
-                                    ? ' • Upload failed'
-                                    : ''}
+                                : row.state === 'failed'
+                                  ? ' • Upload failed'
+                                  : ''}
                           </p>
                           {row.state === 'uploading' ? (
                             <div className="flex items-center gap-1">

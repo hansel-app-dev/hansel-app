@@ -169,14 +169,12 @@ export function registerSignCommentRoutes(
                   : error instanceof SignCommentValidationError
                     ? 422
                     : 503;
-        return res
-          .status(status)
-          .json({
-            error:
-              error instanceof SignCommentValidationError
-                ? error.message
-                : 'comment_request_failed',
-          });
+        return res.status(status).json({
+          error:
+            error instanceof SignCommentValidationError
+              ? error.message
+              : 'comment_request_failed',
+        });
       }
     },
   );

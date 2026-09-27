@@ -321,3 +321,39 @@ describe('external login [user-login REQ-013..REQ-015]', () => {
     });
   });
 });
+
+it('rejects pending Microsoft signup without a configured workflow and omits absent email hints', async () => {
+  const deps = dependencies();
+  deps.consumeTransaction.mockResolvedValue({
+    intent: 'onboarding',
+    termsVersion: '2026-08-27',
+    privacyVersion: '2026-08-27',
+    redirectUri: 'https://app.example/auth/callback/microsoft',
+    nonceDigest: 'digest:nonce',
+    pkceVerifierDigest: 'digest:verifier',
+    sealedSecrets: 'sealed',
+  });
+  deps.providers.microsoft.exchange.mockResolvedValue({ subject: 'immutable' });
+  deps.completeIdentityLogin.mockResolvedValue('email-signup-required');
+  const callback = new URL(
+    'https://app.example/auth/callback/microsoft?state=state&code=code',
+  );
+  await expect(
+    createExternalLogin(deps).callback('microsoft', callback),
+  ).resolves.toEqual({ status: 'rejected' });
+  const startMicrosoftSignup = vi.fn().mockResolvedValue('pending');
+  await expect(
+    createExternalLogin({ ...deps, startMicrosoftSignup }).callback(
+      'microsoft',
+      callback,
+    ),
+  ).resolves.toEqual({
+    status: 'microsoft-email-required',
+    pendingCredential: 'pending',
+  });
+  expect(startMicrosoftSignup).toHaveBeenCalledWith({
+    subject: 'immutable',
+    termsVersion: '2026-08-27',
+    privacyVersion: '2026-08-27',
+  });
+});

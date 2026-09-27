@@ -177,10 +177,10 @@ export function AddSiteModal({
   organizationName,
   uploadCoverImage,
 }: AddSiteModalProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [createdSite, setCreatedSite] = useState<CreateSiteResponse | null>(
-    null,
-  );
+  const [flow, setFlow] = useState<
+    { step: 1 } | { step: 2 } | { step: 3; site: CreateSiteResponse }
+  >({ step: 1 });
+  const step = flow.step;
   const [accessScope, setAccessScope] =
     useState<SiteAccessScope>('ORGANIZATION');
   const [accessOpen, setAccessOpen] = useState(false);
@@ -222,8 +222,8 @@ export function AddSiteModal({
     stepOneDirty || accessScope !== 'ORGANIZATION' || assignments.length > 0;
   const requestClose = () => {
     if (coverUploading) return;
-    if (step === 3 && createdSite) {
-      onCreated(createdSite.destination);
+    if (flow.step === 3) {
+      onCreated(flow.site.destination);
       return;
     }
     if (
@@ -284,8 +284,7 @@ export function AddSiteModal({
             : { ...common, accessScope };
       const result = await createSite(request);
       if (coverImageEnabled) {
-        setCreatedSite(result);
-        setStep(3);
+        setFlow({ step: 3, site: result });
       } else {
         onCreated(result.destination);
       }
@@ -330,7 +329,7 @@ export function AddSiteModal({
           </button>
         </header>
 
-        {step === 1 ? (
+        {flow.step === 1 ? (
           <div className="grid gap-6 px-6 pb-8 pt-6">
             <div className="grid grid-cols-[40px_minmax(0,1fr)] items-start gap-2 [&>div>label]:sr-only [&>div]:gap-0">
               <span className="grid size-10 place-items-center rounded bg-[#f4f4f5]">
@@ -541,7 +540,7 @@ export function AddSiteModal({
               </p>
             ) : null}
           </div>
-        ) : step === 2 ? (
+        ) : flow.step === 2 ? (
           <div>
             <section
               aria-labelledby="invite-members-heading"
@@ -713,16 +712,16 @@ export function AddSiteModal({
               </p>
             ) : null}
           </div>
-        ) : createdSite ? (
+        ) : (
           <SiteCoverImageStep
             totalSteps={accessScope === 'PEOPLE_INVITED' ? 3 : 2}
             onUploadingChange={setCoverUploading}
-            destination={createdSite.destination}
+            destination={flow.site.destination}
             onComplete={onCreated}
-            siteId={createdSite.siteId}
+            siteId={flow.site.siteId}
             {...(uploadCoverImage ? { uploadCoverImage } : {})}
           />
-        ) : null}
+        )}
 
         {step !== 3 ? (
           <footer className="flex min-h-[72px] flex-wrap items-center justify-between gap-4 bg-[#f8f9fb] px-6 py-4">
@@ -732,7 +731,7 @@ export function AddSiteModal({
                 (coverImageEnabled ? 1 : 0)}
             </p>
             <div className="flex gap-4 [&>button]:font-normal [&>button]:shadow-none">
-              {step === 1 ? (
+              {flow.step === 1 ? (
                 <>
                   <Button
                     className="w-20 bg-transparent"
@@ -746,7 +745,7 @@ export function AddSiteModal({
                       className="min-w-[65px]"
                       onClick={() => {
                         void trigger('name').then((valid) => {
-                          if (valid) setStep(2);
+                          if (valid) setFlow({ step: 2 });
                         });
                       }}
                     >
@@ -778,7 +777,7 @@ export function AddSiteModal({
                 <>
                   <Button
                     onClick={() => {
-                      setStep(1);
+                      setFlow({ step: 1 });
                     }}
                     variant="secondary"
                   >

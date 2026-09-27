@@ -492,9 +492,9 @@ export function AllocationPlanViewer({
             ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)
           ) {
             const items = Array.from(
-              selector.current?.querySelectorAll<HTMLButtonElement>(
+              event.currentTarget.querySelectorAll<HTMLButtonElement>(
                 '[role="menuitem"]',
-              ) ?? [],
+              ),
             );
             const index = items.findIndex(
               (item) => item === document.activeElement,

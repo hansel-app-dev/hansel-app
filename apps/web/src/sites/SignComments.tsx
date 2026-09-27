@@ -145,32 +145,28 @@ export function SignComments({
       newEnd--;
     }
     const shift = newEnd - oldEnd;
+    // The edit interval removes intersecting tokens and shifts intact ranges.
     setMentions((old) =>
-      old
-        .flatMap((mention) =>
-          mention.end <= start
-            ? [mention]
-            : mention.start >= oldEnd
-              ? [
-                  {
-                    ...mention,
-                    start: mention.start + shift,
-                    end: mention.end + shift,
-                  },
-                ]
-              : [],
-        )
-        .filter(
-          (mention) =>
-            next.slice(mention.start, mention.end) === `@${mention.name}`,
-        ),
+      old.flatMap((mention) =>
+        mention.end <= start
+          ? [mention]
+          : mention.start >= oldEnd
+            ? [
+                {
+                  ...mention,
+                  start: mention.start + shift,
+                  end: mention.end + shift,
+                },
+              ]
+            : [],
+      ),
     );
     setBody(next);
     const prefix = next.slice(0, caret),
       at = prefix.lastIndexOf('@');
     setMentionQuery(
       at >= 0 &&
-        (at === 0 || /\s/.test(prefix[at - 1] ?? '')) &&
+        (at === 0 || /\s/.test(prefix.charAt(at - 1))) &&
         !/[\n@]/.test(prefix.slice(at + 1)) &&
         !mentions.some((mention) => at >= mention.start && at < mention.end)
         ? { start: at, end: caret, query: prefix.slice(at + 1) }
@@ -178,8 +174,9 @@ export function SignComments({
     );
   }
   function insert(text: string) {
-    const element = input.current;
-    if (!element) return;
+    // Insert actions are rendered alongside the textarea.
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const element = input.current!;
     const start = element.selectionStart,
       end = element.selectionEnd;
     updateText(
@@ -191,9 +188,11 @@ export function SignComments({
       element.setSelectionRange(start + text.length, start + text.length);
     });
   }
-  function choosePerson(person: CommentPerson) {
-    if (!mentionQuery) return;
-    const { start, end } = mentionQuery;
+  function choosePerson(
+    person: CommentPerson,
+    query: NonNullable<typeof mentionQuery>,
+  ) {
+    const { start, end } = query;
     const token = `@${person.name}`;
     const next = body.slice(0, start) + token + ' ' + body.slice(end);
     const shift = token.length + 1 - (end - start);
@@ -242,9 +241,9 @@ export function SignComments({
       body,
       parentId: reply?.parentId ?? reply?.id ?? null,
       mentions,
-      attachmentIds: uploads.items.flatMap((item) =>
-        item.attachment ? [item.attachment.id] : [],
-      ),
+      attachmentIds: uploads.items
+        .map((item) => item.attachment?.id)
+        .filter((id): id is string => id !== undefined),
     };
     const digest = JSON.stringify(draft);
     if (attempt.current?.digest !== digest)
@@ -351,10 +350,7 @@ export function SignComments({
                     api={api}
                     signId={signId}
                     disabled={pending}
-                    onReply={() => undefined}
-                    onReact={() => undefined}
                     picker={false}
-                    onPicker={() => undefined}
                     onError={setError}
                     hideActions
                   />
@@ -501,7 +497,7 @@ export function SignComments({
                           event.preventDefault();
                         }}
                         onClick={() => {
-                          choosePerson(person);
+                          choosePerson(person, mentionQuery);
                         }}
                       >
                         {person.name}
@@ -571,7 +567,7 @@ export function SignComments({
                     if (event.key === 'Escape') setMentionQuery(null);
                     else if (event.key === 'Enter') {
                       const person = people[personIndex];
-                      if (person) choosePerson(person);
+                      if (person) choosePerson(person, mentionQuery);
                     } else
                       setPersonIndex((index) =>
                         Math.max(
@@ -853,29 +849,25 @@ function CommentThread({
     </div>
   );
 }
-function CommentRow({
-  row,
-  api,
-  signId,
-  disabled,
-  onReply,
-  onReact,
-  picker,
-  onPicker,
-  onError,
-  hideActions = false,
-}: {
-  hideActions?: boolean;
-  row: SignComment;
-  api: SignCommentsApi;
-  signId: string;
-  disabled: boolean;
-  onReply: () => void;
-  onReact: (emoji: (typeof commentEmoji)[number]) => void;
-  picker: boolean;
-  onPicker: () => void;
-  onError: (error: string) => void;
-}) {
+type CommentActions =
+  | { hideActions: true }
+  | {
+      hideActions?: false;
+      onReply: () => void;
+      onReact: (emoji: (typeof commentEmoji)[number]) => void;
+      onPicker: () => void;
+    };
+function CommentRow(
+  props: {
+    row: SignComment;
+    api: SignCommentsApi;
+    signId: string;
+    disabled: boolean;
+    picker: boolean;
+    onError: (error: string) => void;
+  } & CommentActions,
+) {
+  const { row, api, signId, disabled, picker, onError } = props;
   const age = Math.max(0, Date.now() - new Date(row.createdAt).getTime());
   const hours = Math.floor(age / 3600000);
   const days = Math.floor(hours / 24);
@@ -953,14 +945,14 @@ function CommentRow({
             )}
           </div>
         ))}
-        {!hideActions && (
+        {!props.hideActions && (
           <div className="relative mt-2 flex flex-wrap items-center gap-1 text-[#72727e]">
             <button
               type="button"
               aria-label={`React to comment by ${row.author.name}`}
               disabled={disabled}
               className={focus}
-              onClick={onPicker}
+              onClick={props.onPicker}
             >
               <CommentIcon name="smile" small />
             </button>
@@ -971,7 +963,7 @@ function CommentRow({
               type="button"
               disabled={disabled}
               className={`px-0.5 text-xs text-[#526581] ${focus}`}
-              onClick={onReply}
+              onClick={props.onReply}
             >
               Reply
             </button>
@@ -984,7 +976,7 @@ function CommentRow({
                 aria-label={`${reaction.emoji} reaction, ${String(reaction.count)}`}
                 className={`rounded-full border px-1.5 py-0.5 text-xs ${reaction.selected ? 'border-blue-300 bg-blue-50' : 'border-[#e2e2e7]'} ${focus}`}
                 onClick={() => {
-                  onReact(reaction.emoji);
+                  props.onReact(reaction.emoji);
                 }}
               >
                 {reaction.emoji} {reaction.count}
@@ -992,7 +984,10 @@ function CommentRow({
             ))}
             {picker && (
               <div className="absolute left-0 top-6 z-20 rounded border bg-white p-2 shadow-lg">
-                <EmojiPicker onChoose={onReact} onClose={onPicker} />
+                <EmojiPicker
+                  onChoose={props.onReact}
+                  onClose={props.onPicker}
+                />
               </div>
             )}
           </div>

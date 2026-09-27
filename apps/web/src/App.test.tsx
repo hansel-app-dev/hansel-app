@@ -1,3 +1,4 @@
+import type * as externalProviderModule from './auth/ExternalProviderActions.js';
 /* eslint-disable @typescript-eslint/no-base-to-string -- Request bodies are JSON strings in these fetch fixtures. */
 import {
   act,
@@ -16,6 +17,20 @@ import {
   placeServiceOptions,
   discoveryManagementOptions,
 } from '@hansel/contracts';
+
+// Provider discovery has its own request tests; routing fixtures model application requests.
+vi.mock('./auth/ExternalProviderActions.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof externalProviderModule>();
+  return {
+    ExternalProviderActions: ({
+      intent,
+    }: {
+      intent: 'login' | 'onboarding';
+    }) => (
+      <actual.ExternalProviderActions intent={intent} availableProviders={[]} />
+    ),
+  };
+});
 
 const planFixture = (
   priceId:
@@ -329,7 +344,10 @@ describe('App [REQ-002]', () => {
     const newSite = screen.getAllByRole('button', { name: 'New site' }).at(0);
     if (!newSite) throw new Error('Expected the New site action');
     fireEvent.click(newSite);
-    fireEvent.click(screen.getByRole('button', { name: 'Add new site' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'New site' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     expect(
       await screen.findByRole('heading', { name: 'Add a cover image' }),
     ).toBeVisible();
@@ -714,6 +732,24 @@ describe('App [REQ-002]', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((url: string) => {
+        if (url.endsWith('/areas'))
+          return Promise.resolve(
+            new Response(JSON.stringify({ canManageAreas: true, areas: [] })),
+          );
+        if (url.endsWith('/signs'))
+          return Promise.resolve(
+            new Response(JSON.stringify({ canManageSigns: true, signs: [] })),
+          );
+        if (url.includes('/comments'))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                threads: [],
+                nextCursor: null,
+                viewer: { id: siteId, name: 'Owner', initials: 'O' },
+              }),
+            ),
+          );
         if (url.endsWith('/content'))
           return Promise.resolve(
             new Response('png', {

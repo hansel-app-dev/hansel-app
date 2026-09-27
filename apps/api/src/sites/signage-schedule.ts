@@ -173,7 +173,7 @@ export function createSignageScheduleFeature(
               siteId,
               name,
               normalizedName: name.toLocaleLowerCase(),
-              color: palette[count % palette.length] ?? 'SLATE',
+              color: palette[(count % palette.length) as 0 | 1 | 2],
             },
             select: { id: true },
           });

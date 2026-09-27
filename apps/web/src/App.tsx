@@ -158,17 +158,17 @@ export function App({
   const loadAuthenticatedViewer = useCallback(async () => {
     if (dashboardCacheRef.current) return dashboardCacheRef.current;
     if (dashboardRequestRef.current) return dashboardRequestRef.current;
-    const request = loadDashboard(apiUrl);
+    const request = loadDashboard(apiUrl).catch((error: unknown) => {
+      if (error instanceof DashboardAuthenticationRequiredError)
+        returnToLogin();
+      throw error;
+    });
     dashboardRequestRef.current = request;
     try {
       const response = await request;
       dashboardCacheRef.current = response;
       setDashboardCache(response);
       return response;
-    } catch (error) {
-      if (error instanceof DashboardAuthenticationRequiredError)
-        returnToLogin();
-      throw error;
     } finally {
       dashboardRequestRef.current = null;
     }

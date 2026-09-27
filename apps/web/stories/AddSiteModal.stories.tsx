@@ -66,9 +66,7 @@ export const InvitationReference: Story = {
         email,
       );
       await userEvent.selectOptions(canvas.getByLabelText('Role'), role);
-      await userEvent.click(
-        canvas.getByRole('button', { name: 'Add' }),
-      );
+      await userEvent.click(canvas.getByRole('button', { name: 'Add' }));
       await expect(
         canvas.getByRole('button', { name: `Remove ${email}` }),
       ).toBeVisible();

@@ -1,3 +1,5 @@
+import { createRef } from 'react';
+import type { PlanAreasHandle } from './PlanAreas.js';
 import { PlanAreaRequestError } from './plan-areas-api.js';
 /** @spec allocation-plan-add-area REQ-003..REQ-011 */
 import {
@@ -78,8 +80,9 @@ function setup(initial: PlanArea[] = [], canManageAreas = true) {
     releasePointerCapture: vi.fn(),
     hasPointerCapture: () => false,
   });
-  const view = render(<PlanAreas {...props} />);
-  return { api, props, view };
+  const ref = createRef<PlanAreasHandle>();
+  const view = render(<PlanAreas {...props} ref={ref} />);
+  return { api, props, view, ref };
 }
 function pointer(target: HTMLElement, type: string, x: number, y: number) {
   const e = new Event(type, { bubbles: true });
@@ -585,4 +588,283 @@ it('resizes with every keyboard handle and keeps the opposite edges fixed', asyn
       height: expect.any(Number),
     });
   }
+});
+
+it('cancels keyboard resizing with Tab, Escape, blur and lost pointer capture and positions labels inside the edge', async () => {
+  setup([{ ...area, x: 0.8, width: 0.2 }]);
+  const marker = await screen.findByRole('button', {
+    name: 'Select area Ar.01',
+  });
+  fireEvent.click(marker);
+  const drawing = screen.getByLabelText('Area drawing');
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  const handle = screen.getByRole('button', { name: 'Resize area right' });
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  fireEvent.keyDown(handle, { key: 'ArrowLeft' });
+  fireEvent.keyDown(handle, { key: 'Tab' });
+  fireEvent.keyDown(handle, { key: 'Escape' });
+  fireEvent.click(handle);
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  fireEvent.blur(handle);
+  pointer(handle, 'pointerdown', 100, 100);
+  fireEvent.lostPointerCapture(handle);
+  fireEvent.keyDown(drawing, { key: 'Escape' });
+  for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'])
+    fireEvent.keyDown(drawing, { key });
+});
+it('rejects clicks in unmeasured drawings and suppresses obsolete creation results', async () => {
+  const { api, view } = setup();
+  const drawing = await screen.findByLabelText('Area drawing');
+  await waitFor(() => expect(drawing).toHaveAttribute('tabindex', '0'));
+  fireEvent.click(drawing);
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  fireEvent.click(drawing, { clientX: 100, clientY: 100 });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Floor' }));
+  let finish: (value: PlanArea) => void = () => undefined;
+  api.create.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  pointer(drawing, 'pointerdown', 100, 100);
+  pointer(drawing, 'pointermove', 400, 400);
+  pointer(drawing, 'pointerup', 400, 400);
+  view.unmount();
+  await act(() => {
+    finish(area);
+    return Promise.resolve();
+  });
+});
+
+it('blocks geometry input during shared busy states, pan mode and read-only access', async () => {
+  const { props, view, api } = setup([area]);
+  const marker = await screen.findByRole('button', {
+    name: 'Select area Ar.01',
+  });
+  fireEvent.click(marker);
+  const drawing = screen.getByLabelText('Area drawing');
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  view.rerender(<PlanAreas {...props} externalBusy />);
+  fireEvent.keyDown(drawing, { key: 'Enter' });
+  fireEvent.keyDown(marker, { key: 'ArrowRight', altKey: true });
+  pointer(marker, 'pointerdown', 200, 200);
+  expect(api.update).not.toHaveBeenCalled();
+  view.rerender(<PlanAreas {...props} panning />);
+  fireEvent.keyDown(drawing, { key: 'ArrowDown' });
+  fireEvent.click(drawing);
+  pointer(marker, 'pointerdown', 200, 200);
+  expect(api.create).not.toHaveBeenCalled();
+  view.rerender(<PlanAreas {...props} beforeSelect={() => false} />);
+  fireEvent.click(drawing, { clientX: 100, clientY: 100 });
+  fireEvent.keyDown(marker, { key: 'ArrowRight', altKey: true });
+  pointer(marker, 'pointerdown', 200, 200);
+  expect(api.update).not.toHaveBeenCalled();
+});
+
+it('preserves focus when a keyboard-created Area completes after another control takes focus', async () => {
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frames.push(callback);
+    return 1;
+  });
+  const { api } = setup();
+  let finish: (value: PlanArea) => void = () => undefined;
+  api.create.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const drawing = await screen.findByLabelText('Area drawing');
+  await waitFor(() => expect(drawing).toHaveAttribute('tabindex', '0'));
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  fireEvent.keyDown(drawing, { key: 'Enter' });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Floor' }));
+  fireEvent.keyDown(drawing, { key: 'Enter' });
+  fireEvent.keyDown(drawing, { key: 'ArrowRight' });
+  fireEvent.keyDown(drawing, { key: 'ArrowDown' });
+  fireEvent.keyDown(drawing, { key: 'Enter' });
+  const outside = document.createElement('button');
+  outside.textContent = 'Other control';
+  document.body.append(outside);
+  outside.focus();
+  await act(() => {
+    finish(area);
+    return Promise.resolve();
+  });
+  act(() => {
+    frames.forEach((callback) => {
+      callback(0);
+    });
+  });
+  expect(outside).toHaveFocus();
+  outside.remove();
+  vi.unstubAllGlobals();
+});
+
+it('exposes pending and retry guards and consumes the click following an Area gesture', async () => {
+  const { api, ref } = setup();
+  const drawing = await screen.findByLabelText('Area drawing');
+  await waitFor(() => expect(drawing).toHaveAttribute('tabindex', '0'));
+  expect(ref.current?.blocked()).toBe(false);
+  vi.spyOn(drawing, 'getBoundingClientRect').mockReturnValue(
+    new DOMRect(0, 0, 1000, 800),
+  );
+  fireEvent.click(drawing, { clientX: 100, clientY: 100 });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Floor' }));
+  api.create.mockRejectedValueOnce(new Error('offline'));
+  pointer(drawing, 'pointerdown', 100, 100);
+  pointer(drawing, 'pointermove', 300, 300);
+  pointer(drawing, 'pointerup', 300, 300);
+  fireEvent.click(drawing, { clientX: 300, clientY: 300 });
+  expect(screen.queryByRole('menuitem', { name: 'Floor' })).toBeNull();
+  await screen.findByRole('button', { name: 'Retry area' });
+  expect(ref.current?.blocked()).toBe(true);
+  const leave = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(leave);
+  expect(leave.defaultPrevented).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry area' }));
+  await screen.findByRole('button', { name: 'Select area Ar.01' });
+  expect(ref.current?.blocked()).toBe(false);
+});
+
+it('ignores obsolete area reads and rejects a failed edit after unmount', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  for (const operation of ['load', 'update', 'remove'] as const) {
+    const { api, props, view } = setup([
+      area,
+      { ...area, id: 'other', code: 'Ar.02' },
+    ]);
+    const drawing = await screen.findByLabelText('Area drawing');
+    await screen.findByRole('button', { name: 'Select area Ar.01' });
+    let reject: (error: Error) => void = () => undefined;
+    const pending = new Promise<never>((_resolve, fail) => {
+      reject = fail;
+    });
+    api[operation].mockReturnValueOnce(pending);
+    if (operation === 'load')
+      view.rerender(<PlanAreas {...props} fileId="other" />);
+    else {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Select area Ar.01' }),
+      );
+      if (operation === 'update')
+        fireEvent.click(screen.getByRole('button', { name: 'Orient area up' }));
+      else fireEvent.click(screen.getByRole('button', { name: 'Delete area' }));
+    }
+    view.unmount();
+    await act(() => {
+      reject(new Error('offline'));
+      return Promise.resolve();
+    });
+    expect(drawing.isConnected).toBe(false);
+  }
+});
+it('preserves sibling Areas and cancels keyboard resizing on scroll or external busy state', async () => {
+  const { api, props, view } = setup([
+    area,
+    { ...area, id: 'other', code: 'Ar.02' },
+  ]);
+  await screen.findByRole('button', { name: 'Select area Ar.01' });
+  fireEvent.click(screen.getByRole('button', { name: 'Select area Ar.01' }));
+  act(() => {
+    fireEvent.click(screen.getByRole('button', { name: 'Orient area up' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Orient area up' }));
+  });
+  await waitFor(() => {
+    expect(api.update).toHaveBeenCalledOnce();
+  });
+  expect(
+    screen.getByRole('button', { name: 'Select area Ar.02' }),
+  ).toBeVisible();
+  const handle = screen.getByRole('button', { name: 'Resize area right' });
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  fireEvent.scroll(window);
+  expect(api.update).toHaveBeenCalledOnce();
+  view.rerender(<PlanAreas {...props} externalBusy />);
+  fireEvent.keyDown(handle, { key: 'Enter' });
+  expect(api.update).toHaveBeenCalledOnce();
+});
+it('rejects zero-height coordinates and mismatched pointer ids during an Area drag', async () => {
+  const { api } = setup();
+  const drawing = await screen.findByLabelText('Area drawing');
+  await waitFor(() => {
+    expect(drawing).toHaveAttribute('tabindex', '0');
+  });
+  const rect = vi
+    .spyOn(drawing, 'getBoundingClientRect')
+    .mockReturnValue(new DOMRect(0, 0, 1000, 0));
+  fireEvent.click(drawing, { clientX: 100, clientY: 100 });
+  expect(screen.queryByRole('menuitem', { name: 'Floor' })).toBeNull();
+  rect.mockReturnValue(new DOMRect(0, 0, 1000, 800));
+  fireEvent.click(drawing, { clientX: 100, clientY: 100 });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Floor' }));
+  fireEvent.click(drawing);
+  rect.mockReturnValue(new DOMRect(0, 0, 1000, 0));
+  pointer(drawing, 'pointerdown', 100, 100);
+  expect(api.create).not.toHaveBeenCalled();
+  rect.mockReturnValue(new DOMRect(0, 0, 1000, 800));
+  pointer(drawing, 'pointerdown', 100, 100);
+  const wrong = new Event('pointermove', { bubbles: true });
+  Object.assign(wrong, { pointerId: 2 });
+  fireEvent(drawing, wrong);
+  rect.mockReturnValue(new DOMRect(0, 0, 1000, 0));
+  pointer(drawing, 'pointermove', 200, 200);
+  fireEvent.lostPointerCapture(drawing);
+  fireEvent.lostPointerCapture(drawing);
+  expect(api.create).not.toHaveBeenCalled();
+});
+
+it('rejects keyboard placement with zero drawing bounds and releases pointer capture', async () => {
+  const { api } = setup();
+  const drawing = await screen.findByLabelText('Area drawing');
+  await waitFor(() => {
+    expect(drawing).toHaveAttribute('tabindex', '0');
+  });
+  const rect = vi
+    .spyOn(drawing, 'getBoundingClientRect')
+    .mockReturnValue(new DOMRect(0, 0, 1000, 0));
+  fireEvent.keyDown(drawing, { key: 'Enter' });
+  expect(screen.queryByRole('menu')).toBeNull();
+  rect.mockReturnValue(new DOMRect(0, 0, 1000, 800));
+  vi.spyOn(drawing, 'hasPointerCapture').mockReturnValue(true);
+  const release = vi.spyOn(drawing, 'releasePointerCapture');
+  fireEvent.click(drawing, { clientX: 100, clientY: 100 });
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Floor' }));
+  pointer(drawing, 'pointerdown', 100, 100);
+  pointer(drawing, 'pointermove', 200, 200);
+  pointer(drawing, 'pointerup', 200, 200);
+  await waitFor(() => {
+    expect(api.create).toHaveBeenCalledOnce();
+  });
+  expect(release).toHaveBeenCalledOnce();
+});
+it('ignores a successful delete after its Area controller is removed', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  const { api, view } = setup([area]);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Select area Ar.01' }),
+  );
+  let finish: () => void = () => undefined;
+  api.remove.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Delete area' }));
+  view.unmount();
+  await act(() => {
+    finish();
+    return Promise.resolve();
+  });
 });

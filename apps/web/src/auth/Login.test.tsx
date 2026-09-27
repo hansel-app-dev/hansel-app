@@ -19,7 +19,7 @@ describe('Login [user-login REQ-001..REQ-003, REQ-008, REQ-019]', () => {
     window.history.replaceState({}, '', '/login?error=authentication_failed');
     render(<Login login={vi.fn()} />);
     expect(screen.getByRole('alert')).toHaveTextContent(
-      "Use the sign-in method you used to create your account.",
+      'Use the sign-in method you used to create your account.',
     );
     expect(screen.queryByText('authentication_failed')).not.toBeInTheDocument();
   });

@@ -49,14 +49,12 @@ function fixture() {
   };
   const objects = {
     signPut: vi.fn(),
-    inspect: vi
-      .fn()
-      .mockResolvedValue({
-        byteSize: 5,
-        mediaType: 'application/pdf',
-        checksumSha256: 'checksum',
-        leadingBytes: new TextEncoder().encode('%PDF-'),
-      }),
+    inspect: vi.fn().mockResolvedValue({
+      byteSize: 5,
+      mediaType: 'application/pdf',
+      checksumSha256: 'checksum',
+      leadingBytes: new TextEncoder().encode('%PDF-'),
+    }),
     promote: vi.fn().mockResolvedValue(undefined),
     remove: vi.fn().mockResolvedValue(undefined),
     read: vi.fn(),
@@ -145,4 +143,78 @@ describe('allocation-plan-multiple-files REQ-001, REQ-008, REQ-010', () => {
       expect.objectContaining({ data: { rejectionCode: 'cleaned' } }),
     );
   });
+});
+it('allocation-plan-multiple-files REQ-008,010: commits verified files once and records optional Activity', async () => {
+  const s = fixture(),
+    input = { name: 'Plan', uploadIds: [id], idempotencyKey: 'k'.repeat(32) };
+  const plan = {
+    id,
+    name: 'Plan',
+    filename: null,
+    mediaType: null,
+    byteSize: null,
+    files: [
+      { id, filename: 'plan.pdf', mediaType: 'application/pdf', byteSize: 5 },
+    ],
+    createdAt: now,
+    updatedAt: now,
+    uploadedBy: { email: 'owner@example.com', personalProfile: null },
+  };
+  s.tx.allocationPlanUpload.findMany.mockResolvedValue([file]);
+  s.tx.allocationPlan.create.mockResolvedValue({ id });
+  s.tx.allocationPlan.findUniqueOrThrow.mockResolvedValue(plan);
+  expect(await s.feature.commit(principal, id, input)).toMatchObject({
+    plan: { name: 'Plan' },
+  });
+  const creation = s.tx.allocationPlan.create.mock.calls[0]?.[0];
+  if (!creation) throw new Error('Expected creation digest');
+  s.tx.allocationPlan.findUnique.mockResolvedValueOnce({
+    ...plan,
+    ...creation.data,
+  });
+  await expect(s.feature.commit(principal, id, input)).resolves.toMatchObject({
+    plan: { id },
+  });
+  s.tx.allocationPlan.findUnique.mockResolvedValueOnce({
+    ...plan,
+    creationDigest: 'changed',
+  });
+  await expect(s.feature.commit(principal, id, input)).rejects.toThrow();
+  const api = createAllocationPlanDraftsFeature({
+    prisma: {
+      $transaction: (work: (value: typeof s.tx) => Promise<unknown>) =>
+        work(s.tx),
+    } as never,
+    objects: s.objects,
+    digest: (value) => value,
+    now: () => now,
+    activityEnabled: true,
+  });
+  await api.commit(principal, id, input);
+  expect(s.tx.activity.create).toHaveBeenCalledOnce();
+});
+
+it('validates grouped batch requests before creating any upload intent', async () => {
+  const { feature, objects } = fixture();
+  await expect(
+    feature.createBatch(principal, id, {
+      files: [],
+      idempotencyKey: 'invalid',
+    }),
+  ).rejects.toThrow();
+  expect(objects.signPut).not.toHaveBeenCalled();
+});
+
+it('uses the current clock by default when rejecting expired upload drafts', async () => {
+  const { tx, objects } = fixture();
+  const feature = createAllocationPlanDraftsFeature({
+    prisma: {
+      ...tx,
+      $transaction: (work: (db: typeof tx) => Promise<unknown>) => work(tx),
+    } as never,
+    objects,
+    digest: (value) => value,
+  });
+  await expect(feature.verify(principal, id, id)).rejects.toThrow();
+  expect(objects.inspect).not.toHaveBeenCalled();
 });

@@ -486,3 +486,79 @@ describe('AddSiteModal [sites-add-new REQ-001..REQ-010, REQ-017, REQ-018]', () =
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
   });
 });
+
+it('closing the cover step finishes the already-created Site', async () => {
+  const onCreated = vi.fn();
+  render(
+    <AddSiteModal {...baseProps} coverImageEnabled onCreated={onCreated} />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByRole('heading', { name: 'Add a cover image' });
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+  expect(onCreated).toHaveBeenCalledWith(
+    '/sites/ad96f8c1-e7f8-4fbb-a057-1c98ee4539a9/activity',
+  );
+});
+
+it('keeps the created site available when no cover upload transport is supplied', async () => {
+  render(<AddSiteModal {...baseProps} coverImageEnabled />);
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByText('Add a cover image');
+  expect(screen.getByRole('button', { name: 'Skip for now' })).toBeVisible();
+});
+
+it('counts the invited-person cover step and blocks Escape during its upload', async () => {
+  let finish: () => void = () => undefined;
+  const uploadCoverImage = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    ),
+    onCreated = vi.fn();
+  render(
+    <AddSiteModal
+      {...baseProps}
+      coverImageEnabled
+      uploadCoverImage={uploadCoverImage}
+      onCreated={onCreated}
+    />,
+  );
+  selectAccess('People you invite');
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByRole('heading', { name: 'Invite team members' });
+  fireEvent.change(screen.getByLabelText('Email or team member'), {
+    target: { value: 'editor@example.com' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  await screen.findByText('Ed Itor');
+  fireEvent.click(screen.getByRole('button', { name: 'Create site' }));
+  await screen.findByRole('heading', { name: 'Add a cover image' });
+  expect(screen.getByText('Step 3 of 3')).toBeVisible();
+  fireEvent.change(screen.getByLabelText('Choose cover image'), {
+    target: {
+      files: [
+        new File(
+          [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],
+          'cover.png',
+          { type: 'image/png' },
+        ),
+      ],
+    },
+  });
+  await waitFor(() => {
+    expect(
+      screen.getByRole('button', { name: 'Add cover image' }),
+    ).toBeEnabled();
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Add cover image' }));
+  await waitFor(() => {
+    expect(uploadCoverImage).toHaveBeenCalledOnce();
+  });
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(onCreated).not.toHaveBeenCalled();
+  finish();
+  await waitFor(() => {
+    expect(onCreated).toHaveBeenCalledOnce();
+  });
+});
