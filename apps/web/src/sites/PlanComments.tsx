@@ -476,7 +476,7 @@ export function PlanComments({
     }
   }
   function moveKey(
-    e: KeyboardEvent<HTMLButtonElement>,
+    e: KeyboardEvent<HTMLElement>,
     row: PlanCommentThread | null,
   ) {
     if (!e.altKey || !e.key.startsWith('Arrow')) return;
@@ -899,7 +899,9 @@ export function PlanComments({
             ref={card}
             role="dialog"
             aria-label={draft ? 'New plan comment' : 'Comment'}
-            className={`fixed z-40 flex flex-col overflow-hidden rounded-md border bg-[#fafafa] text-[13px] text-[#27272a] shadow-[0_8px_22px_#00000026] ${draft ? 'border-[#4096ff]' : 'border-[#e2e2e7]'}`}
+            tabIndex={draft ? 0 : undefined}
+            aria-describedby={draft ? 'comment-move-help' : undefined}
+            className={`fixed z-40 flex flex-col overflow-hidden rounded-md border bg-[#fafafa] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 text-[13px] text-[#27272a] shadow-[0_8px_22px_#00000026] ${draft ? 'border-[#4096ff]' : 'border-[#e2e2e7]'}`}
             style={position}
             onPointerDown={(e) => {
               e.stopPropagation();
@@ -909,6 +911,7 @@ export function PlanComments({
             }}
             onKeyDown={(e) => {
               e.stopPropagation();
+              if (draft && e.target === e.currentTarget) moveKey(e, null);
               if (e.key === 'Escape') {
                 e.preventDefault();
                 close();
@@ -973,63 +976,6 @@ export function PlanComments({
               <p role="alert" className="p-2 text-xs text-red-700">
                 {actionError}
               </p>
-            )}
-            {draft && (
-              <div
-                className="flex flex-wrap gap-2 border-b border-[#e2e2e7] px-3 py-2 text-xs"
-                role="group"
-                aria-label="Comment position"
-              >
-                <span>
-                  {draftLocked
-                    ? 'Position locked for submission retry.'
-                    : 'Drag pin to move, or use these controls.'}
-                </span>
-                {(['left', 'right', 'up', 'down'] as const).map((direction) => (
-                  <button
-                    key={direction}
-                    type="button"
-                    aria-label={`Move comment ${direction}`}
-                    disabled={
-                      draftLocked ||
-                      pending ||
-                      dragging ||
-                      panning ||
-                      tool === 'hand'
-                    }
-                    className="underline"
-                    onClick={() => {
-                      if (draftAttempted.current || state.current.busy) return;
-                      setDraft((value) =>
-                        value
-                          ? {
-                              ...value,
-                              x: step(
-                                value.x,
-                                direction === 'right'
-                                  ? 0.01
-                                  : direction === 'left'
-                                    ? -0.01
-                                    : 0,
-                              ),
-                              y: step(
-                                value.y,
-                                direction === 'down'
-                                  ? 0.01
-                                  : direction === 'up'
-                                    ? -0.01
-                                    : 0,
-                              ),
-                            }
-                          : value,
-                      );
-                      setAnnouncement('Comment position updated.');
-                    }}
-                  >
-                    {direction}
-                  </button>
-                ))}
-              </div>
             )}
             <div className="contents" inert={pending || dragging}>
               <SignComments

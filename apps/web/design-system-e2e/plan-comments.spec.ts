@@ -131,6 +131,16 @@ test('Temporary pin drag preserves text and final position on publication', asyn
     input = page.getByRole('textbox');
   await expect(draft).toBeVisible();
   await input.fill('Moved draft');
+  await expect(
+    page.getByRole('button', { name: /Move comment (left|right|up|down)/ }),
+  ).toHaveCount(0);
+  const composer = page.getByRole('dialog', { name: 'New plan comment' });
+  await composer.focus();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(input).toHaveValue('Moved draft');
+  expect(
+    await draft.evaluate((el) => parseFloat(el.style.top) / 100),
+  ).toBeCloseTo(0.49, 4);
   const box = await draft.boundingBox();
   if (!box) throw new Error('Missing draft');
   await page.mouse.move(box.x + 5, box.y + 5);

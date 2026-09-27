@@ -138,7 +138,16 @@ it('REQ-002,007: draft keyboard movement preserves text and failed root submissi
   act(() => ref.current?.place(0.2, 0.3));
   const input = await screen.findByRole('textbox', { name: 'Write a comment' });
   fireEvent.change(input, { target: { value: 'Keep this draft' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Move comment right' }));
+  const card = screen.getByRole('dialog', { name: 'New plan comment' });
+  expect(
+    screen.queryAllByRole('button', {
+      name: /Move comment (left|right|up|down)/,
+    }),
+  ).toHaveLength(0);
+  expect(
+    screen.queryByText('Drag pin to move, or use these controls.'),
+  ).not.toBeInTheDocument();
+  fireEvent.keyDown(card, { key: 'ArrowRight', altKey: true });
   expect(input).toHaveValue('Keep this draft');
   fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
   await waitFor(() => {
@@ -150,7 +159,7 @@ it('REQ-002,007: draft keyboard movement preserves text and failed root submissi
   expect(api.position).not.toHaveBeenCalled();
   await waitFor(() =>
     expect(
-      screen.getByRole('button', { name: 'Move comment right' }),
+      screen.getByRole('button', { name: 'New comment pin' }),
     ).toBeDisabled(),
   );
 });

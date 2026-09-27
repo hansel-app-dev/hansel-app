@@ -4,7 +4,7 @@ Feature: `allocation-plan-comment-moving`. Domain: Allocation Plan Comment, Allo
 
 ## Operation
 
-In Move or Add comment, drag an open comment pin within its drawing. A focused saved pin also supports Alt+arrow in 1% steps. Draft composer direction controls reposition a temporary pin without publishing it. Escape cancels an active drag; Hand and Space-pan take precedence. Resolved pins must be reopened before moving.
+In Move or Add comment, drag an open comment pin within its drawing. A focused saved pin also supports Alt+arrow in 1% steps. Focus the draft comment card and use Alt+arrow to reposition its temporary pin without publishing it. Escape cancels an active drag; Hand and Space-pan take precedence. Resolved pins must be reopened before moving.
 
 Draft movement preserves unsent content and attachments. Once root submission has been attempted, coordinates stay locked for retries until the draft is published or discarded. Saved movement preserves discussion ownership and content, writes only x/y and updatedAt, and uses the original concurrency timestamp. The existing Allocation Plan Comments feature flag controls the endpoint and UI; no migration is needed.
 

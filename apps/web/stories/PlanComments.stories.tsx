@@ -349,8 +349,9 @@ export const DraftMoved: Story = {
       within(canvasElement).getByRole('textbox'),
       'Keep this draft.',
     );
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'Move comment right' }),
-    );
+    within(canvasElement)
+      .getByRole('dialog', { name: 'New plan comment' })
+      .focus();
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}');
   },
 };
