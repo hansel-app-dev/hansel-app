@@ -1,3 +1,7 @@
+import {
+  createLibraryFilesFeature,
+  registerLibraryFile,
+} from './sites/library-files.js';
 import { createPlanCommentsFeature } from './sites/plan-comments.js';
 import { createPlanCommentAttachments } from './sites/plan-comment-attachments.js';
 import { createPlanAreasFeature } from './sites/plan-areas.js';
@@ -489,7 +493,11 @@ const sitesFeature = createSitesFeature({
   now: () => new Date(),
 });
 const allocationPlansFeature = createAllocationPlansFeature({
-  store: createPrismaAllocationPlanStore(prisma, config.siteActivityEnabled),
+  store: createPrismaAllocationPlanStore(
+    prisma,
+    config.siteActivityEnabled,
+    registerLibraryFile,
+  ),
   objects: createS3AllocationPlanObjectStore({
     bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
   }),
@@ -504,6 +512,7 @@ const allocationPlanDrafts = createAllocationPlanDraftsFeature({
   }),
   digest: (value) => security.digestApplicationCredential(value),
   activityEnabled: config.siteActivityEnabled,
+  library: registerLibraryFile,
 });
 const signageScheduleFeature = createSignageScheduleFeature(
   prisma,
@@ -543,11 +552,19 @@ const commentCleanup = setInterval(() => {
   });
 }, 60_000);
 commentCleanup.unref();
+const libraryFilesFeature = createLibraryFilesFeature(
+  prisma,
+  createS3AllocationPlanObjectStore({
+    bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
+  }),
+  config.siteActivityEnabled,
+);
 const signPhotosFeature = createSignPhotosFeature(
   prisma,
   createS3AllocationPlanObjectStore({
     bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
   }),
+  registerLibraryFile,
 );
 const photoCleanup = setInterval(() => {
   void signPhotosFeature.cleanup().catch(() => {
@@ -560,6 +577,7 @@ const signDocumentsFeature = createSignDocumentsFeature(
   createS3AllocationPlanObjectStore({
     bucketName: config.allocationPlansBucketName ?? 'allocation-plans-disabled',
   }),
+  registerLibraryFile,
 );
 // Cleanup stays active on rollback so revoked documents cannot become orphaned objects.
 const documentCleanup = setInterval(() => {
@@ -588,6 +606,13 @@ const sites: SitesModule = {
     feature: signCommentsFeature,
     attachments: commentAttachments,
     resolve: resolveSitePrincipal,
+    record: (name) => {
+      logger.info(name, { correlationId: randomUUID() });
+    },
+  },
+  libraryFiles: {
+    resolve: resolveSitePrincipal,
+    feature: libraryFilesFeature,
     record: (name) => {
       logger.info(name, { correlationId: randomUUID() });
     },

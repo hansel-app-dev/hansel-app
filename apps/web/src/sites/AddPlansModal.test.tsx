@@ -352,7 +352,7 @@ it('opens the picker and prevents Tab from leaving while a commit disables every
   });
   window.dispatchEvent(tab);
   expect(tab.defaultPrevented).toBe(true);
-  fireEvent.keyDown(window, { key: 'Escape' });
+  fireEvent.keyDown(document, { key: 'Escape' });
   expect(props.onClose).not.toHaveBeenCalled();
   await act(() => {
     settle();
@@ -536,3 +536,132 @@ it('ignores a queued retry after its failed file was removed', async () => {
   expect(props.finalize).not.toHaveBeenCalled();
   expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
 });
+
+/** @spec library-files REQ-006,008,011,013 */
+it('creates an independent named plan from Library Files, preserves retries and excludes local uploads', async () => {
+  const file = {
+    id: '00000000-0000-4000-8000-000000000001',
+    filename: 'Floor.pdf',
+    mediaType: 'application/pdf' as const,
+    byteSize: 42,
+    uploadedBy: 'Member',
+    createdAt: '2026-09-27T00:00:00Z',
+    sourceSite: { id: '00000000-0000-4000-8000-000000000002', name: 'Site' },
+    hasThumbnail: false,
+  };
+  const library = {
+    files: {
+      list: vi.fn().mockResolvedValue({ files: [file], nextCursor: null }),
+      download: vi.fn(),
+      thumbnail: vi.fn(),
+      link: vi.fn(),
+      createPlan: vi.fn(),
+    },
+    create: vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined),
+  };
+  const props = setup({ library });
+  fireEvent.click(screen.getByRole('button', { name: 'Library files' }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(props.onClose).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Library files' }));
+  fireEvent.click(await screen.findByRole('radio', { name: file.filename }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+  await waitFor(() =>
+    expect(screen.getByLabelText('Allocation name')).toHaveValue('Floor'),
+  );
+  expect(screen.getByLabelText('Choose allocation files')).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Choose allocation files'), {
+    target: {
+      files: [new File(['%PDF-'], 'other.pdf', { type: 'application/pdf' })],
+    },
+  });
+  expect(screen.queryByText('other.pdf')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Remove selected file' }));
+  expect(screen.getByLabelText('Choose allocation files')).toBeEnabled();
+  fireEvent.change(screen.getByLabelText('Allocation name'), {
+    target: { value: 'Custom' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Library files' }));
+  fireEvent.click(await screen.findByRole('radio', { name: file.filename }));
+  fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+  await waitFor(() => {
+    expect(screen.queryByRole('radio')).toBeNull();
+  });
+  expect(screen.getByLabelText('Allocation name')).toHaveValue('Custom');
+  fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
+  await screen.findByText('We couldn’t add the allocation. Please retry.');
+  fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
+  await waitFor(() => {
+    expect(props.onComplete).toHaveBeenCalledOnce();
+  });
+  expect(library.create.mock.calls[0]?.[0]).toEqual(
+    library.create.mock.calls[1]?.[0],
+  );
+  expect(library.create).toHaveBeenLastCalledWith(
+    expect.objectContaining({ name: 'Custom', fileId: file.id }),
+  );
+  expect(props.upload).not.toHaveBeenCalled();
+  expect(props.createBatch).not.toHaveBeenCalled();
+});
+it.each([false, true])(
+  'ignores a late Library Files creation result after the Allocation modal unmounts (%s)',
+  async (reject) => {
+    const file = {
+      id: '00000000-0000-4000-8000-000000000001',
+      filename: 'Floor.pdf',
+      mediaType: 'application/pdf' as const,
+      byteSize: 42,
+      uploadedBy: 'Member',
+      createdAt: '2026-09-27T00:00:00Z',
+      sourceSite: { id: '00000000-0000-4000-8000-000000000002', name: 'Site' },
+      hasThumbnail: false,
+    };
+    let finish: (value: never) => void = () => undefined;
+    const pending = new Promise<never>((resolve, rejection) => {
+      finish = reject ? rejection : resolve;
+    });
+    const complete = vi.fn();
+    render(
+      <AddPlansModal
+        createBatch={vi.fn()}
+        upload={vi.fn()}
+        finalize={vi.fn()}
+        onComplete={complete}
+        onClose={vi.fn()}
+        library={{
+          files: {
+            list: vi
+              .fn()
+              .mockResolvedValue({ files: [file], nextCursor: null }),
+            download: vi.fn(),
+            thumbnail: vi.fn(),
+            link: vi.fn(),
+            createPlan: vi.fn(),
+          },
+          create: () => pending,
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Library files' }));
+    fireEvent.click(await screen.findByRole('radio', { name: file.filename }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('radio')).toBeNull();
+    });
+    const button = screen.getByRole('button', { name: 'Add Allocation' });
+    act(() => {
+      fireEvent.click(button);
+      fireEvent.click(button);
+    });
+    expect(screen.getByRole('button', { name: 'Adding…' })).toBeDisabled();
+    cleanup();
+    await act(async () => {
+      finish(reject ? (new Error('offline') as never) : (undefined as never));
+      await pending.catch(() => undefined);
+    });
+    expect(complete).not.toHaveBeenCalled();
+  },
+);

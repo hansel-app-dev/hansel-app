@@ -1,3 +1,8 @@
+import {
+  createLibraryFilesApi,
+  type LibraryFilesApi,
+} from './library-files-api.js';
+import type { LibrarySelection } from '@hansel/contracts';
 /** @spec sign-photos REQ-004..006 */
 import {
   signPhotoIntentSchema,
@@ -32,7 +37,13 @@ export function createSignPhotosApi(siteId: string, baseUrl: string) {
     if (!response.ok) throw new SignPhotoRequestError(response.status);
     return response;
   }
+  const files = createLibraryFilesApi(baseUrl);
   return {
+    library: {
+      files,
+      link: (signId: string, input: LibrarySelection) =>
+        files.link(siteId, signId, 'photos', input),
+    },
     list: async (signId: string, cursor?: string) =>
       signPhotosSchema.parse(
         await (
@@ -67,4 +78,15 @@ export function createSignPhotosApi(siteId: string, baseUrl: string) {
     },
   };
 }
-export type SignPhotosApi = ReturnType<typeof createSignPhotosApi>;
+export type SignPhotosApi = Omit<
+  ReturnType<typeof createSignPhotosApi>,
+  'library'
+> & {
+  library?: {
+    files: LibraryFilesApi;
+    link: (
+      signId: string,
+      input: LibrarySelection,
+    ) => ReturnType<LibraryFilesApi['link']>;
+  };
+};

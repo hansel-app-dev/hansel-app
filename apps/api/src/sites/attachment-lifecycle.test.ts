@@ -383,3 +383,88 @@ function required<T>(value: T | null | undefined): T {
   if (value == null) throw new Error('Expected fixture value');
   return value;
 }
+
+for (const kind of ['document', 'photo'] as const)
+  it(`library-files preserves shared ${kind} objects after source removal and reads linked keys [REQ-001,008,009]`, async () => {
+    const row = {
+      id,
+      ...input,
+      uploadedById: id,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+      completed: false,
+      libraryFileId: null as string | null,
+    };
+    const model = {
+      findFirst: vi.fn().mockResolvedValue(row),
+      findUnique: vi.fn().mockResolvedValue(row),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      update: vi.fn(() => {
+        row.libraryFileId = id;
+        return Promise.resolve(row);
+      }),
+      deleteMany: vi.fn(),
+    };
+    const ledger = {
+      findMany: vi.fn().mockResolvedValue([{ documentId: id, photoId: id }]),
+      deleteMany: vi.fn(),
+      update: vi.fn(),
+    };
+    const asset = {
+      originalKey: 'shared-original',
+      thumbnailKey: 'shared-thumb' as string | null,
+    };
+    const db = {
+      sign: { count: vi.fn().mockResolvedValue(1) },
+      signDocument: model,
+      signPhoto: model,
+      signDocumentObject: ledger,
+      signPhotoObject: ledger,
+      libraryFile: {
+        count: vi.fn().mockResolvedValue(1),
+        findFirstOrThrow: vi.fn().mockResolvedValue(asset),
+      },
+      $queryRaw: vi.fn(),
+      $transaction: vi.fn(),
+    };
+    db.$transaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
+    );
+    const objects = {
+      read: vi.fn().mockResolvedValue(bytes),
+      write: vi.fn(),
+      promote: vi.fn(),
+      remove: vi.fn(),
+      signPut: vi.fn(),
+      inspect: vi.fn(),
+    };
+    const register = vi.fn().mockResolvedValue({ id });
+    const service =
+      kind === 'document'
+        ? createSignDocumentsFeature(db as never, objects, register)
+        : createSignPhotosFeature(db as never, objects, register);
+    await service.complete(p, id, id, id);
+    expect(register).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({ sourceKind: kind, sourceId: id }),
+    );
+    row.completed = true;
+    await service.download(p, id, id, id);
+    expect(objects.read).toHaveBeenCalledWith('shared-original');
+    if ('thumbnail' in service) {
+      await service.thumbnail(p, id, id, id);
+      expect(objects.read).toHaveBeenCalledWith('shared-thumb');
+      asset.thumbnailKey = null;
+      await expect(service.thumbnail(p, id, id, id)).rejects.toThrow();
+    }
+    model.findUnique.mockResolvedValue(null);
+    await service.cleanup();
+    expect(objects.remove.mock.calls.flat()).not.toContain(
+      `sign-${kind === 'photo' ? 'photos' : 'documents'}/${id}`,
+    );
+    db.libraryFile.count.mockResolvedValue(0);
+    await service.cleanup();
+    expect(objects.remove.mock.calls.flat()).toContain(
+      `sign-${kind === 'photo' ? 'photos' : 'documents'}/${id}`,
+    );
+  });

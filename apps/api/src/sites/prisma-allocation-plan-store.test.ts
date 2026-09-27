@@ -238,7 +238,11 @@ describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-0
 
   it('finalizes with Activity once and returns the existing result on retry [site-activity-feed-comments REQ-005, AC-004]', async () => {
     const first = fixture();
-    first.store = createPrismaAllocationPlanStore(first.prisma as never, true);
+    first.store = createPrismaAllocationPlanStore(
+      first.prisma as never,
+      true,
+      vi.fn().mockResolvedValue({ id: 'library-id' }),
+    );
     first.tx.allocationPlanUpload.findFirst.mockResolvedValue(upload);
     await expect(
       first.store.complete(principal, upload as never, 'plans/u1'),
@@ -251,6 +255,9 @@ describe('Prisma Allocation Plan store [site-allocation-plans-add REQ-001, REQ-0
         subjectLabel: 'plan.pdf',
       }),
     });
+    const legacy = fixture();
+    legacy.tx.allocationPlanUpload.findFirst.mockResolvedValue(upload);
+    await legacy.store.complete(principal, upload as never, 'plans/u1');
     const replay = fixture();
     replay.tx.allocationPlanUpload.findFirst.mockResolvedValue({
       ...upload,

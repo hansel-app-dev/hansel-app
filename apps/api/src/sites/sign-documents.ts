@@ -1,3 +1,4 @@
+import type { LibraryRegistrationHook } from './library-files.js';
 import { nextPageCursor } from './pagination.js';
 /** @spec sign-documents REQ-004..008 */
 import { createHash, randomUUID } from 'node:crypto';
@@ -42,6 +43,7 @@ const dto = (row: {
 export function createSignDocumentsFeature(
   db: PrismaClient,
   objects: AllocationPlanObjectStore,
+  library?: LibraryRegistrationHook,
 ) {
   async function authorize(
     p: ApplicationPrincipal,
@@ -216,6 +218,25 @@ export function createSignDocumentsFeature(
           data: { completed: true },
         });
         if (!result.count) throw new SignDocumentRejectedError();
+        if (library) {
+          const asset = await library(tx, {
+            tenantId: p.tenantId,
+            sourceSiteId: siteId,
+            sourceKind: 'document',
+            sourceId: id,
+            filename: row.filename,
+            mediaType: row.mediaType,
+            byteSize: row.byteSize,
+            checksumSha256: row.checksumSha256,
+            uploadedById: row.uploadedById,
+            originalKey: object.final,
+            createdAt: new Date(),
+          });
+          await tx.signDocument.update({
+            where: { id },
+            data: { libraryFileId: asset.id },
+          });
+        }
         return dto(row);
       });
     },
@@ -228,7 +249,14 @@ export function createSignDocumentsFeature(
       await authorize(p, siteId, signId);
       const row = await find(p, siteId, signId, id);
       if (!row.completed) throw new SignageNotFoundError();
-      const bytes = await objects.read(keys(id).final);
+      const asset = row.libraryFileId
+        ? await db.libraryFile.findFirstOrThrow({
+            where: { id: row.libraryFileId, tenantId: p.tenantId },
+          })
+        : null;
+      const bytes = await objects.read(
+        asset ? asset.originalKey : keys(id).final,
+      );
       if (
         bytes.length !== row.byteSize ||
         createHash('sha256').update(bytes).digest('base64') !==
@@ -250,7 +278,14 @@ export function createSignDocumentsFeature(
         });
         await objects.remove(keys(row.documentId).temporary);
         if (!document?.completed) {
-          await objects.remove(keys(row.documentId).final);
+          const retained =
+            library &&
+            (await db.libraryFile.count({
+              where: { originalKey: keys(row.documentId).final },
+            }));
+          if (!retained) {
+            await objects.remove(keys(row.documentId).final);
+          }
           await db.signDocument.deleteMany({
             where: { id: row.documentId, completed: false },
           });

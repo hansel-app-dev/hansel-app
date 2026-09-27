@@ -125,6 +125,10 @@ it('REQ-002,006,011: keyboard placement submits and shows a saved thread', async
 });
 
 it('REQ-009: failed submissions preserve draft/key, navigation and pending writes are guarded', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    callback(0);
+    return 0;
+  });
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -176,6 +180,12 @@ it('REQ-009: failed submissions preserve draft/key, navigation and pending write
   await waitFor(() => {
     expect(api.markers).toHaveBeenCalled();
   });
+  act(() => {
+    ref.current?.place(0.5, 0.5);
+  });
+  await screen.findByRole('textbox');
+  fireEvent.click(screen.getByRole('button', { name: 'Close comment' }));
+  expect(screen.getByLabelText('Drawing')).toHaveFocus();
   fireEvent.keyDown(screen.getByLabelText('Drawing'), { key: 'ArrowLeft' });
   fireEvent.keyDown(screen.getByLabelText('Drawing'), { key: 'ArrowUp' });
   fireEvent.keyDown(screen.getByLabelText('Drawing'), { key: 'Enter' });
@@ -397,6 +407,15 @@ it('REQ-006,009,012: history, resolution errors, reopen, and marker pagination r
   expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Reopen thread' }));
   await screen.findByRole('textbox');
+  let restoreFocus: FrameRequestCallback = () => undefined;
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    restoreFocus = callback;
+    return 0;
+  });
   fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  cleanup();
+  expect(() => {
+    restoreFocus(0);
+  }).not.toThrow();
 });

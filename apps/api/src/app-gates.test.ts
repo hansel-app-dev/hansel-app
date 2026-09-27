@@ -574,3 +574,48 @@ it('returns no providers when external authentication is disabled', async () => 
     .get('/api/auth/providers')
     .expect(200, { providers: [] });
 });
+
+it('library-files registers authenticated library routes behind its feature flag [REQ-003,004]', async () => {
+  const feature = {
+    list: vi.fn().mockResolvedValue({ files: [], nextCursor: null }),
+    download: vi.fn(),
+    thumbnail: vi.fn(),
+    link: vi.fn(),
+    createPlan: vi.fn(),
+  };
+  const sites = {
+    libraryFiles: {
+      feature,
+      resolve: vi.fn().mockResolvedValue({
+        tenantId: id,
+        userId: id,
+        membershipId: id,
+        roleId: 'owner',
+        email: 'owner@example.com',
+      }),
+      record: vi.fn(),
+    },
+  };
+  const app = createApp(
+    { ...config, libraryFilesEnabled: true },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    sites as never,
+  );
+  const server = app.listen(0);
+  try {
+    await request(server)
+      .get('/api/library-files')
+      .set('Cookie', 'hansel_access=token')
+      .expect(200);
+    expect(feature.list).toHaveBeenCalled();
+  } finally {
+    await new Promise<void>((resolve) => {
+      server.close(() => {
+        resolve();
+      });
+    });
+  }
+});

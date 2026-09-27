@@ -9,10 +9,7 @@ const destinations = [
   { label: 'Sites', icon: 'domain_add', href: '/sites' },
 ] as const;
 
-const libraries = [
-  { label: 'Styleguide', icon: 'text_fields' },
-  { label: 'Documents', icon: 'folder' },
-] as const;
+const libraries = [{ label: 'Styleguide', icon: 'text_fields' }] as const;
 
 function SidebarSiteSymbol({ compact = false }: { compact?: boolean }) {
   return (
@@ -61,7 +58,7 @@ export function NotificationSymbol() {
 }
 
 export interface ApplicationShellProps {
-  activePage: 'Dashboard' | 'Sites';
+  activePage: 'Dashboard' | 'Sites' | 'Files';
   children: ReactNode;
   headerActions: ReactNode;
   headerLeading?: ReactNode;
@@ -421,6 +418,19 @@ export function ApplicationShell({
             <p className="text-[12px] leading-[18px] text-[#71717f]">
               Libraries
             </p>
+            <a
+              href="/library/files"
+              aria-current={activePage === 'Files' ? 'page' : undefined}
+              onClick={(event) => {
+                if (navigate) {
+                  event.preventDefault();
+                  navigate('/library/files');
+                }
+              }}
+              className="flex min-h-10 items-center gap-2 rounded px-1 text-[14px] leading-5 text-[#303238] hover:bg-[#f4f4f5] focus-visible:outline-2 focus-visible:outline-focus"
+            >
+              <AppSymbol>folder</AppSymbol>Files
+            </a>
             {libraries.map((item) => (
               <span
                 key={item.label}

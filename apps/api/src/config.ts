@@ -6,6 +6,7 @@ interface BaseAppConfig {
   sitesEnabled: boolean;
   allocationPlansEnabled: boolean;
   allocationPlanDraftsEnabled: boolean;
+  libraryFilesEnabled: boolean;
   signageScheduleEnabled: boolean;
   allocationPlanSignsEnabled: boolean;
   signDocumentsEnabled: boolean;
@@ -265,6 +266,10 @@ export function loadConfig(
     signPhotosEnabled: environment.SIGN_PHOTOS_ENABLED === 'true',
     signCommentsEnabled: environment.SIGN_COMMENTS_ENABLED === 'true',
     planCommentsEnabled: environment.PLAN_COMMENTS_ENABLED === 'true',
+    libraryFilesEnabled:
+      environment.LIBRARY_FILES_ENABLED === 'true' ||
+      (environment.LIBRARY_FILES_ENABLED === undefined &&
+        environment.NODE_ENV !== 'production'),
     allocationPlanDraftsEnabled:
       environment.ALLOCATION_PLAN_DRAFTS_ENABLED === 'true',
     signageScheduleEnabled:

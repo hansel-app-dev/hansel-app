@@ -500,7 +500,7 @@ test('dashboard matches Figma, remains accessible, and reflows at 320px [dashboa
     'Sites',
     'Libraries',
     'Styleguide',
-    'Documents',
+    'Files',
   ])
     await expect(navigation).toContainText(label);
   expect((await analyzeAccessibility(page)).violations).toEqual([]);

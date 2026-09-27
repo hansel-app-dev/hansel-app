@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "prisma": "prisma"
+    "prisma": "prisma",
+    "backfill:library-files": "node scripts/library-files-backfill.mjs"
   },
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.26.0",

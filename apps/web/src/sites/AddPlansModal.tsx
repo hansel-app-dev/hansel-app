@@ -1,3 +1,6 @@
+import { LibraryFilePicker } from './LibraryFiles.js';
+import type { LibraryFilesApi } from './library-files-api.js';
+import type { LibraryFile, LibraryPlan } from '@hansel/contracts';
 /** @spec allocation-plan-single-file REQ-001..REQ-009 */
 /** @spec allocation-plan-multiple-files REQ-002..REQ-007, REQ-011..REQ-012 */
 import { useEffect, useRef, useState } from 'react';
@@ -40,6 +43,7 @@ export function AddPlansModal({
   upload,
   finalize,
   commit,
+  library,
   onClose,
   onComplete,
 }: {
@@ -54,9 +58,20 @@ export function AddPlansModal({
   ) => Promise<void>;
   finalize: (uploadId: string) => Promise<void>;
   commit?: (input: CommitAllocationPlanDraftRequest) => Promise<void>;
+  library?: {
+    files: LibraryFilesApi;
+    create: (input: LibraryPlan) => Promise<void>;
+  };
   onClose: () => void;
   onComplete: () => void;
 }) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [librarySelected, setLibrarySelected] = useState<LibraryFile | null>(
+    null,
+  );
+  const libraryOpenRef = useRef(false);
+  libraryOpenRef.current = libraryOpen;
+  const libraryAttempt = useRef({ digest: '', key: '' });
   const [name, setName] = useState('');
   const [nameEdited, setNameEdited] = useState(false);
   const [rows, renderRows] = useState<Row[]>([]);
@@ -103,6 +118,7 @@ export function AddPlansModal({
     const element = dialog.current!;
     dialog.current?.focus();
     const keydown = (event: KeyboardEvent) => {
+      if (libraryOpenRef.current) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         dismissRef.current();
@@ -148,7 +164,7 @@ export function AddPlansModal({
       dialog.current?.querySelector<HTMLButtonElement>('[data-keep]')?.focus();
   }, [confirm]);
   function select(files: File[]) {
-    if (starting.current || stage !== 'select') return;
+    if (starting.current || stage !== 'select' || librarySelected) return;
     for (const file of files) {
       const extensions = Object.entries(types).find(
         ([type]) => type === file.type,
@@ -223,6 +239,36 @@ export function AddPlansModal({
       if (alive()) patch({ state: 'verified' });
     } catch {
       if (alive()) patch({ state: 'failed' });
+    }
+  }
+  async function createLibraryPlan() {
+    if (
+      !library ||
+      !librarySelected ||
+      !validName.success ||
+      committing.current
+    )
+      return;
+    const digest = JSON.stringify([validName.data, librarySelected.id]);
+    if (libraryAttempt.current.digest !== digest)
+      libraryAttempt.current = { digest, key: crypto.randomUUID() };
+    committing.current = true;
+    setCreating(true);
+    setError('');
+    const run = generation.current;
+    try {
+      await library.create({
+        name: validName.data,
+        fileId: librarySelected.id,
+        idempotencyKey: libraryAttempt.current.key,
+      });
+      if (run === generation.current) onComplete();
+    } catch {
+      if (run === generation.current)
+        setError('We couldn’t add the allocation. Please retry.');
+    } finally {
+      committing.current = false;
+      if (run === generation.current) setCreating(false);
     }
   }
   async function start() {
@@ -335,6 +381,8 @@ export function AddPlansModal({
     >
       <div
         ref={dialog}
+        inert={libraryOpen ? true : undefined}
+        aria-hidden={libraryOpen || undefined}
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-plans-title"
@@ -424,6 +472,40 @@ export function AddPlansModal({
                   Enter a name of 1–200 characters without control characters.
                 </p>
               ) : null}
+              {library && stage === 'select' && (
+                <div className="my-4 grid gap-3">
+                  <button
+                    type="button"
+                    className={secondary}
+                    disabled={preparing || creating || rows.length > 0}
+                    onClick={() => {
+                      setLibraryOpen(true);
+                    }}
+                  >
+                    Library files
+                  </button>
+                  {librarySelected && (
+                    <div className="flex min-w-0 items-center justify-between gap-2 rounded border border-control-border p-3">
+                      <span
+                        className="truncate"
+                        title={librarySelected.filename}
+                      >
+                        {librarySelected.filename}
+                      </span>
+                      <button
+                        type="button"
+                        className={secondary}
+                        disabled={creating}
+                        onClick={() => {
+                          setLibrarySelected(null);
+                        }}
+                      >
+                        Remove selected file
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               <input
                 ref={picker}
                 aria-label="Choose allocation files"
@@ -431,13 +513,14 @@ export function AddPlansModal({
                 accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
                 className="sr-only"
                 tabIndex={-1}
-                disabled={preparing || stage !== 'select'}
+                disabled={preparing || stage !== 'select' || !!librarySelected}
                 onChange={(event) => {
                   select(Array.from(event.target.files ?? []));
                   event.target.value = '';
                 }}
               />
-              {stage === 'select' && rows.length === 0 ? (
+              {librarySelected ? null : stage === 'select' &&
+                rows.length === 0 ? (
                 <>
                   <div
                     className="relative mt-6 flex h-[250px] flex-col items-center rounded-[6px] text-center"
@@ -494,7 +577,7 @@ export function AddPlansModal({
                       <span className="h-px flex-1 bg-[#dce1e9]" />
                     </div>
                     <button
-                      disabled={preparing}
+                      disabled={preparing || Boolean(librarySelected)}
                       onClick={() => picker.current?.click()}
                       className="h-8 w-[108px] rounded border border-[#d2d3d8] px-[11px] text-[14px] leading-5 focus-visible:outline-2 focus-visible:outline-focus"
                       type="button"
@@ -630,10 +713,24 @@ export function AddPlansModal({
                 <button
                   className={primary}
                   type="button"
-                  disabled={preparing || !rows.length || !validName.success}
-                  onClick={() => void start()}
+                  disabled={
+                    preparing ||
+                    creating ||
+                    (!rows.length && !librarySelected) ||
+                    !validName.success
+                  }
+                  onClick={() => {
+                    if (librarySelected) void createLibraryPlan();
+                    else void start();
+                  }}
                 >
-                  {preparing ? 'Preparing…' : 'Next'}
+                  {creating
+                    ? 'Adding…'
+                    : preparing
+                      ? 'Preparing…'
+                      : librarySelected
+                        ? 'Add Allocation'
+                        : 'Next'}
                 </button>
               ) : (
                 <button
@@ -649,6 +746,25 @@ export function AddPlansModal({
           </>
         )}
       </div>
+      {libraryOpen && library && (
+        <LibraryFilePicker
+          confirmLabel="Select plan file"
+          api={library.files}
+          kind="all"
+          multiple={false}
+          onClose={() => {
+            setLibraryOpen(false);
+          }}
+          onSelect={(files) => {
+            // Single selection is required before the picker enables confirmation.
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            const file = files[0]!;
+            setLibrarySelected(file);
+            if (!nameEdited) setName(file.filename.replace(/\.[^.]+$/, ''));
+            return Promise.resolve();
+          }}
+        />
+      )}
     </div>
   );
 }

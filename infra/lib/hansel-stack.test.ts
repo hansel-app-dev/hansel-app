@@ -325,6 +325,7 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites
     // allocation-plan-comments REQ-007,010: private published attachment access.
     expect(policies).toContain('plan-comments/*');
     expect(policies).toContain('plans/*');
+    expect(policies).toContain('library/*');
   });
 
   it('injects stage-scoped provider configuration only when both rollout flags are enabled', () => {
@@ -389,3 +390,23 @@ describe('HanselStack [REQ-004; onboarding-welcome-email REQ-014, REQ-016; sites
     output.hasResourceProperties('AWS::ECS::Service', { DesiredCount: 0 });
   });
 });
+
+/** @spec library-files REQ-012 */
+it.each(['true', 'false'])(
+  'configures Library Files rollout flag %s separately from retained storage',
+  (enabled) => {
+    const output = template('test', { libraryFilesEnabled: enabled });
+    output.hasResourceProperties('AWS::ECS::TaskDefinition', {
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({
+          Environment: Match.arrayWith([
+            { Name: 'LIBRARY_FILES_ENABLED', Value: enabled },
+          ]),
+        }),
+      ]),
+    });
+    expect(JSON.stringify(output.findResources('AWS::IAM::Policy'))).toContain(
+      'library/*',
+    );
+  },
+);

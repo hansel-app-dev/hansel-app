@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { LibraryFilesPage } from './sites/LibraryFiles.js';
+import { createLibraryFilesApi } from './sites/library-files-api.js';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { createPlanSignsApi } from './sites/plan-signs-api.js';
 import type { DashboardResponse } from '@hansel/contracts';
 import {
@@ -189,12 +191,25 @@ export function App({
       }),
     [apiUrl],
   );
+  const libraryApi = useMemo(
+    () => createLibraryFilesApi(apiUrl, returnToLogin),
+    [apiUrl, returnToLogin],
+  );
   const handleApplicationSession = <T,>(operation: Promise<T>) =>
     operation.catch((error: unknown) => {
       if (error instanceof DashboardAuthenticationRequiredError)
         returnToLogin();
       throw error;
     });
+  if (currentPath === '/library/files')
+    return (
+      <LibraryFilesPage
+        api={libraryApi}
+        loadDashboard={loadAuthenticatedViewer}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+      />
+    );
   if (currentPath === '/dashboard') {
     return (
       <Dashboard
@@ -345,6 +360,11 @@ export function App({
     return (
       <SiteAllocationPlans
         {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
+        library={{
+          files: libraryApi,
+          create: (input) =>
+            libraryApi.createPlan(siteId, input).then(() => undefined),
+        }}
         loadDashboard={loadAuthenticatedViewer}
         loadSite={() =>
           validSiteId

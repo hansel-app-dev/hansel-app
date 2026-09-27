@@ -1,3 +1,4 @@
+import type { LibraryRegistrationHook } from './library-files.js';
 /** @spec site-allocation-plans-add REQ-001, REQ-006..REQ-018, REQ-022 */
 import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -117,6 +118,7 @@ function toUpload(
 export function createPrismaAllocationPlanStore(
   prisma: PrismaClient,
   activityEnabled = false,
+  library?: LibraryRegistrationHook,
 ): AllocationPlanStore {
   return {
     async canAccess(principal, siteId) {
@@ -280,10 +282,26 @@ export function createPrismaAllocationPlanStore(
           },
           include: { uploadedBy: { include: { personalProfile: true } } },
         });
+        const asset = library
+          ? await library(transaction, {
+              tenantId: upload.tenantId,
+              sourceSiteId: upload.siteId,
+              sourceKind: 'plan',
+              sourceId: upload.id,
+              filename: upload.filename,
+              mediaType: upload.mediaType,
+              byteSize: upload.byteSize,
+              checksumSha256: upload.checksumSha256,
+              uploadedById: principal.userId,
+              originalKey: finalObjectKey,
+              createdAt: plan.createdAt,
+            })
+          : null;
         await transaction.allocationPlanUpload.update({
           where: { id: upload.id },
           data: {
             status: 'COMPLETED',
+            ...(asset ? { libraryFileId: asset.id } : {}),
             allocationPlanId: plan.id,
             groupedPlanId: plan.id,
             position: 0,

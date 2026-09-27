@@ -39,6 +39,8 @@ export class HanselStack extends cdk.Stack {
     const allocationPlanDraftsEnabled =
       allocationPlansEnabled &&
       this.node.tryGetContext('allocationPlanDraftsEnabled') === 'true';
+    const libraryFilesEnabled =
+      this.node.tryGetContext('libraryFilesEnabled') === 'true';
     const loginEnabled = this.node.tryGetContext('loginEnabled') === 'true';
     const passwordRecoveryEnabled =
       this.node.tryGetContext('passwordRecoveryEnabled') === 'true' &&
@@ -179,6 +181,10 @@ export class HanselStack extends cdk.Stack {
                 'infra/cdk.out',
                 '**/coverage',
                 '**/dist',
+                '**/storybook-static',
+                'test-results',
+                'playwright-report',
+                '.env*',
               ],
               ignoreMode: cdk.IgnoreMode.GLOB,
             },
@@ -336,6 +342,10 @@ export class HanselStack extends cdk.Stack {
     allocationPlanBucket.grantReadWrite(api.taskDefinition.taskRole, 'plans/*');
     allocationPlanBucket.grantReadWrite(
       api.taskDefinition.taskRole,
+      'library/*',
+    );
+    allocationPlanBucket.grantReadWrite(
+      api.taskDefinition.taskRole,
       'sign-documents/*',
     );
     allocationPlanBucket.grantReadWrite(
@@ -362,6 +372,10 @@ export class HanselStack extends cdk.Stack {
     api.taskDefinition.defaultContainer?.addEnvironment(
       'ALLOCATION_PLAN_DRAFTS_ENABLED',
       allocationPlanDraftsEnabled ? 'true' : 'false',
+    );
+    api.taskDefinition.defaultContainer?.addEnvironment(
+      'LIBRARY_FILES_ENABLED',
+      libraryFilesEnabled ? 'true' : 'false',
     );
     api.taskDefinition.defaultContainer?.addEnvironment(
       'ALLOCATION_PLANS_BUCKET_NAME',

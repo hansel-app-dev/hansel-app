@@ -1,3 +1,4 @@
+import { libraryApi } from './LibraryFiles.stories.js';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SignPhotos } from '../src/sites/SignPhotos.js';
 import type { SignPhotosApi } from '../src/sites/sign-photos-api.js';
@@ -17,9 +18,18 @@ function Preview({
   uploading = false,
   longList = false,
   network = false,
+  library = false,
   deletePending = false,
 }) {
   const api: SignPhotosApi = {
+    ...(library
+      ? {
+          library: {
+            files: libraryApi,
+            link: () => Promise.resolve({ items: [file] }),
+          },
+        }
+      : {}),
     list: () =>
       failure
         ? Promise.reject(new Error('offline'))
@@ -133,3 +143,6 @@ export const DeleteConfirmation: Story = {
   },
 };
 export const DeletePending: Story = { args: { deletePending: true } };
+
+/** @spec library-files REQ-005,013 */
+export const Library: Story = { args: { library: true } };

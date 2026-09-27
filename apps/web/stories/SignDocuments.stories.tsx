@@ -1,3 +1,4 @@
+import { libraryApi } from './LibraryFiles.stories.js';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SignDocuments } from '../src/sites/SignDocuments.js';
 import type { SignDocumentsApi } from '../src/sites/sign-documents-api.js';
@@ -17,8 +18,17 @@ function Preview({
   uploading = false,
   longList = false,
   network = false,
+  library = false,
 }) {
   const api: SignDocumentsApi = {
+    ...(library
+      ? {
+          library: {
+            files: libraryApi,
+            link: () => Promise.resolve({ items: [file] }),
+          },
+        }
+      : {}),
     list: () =>
       failure
         ? Promise.reject(new Error('offline'))
@@ -100,3 +110,6 @@ export const UploadFailure: Story = {
   ...Uploading,
   args: { uploading: false },
 };
+
+/** @spec library-files REQ-005,013 */
+export const Library: Story = { args: { library: true } };

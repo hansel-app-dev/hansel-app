@@ -209,3 +209,28 @@ export const MultipleFiles: Story = {
     ).toBeEnabled();
   },
 };
+
+/** @spec library-files REQ-006,013 */
+import { libraryApi } from './LibraryFiles.stories.js';
+export const Library: Story = {
+  args: { library: { files: libraryApi, create: () => Promise.resolve() } },
+};
+export const LibrarySelected: Story = {
+  ...Library,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Library files' }),
+    );
+    const body = within(document.body);
+    await userEvent.click(
+      await body.findByRole('radio', { name: 'Ground floor.pdf' }),
+    );
+    await userEvent.click(
+      body.getByRole('button', { name: 'Select plan file' }),
+    );
+    await expect(
+      canvas.getByRole('button', { name: 'Add Allocation' }),
+    ).toBeEnabled();
+  },
+};

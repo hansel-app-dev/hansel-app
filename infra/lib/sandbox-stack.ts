@@ -117,6 +117,7 @@ export class SandboxStack extends cdk.Stack {
           resources: [
             'quarantine',
             'plans',
+            'library',
             'sign-documents',
             'sign-photos',
             'sign-comments',

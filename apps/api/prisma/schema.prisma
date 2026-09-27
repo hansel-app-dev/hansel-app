@@ -107,6 +107,7 @@ enum ActivityKind {
 }
 
 model User {
+  libraryFiles LibraryFile[]
   id                            String                               @id @default(uuid()) @db.Uuid
   email                         String                               @unique
   emailVerifiedAt               DateTime?
@@ -352,6 +353,8 @@ model OnboardingJourney {
 }
 
 model Tenant {
+  libraryRequests LibraryRequest[]
+  libraryFiles LibraryFile[]
   id                          String                      @id @default(uuid()) @db.Uuid
   name                        String
   country                     String
@@ -454,6 +457,7 @@ model Membership {
 }
 
 model Site {
+  libraryFiles LibraryFile[]
   coverImage                  SiteCoverImage[]
   id                          String                      @id @default(uuid()) @db.Uuid
   tenantId                    String                      @db.Uuid
@@ -622,6 +626,8 @@ model AllocationPlanUploadBatch {
 }
 
 model AllocationPlanUpload {
+  libraryFileId String? @db.Uuid
+  libraryFile LibraryFile? @relation(fields: [libraryFileId, tenantId], references: [id, tenantId], onDelete: Restrict)
   commentThreads AllocationPlanCommentThread[]
   planCommentAttachments AllocationPlanCommentAttachment[]
   areas PlanArea[]
@@ -662,6 +668,8 @@ model AllocationPlanUpload {
 }
 
 model SignDocument {
+  libraryFileId String? @db.Uuid
+  libraryFile LibraryFile? @relation(fields: [libraryFileId, tenantId], references: [id, tenantId], onDelete: Restrict)
   id String @id @default(uuid()) @db.Uuid
   tenantId String @db.Uuid
   siteId String @db.Uuid
@@ -679,6 +687,7 @@ model SignDocument {
   createdAt DateTime @default(now())
   @@unique([tenantId, requestKey])
   @@index([tenantId, siteId, signId, id])
+  @@unique([signId, libraryFileId])
 }
 
 // Durable storage ledger intentionally survives deletion of its document.
@@ -752,6 +761,8 @@ model SignCommentAttachmentObject {
 }
 
 model SignPhoto {
+  libraryFileId String? @db.Uuid
+  libraryFile LibraryFile? @relation(fields: [libraryFileId, tenantId], references: [id, tenantId], onDelete: Restrict)
   id String @id @default(uuid()) @db.Uuid
   tenantId String @db.Uuid
   siteId String @db.Uuid
@@ -769,6 +780,7 @@ model SignPhoto {
   createdAt DateTime @default(now())
   @@unique([tenantId, requestKey])
   @@index([tenantId, siteId, signId, id])
+  @@unique([signId, libraryFileId])
 }
 
 // Durable storage ledger intentionally survives deletion of its image.
@@ -1024,4 +1036,39 @@ model AllocationPlanCommentAttachmentObject {
   attachmentId String @id @db.Uuid
   expiresAt DateTime
   @@index([expiresAt])
+}
+
+// @spec library-files REQ-001..010: immutable originals survive parent unlinking.
+model LibraryFile {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  sourceSiteId String @db.Uuid
+  sourceKind String @db.VarChar(16)
+  sourceId String @db.Uuid
+  filename String @db.VarChar(255)
+  mediaType String @db.VarChar(32)
+  byteSize Int
+  checksumSha256 String @db.VarChar(44)
+  uploadedById String @db.Uuid
+  originalKey String @unique @db.VarChar(512)
+  thumbnailKey String? @db.VarChar(512)
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  sourceSite Site @relation(fields:[sourceSiteId,tenantId],references:[id,tenantId],onDelete:Restrict)
+  uploadedBy User @relation(fields:[uploadedById],references:[id],onDelete:Restrict)
+  planFiles AllocationPlanUpload[]
+  documents SignDocument[]
+  photos SignPhoto[]
+  @@unique([id,tenantId])
+  @@unique([tenantId,sourceKind,sourceId])
+  @@index([tenantId,createdAt,id])
+}
+model LibraryRequest {
+  id String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  requestKey String @db.Uuid
+  digest String @db.VarChar(64)
+  result Json
+  tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Restrict)
+  @@unique([tenantId,requestKey])
 }

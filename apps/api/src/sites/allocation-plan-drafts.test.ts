@@ -189,6 +189,7 @@ it('allocation-plan-multiple-files REQ-008,010: commits verified files once and 
     digest: (value) => value,
     now: () => now,
     activityEnabled: true,
+    library: vi.fn().mockResolvedValue({ id: 'library-id' }),
   });
   await api.commit(principal, id, input);
   expect(s.tx.activity.create).toHaveBeenCalledOnce();

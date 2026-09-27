@@ -1,3 +1,4 @@
+import { LibraryFilePicker } from './LibraryFiles.js';
 /** @spec sign-documents REQ-001..006 */
 import { useEffect, useRef, useState } from 'react';
 import { type SignDocument } from '@hansel/contracts';
@@ -30,6 +31,10 @@ export function SignDocuments({
   onBusyChange: (busy: boolean) => void;
 }) {
   const [documents, setDocuments] = useState<SignDocument[]>([]);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const library = api.library;
+  const libraryOpenRef = useRef(false);
+  libraryOpenRef.current = libraryOpen;
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,10 +47,18 @@ export function SignDocuments({
   const abort = useRef(new AbortController());
   const busyCallback = useRef(onBusyChange);
   busyCallback.current = onBusyChange;
+  useEffect(() => {
+    busyCallback.current(
+      libraryOpen || queue.current.some((item) => item.state !== 'error'),
+    );
+  }, [libraryOpen]);
   function publish() {
     if (!mounted.current) return;
     setTransfers([...queue.current]);
-    busyCallback.current(queue.current.some((item) => item.state !== 'error'));
+    busyCallback.current(
+      libraryOpenRef.current ||
+        queue.current.some((item) => item.state !== 'error'),
+    );
   }
   async function load(next?: string) {
     setLoading(true);
@@ -400,7 +413,10 @@ export function SignDocuments({
           </button>
           <button
             type="button"
-            disabled
+            disabled={!canManage || !api.library}
+            onClick={() => {
+              setLibraryOpen(true);
+            }}
             className={`${button} mt-2 w-full shrink-0 border-transparent bg-[#475569] text-white`}
           >
             Library files
@@ -410,6 +426,30 @@ export function SignDocuments({
           PNG, JPG and PDF supported and up to 5mb.
         </p>
       </div>
+      {libraryOpen && library && (
+        <LibraryFilePicker
+          confirmLabel="Add documents"
+          api={library.files}
+          kind="all"
+          multiple
+          onClose={() => {
+            setLibraryOpen(false);
+          }}
+          onSelect={async (files, key) => {
+            const result = await library.link(signId, {
+              idempotencyKey: key,
+              fileIds: files.map((file) => file.id),
+            });
+            if (mounted.current)
+              setDocuments((current) => [
+                ...current,
+                ...result.items.filter(
+                  (file) => !current.some((old) => old.id === file.id),
+                ),
+              ]);
+          }}
+        />
+      )}
     </div>
   );
 }

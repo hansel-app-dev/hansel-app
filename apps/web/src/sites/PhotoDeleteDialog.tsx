@@ -62,7 +62,10 @@ export function PhotoDeleteDialog({
         </button>
       </header>
       <div className="px-6 py-6 text-sm leading-5">
-        <p id={description}>This photo will be permanently deleted.</p>
+        <p id={description}>
+          This photo will be removed from this Sign. Its file remains in Library
+          Files.
+        </p>
         <p className="mt-2 break-words text-[#72727e]">{filename}</p>
         {error && (
           <p role="alert" className="mt-3 text-[#b42318]">

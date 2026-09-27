@@ -1,7 +1,9 @@
 /** @spec microsoft-local-auth REQ-004..REQ-008 */
 import express from 'express';
-import request from 'supertest';
-import { expect, it, vi } from 'vitest';
+import supertest from 'supertest';
+import type { Express } from 'express';
+import type { Server } from 'node:http';
+import { afterEach, expect, it, vi } from 'vitest';
 import { registerMicrosoftSignupRoutes } from './microsoft-signup-routes.js';
 
 it('handles expired state, invalid forms, verification rejection, and outages in both renderers [microsoft-local-auth REQ-008]', async () => {
@@ -211,4 +213,30 @@ it('requires the pending browser cookie and exact origin for email submission [m
     .set('Cookie', 'hansel_microsoft_pending=credential')
     .send({ email: 'test@example.com' })
     .expect(200);
+});
+
+// Hold each app's listener through the test to avoid ephemeral port reuse.
+let listeners = new Map<Express, Server>();
+function request(app: Express) {
+  let server = listeners.get(app);
+  if (!server) {
+    server = app.listen(0);
+    listeners.set(app, server);
+  }
+  return supertest(server);
+}
+afterEach(async () => {
+  const servers = [...listeners.values()];
+  listeners = new Map();
+  await Promise.all(
+    servers.map(
+      (server) =>
+        new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        }),
+    ),
+  );
 });

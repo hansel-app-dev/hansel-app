@@ -1,6 +1,8 @@
 import express from 'express';
-import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
+import supertest from 'supertest';
+import type { Express } from 'express';
+import type { Server } from 'node:http';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerSignCommentRoutes } from './sign-comment-routes.js';
 import { registerSignDocumentRoutes } from './sign-document-routes.js';
 import { registerSignPhotoRoutes } from './sign-photo-routes.js';
@@ -160,3 +162,29 @@ for (const kind of ['comments', 'documents', 'photos'] as const)
       expect(s.record).toHaveBeenCalledWith(expect.stringContaining('failure'));
     });
   });
+
+// Hold each app's listener through the test to avoid ephemeral port reuse.
+let listeners = new Map<Express, Server>();
+function request(app: Express) {
+  let server = listeners.get(app);
+  if (!server) {
+    server = app.listen(0);
+    listeners.set(app, server);
+  }
+  return supertest(server);
+}
+afterEach(async () => {
+  const servers = [...listeners.values()];
+  listeners = new Map();
+  await Promise.all(
+    servers.map(
+      (server) =>
+        new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        }),
+    ),
+  );
+});

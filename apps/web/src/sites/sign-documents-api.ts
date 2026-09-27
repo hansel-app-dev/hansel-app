@@ -1,3 +1,8 @@
+import {
+  createLibraryFilesApi,
+  type LibraryFilesApi,
+} from './library-files-api.js';
+import type { LibrarySelection } from '@hansel/contracts';
 /** @spec sign-documents REQ-004..006 */
 import {
   signDocumentIntentSchema,
@@ -27,7 +32,13 @@ export function createSignDocumentsApi(siteId: string, baseUrl: string) {
     if (!response.ok) throw new SignDocumentRequestError(response.status);
     return response;
   }
+  const files = createLibraryFilesApi(baseUrl);
   return {
+    library: {
+      files,
+      link: (signId: string, input: LibrarySelection) =>
+        files.link(siteId, signId, 'documents', input),
+    },
     list: async (signId: string, cursor?: string) =>
       signDocumentsSchema.parse(
         await (
@@ -58,7 +69,18 @@ export function createSignDocumentsApi(siteId: string, baseUrl: string) {
     },
   };
 }
-export type SignDocumentsApi = ReturnType<typeof createSignDocumentsApi>;
+export type SignDocumentsApi = Omit<
+  ReturnType<typeof createSignDocumentsApi>,
+  'library'
+> & {
+  library?: {
+    files: LibraryFilesApi;
+    link: (
+      signId: string,
+      input: LibrarySelection,
+    ) => ReturnType<LibraryFilesApi['link']>;
+  };
+};
 export function transferDocument(
   url: string,
   headers: Record<string, string>,

@@ -935,3 +935,4 @@ export * from './sign-comments.js';
 export * from './plan-areas.js';
 
 export * from './plan-comments.js';
+export * from './library-files.js';

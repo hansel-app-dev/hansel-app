@@ -320,6 +320,11 @@ it('sign-comments REQ-006..011: uploads and removes draft attachments and retain
   ).toBeVisible();
 });
 it('allocation-plan-comments REQ-006: compact draft handles Escape inside mention/emoji menus and read-only history has no composer', async () => {
+  let scrollToComment: FrameRequestCallback = () => undefined;
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    scrollToComment = callback;
+    return 0;
+  });
   const api = setup([]),
     compact = { draft: true, readOnly: false, onSubmitted: vi.fn() };
   const view = render(
@@ -345,6 +350,9 @@ it('allocation-plan-comments REQ-006: compact draft handles Escape inside mentio
     expect(compact.onSubmitted).toHaveBeenCalledOnce();
   });
   view.unmount();
+  expect(() => {
+    scrollToComment(0);
+  }).not.toThrow();
   const readonly = setup([root]);
   render(
     <SignComments

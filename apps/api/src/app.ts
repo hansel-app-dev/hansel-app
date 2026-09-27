@@ -1,3 +1,4 @@
+import { registerLibraryFileRoutes } from './sites/library-file-routes.js';
 import { registerPlanCommentRoutes } from './sites/plan-comment-routes.js';
 import {
   planAreaCreateSchema,
@@ -272,6 +273,10 @@ export interface AuthenticationModule {
 }
 
 export interface SitesModule {
+  libraryFiles?: Omit<
+    Parameters<typeof registerLibraryFileRoutes>[1],
+    'enabled' | 'allowedOrigin'
+  >;
   signPhotos?: Omit<
     Parameters<typeof registerSignPhotoRoutes>[1],
     'enabled' | 'allowedOrigin'
@@ -643,6 +648,7 @@ export function createApp(
     sitesEnabled?: boolean;
     allocationPlansEnabled?: boolean;
     allocationPlanDraftsEnabled?: boolean;
+    libraryFilesEnabled?: boolean;
     signageScheduleEnabled?: boolean;
     allocationPlanSignsEnabled?: boolean;
     signDocumentsEnabled?: boolean;
@@ -1541,6 +1547,12 @@ export function createApp(
         return response.status(409).json({ error: 'signage_conflict' });
       return response.status(503).json({ error: 'signage_unavailable' });
     };
+    if (sites.libraryFiles)
+      registerLibraryFileRoutes(app, {
+        ...sites.libraryFiles,
+        enabled: !!config.libraryFilesEnabled,
+        allowedOrigin: config.allowedOrigin,
+      });
     if (sites.signPhotos)
       registerSignPhotoRoutes(app, {
         ...sites.signPhotos,

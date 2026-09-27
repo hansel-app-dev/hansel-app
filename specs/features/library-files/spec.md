@@ -1,12 +1,12 @@
 # Feature: Library Files and reuse
 
 - ID: `library-files`
-- Status: `approved`
+- Status: `implemented`
 - Approval: `User approved this published specification in the Codex task on 2026-09-27.`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-27`
-- Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Document, Image; docs/domain/figjam-object-catalog.md — Source and authority, Objects and data points (Organization, Allocation Plan, Document, Image), Canonical interpretation notes (Linked to), Nesting map, Known ambiguities requiring specification (7, 8, 10), Current implementation alignment`
+- Domain references: `CONTEXT.md — Organization, Membership, Organization Role, Site, Site Access, Allocation Plan, Document, Image, Library File; docs/domain/figjam-object-catalog.md — Source and authority, Objects and data points (Organization, Allocation Plan, Document, Image), Canonical interpretation notes (Linked to), Nesting map, Known ambiguities requiring specification (7, 8, 10), Current implementation alignment`
 - User request: `Uploaded plans, documents and photos are saved in Library Files and can be picked again from Library Files.`
 - Accepted decisions: `User confirmed source Site access, reuse of the stored file with independent plan/Sign links, and inclusion of existing completed uploads in this Codex task on 2026-09-27.`
 - Supersedes on approval: `The disabled library actions and Sign-exclusive storage/deletion assumptions in sign-documents REQ-003,007 and sign-photos REQ-008,009,011; the library exclusion in site-allocation-plans-add; the inactive Documents library navigation. Other upload, permission, format, size and single-file plan requirements remain authoritative.`

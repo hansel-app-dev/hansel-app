@@ -3,6 +3,18 @@ info:
   title: Hansel API
   version: 0.1.0
 paths:
+  /api/library-files:
+    $ref: './library-files.openapi.yaml#/collection'
+  /api/library-files/{fileId}/download:
+    $ref: './library-files.openapi.yaml#/download'
+  /api/library-files/{fileId}/thumbnail:
+    $ref: './library-files.openapi.yaml#/thumbnail'
+  /api/sites/{siteId}/library-plans:
+    $ref: './library-files.openapi.yaml#/plans'
+  /api/sites/{siteId}/signs/{signId}/library-documents:
+    $ref: './library-files.openapi.yaml#/documents'
+  /api/sites/{siteId}/signs/{signId}/library-photos:
+    $ref: './library-files.openapi.yaml#/photos'
   /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments:
     $ref: './plan-comments.openapi.yaml#/collection'
   /api/sites/{siteId}/allocation-plans/{planId}/files/{fileId}/comments/{threadId}:

@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import request from 'supertest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import supertest from 'supertest';
+import type { Express } from 'express';
+import type { Server } from 'node:http';
 import { createApp } from './app.js';
 import { VerificationFailedError } from './onboarding/verify-email.js';
 import { PersonalProfileTransitionError } from './onboarding/personal-profile.js';
@@ -3350,4 +3352,30 @@ describe('plan-selection routes [onboarding-plan-selection REQ-006, REQ-007, REQ
     expect(errorLog).toHaveBeenCalledTimes(2);
     errorLog.mockRestore();
   });
+});
+
+// Hold each app's listener through the test to avoid ephemeral port reuse.
+let listeners = new Map<Express, Server>();
+function request(app: Express) {
+  let server = listeners.get(app);
+  if (!server) {
+    server = app.listen(0);
+    listeners.set(app, server);
+  }
+  return supertest(server);
+}
+afterEach(async () => {
+  const servers = [...listeners.values()];
+  listeners = new Map();
+  await Promise.all(
+    servers.map(
+      (server) =>
+        new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        }),
+    ),
+  );
 });

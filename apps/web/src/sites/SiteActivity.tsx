@@ -1,3 +1,5 @@
+import type { LibraryFilesApi } from './library-files-api.js';
+import type { LibraryPlan } from '@hansel/contracts';
 /** @spec site-details-activity-shell REQ-001..REQ-021 @spec site-allocation-plans-empty-state REQ-001..REQ-023 @figma 2030:3333, 2037:1019 */
 import { useEffect, useState } from 'react';
 import type {
@@ -69,6 +71,10 @@ interface SharedSiteDetailsProps {
   commitAllocationPlanDraft?: (
     input: CommitAllocationPlanDraftRequest,
   ) => Promise<void>;
+  library?: {
+    files: LibraryFilesApi;
+    create: (input: LibraryPlan) => Promise<void>;
+  };
   previewPlanId?: string;
   planSignsApi?: PlanSignsApi;
   loadAllocationPlanContent?: (
@@ -310,6 +316,7 @@ function SiteDetails({
   createSiteComment,
   isSiteActivityNotFound,
   preloadedDashboard,
+  library,
 }: SharedSiteDetailsProps & {
   activeSection: 'activity' | 'allocations' | 'signage';
 }) {
@@ -826,6 +833,7 @@ function SiteDetails({
       uploadAllocationPlan &&
       finalizeAllocationPlanUpload ? (
         <AddPlansModal
+          {...(library ? { library } : {})}
           createBatch={createAllocationPlanUploadBatch}
           upload={uploadAllocationPlan}
           finalize={finalizeAllocationPlanUpload}

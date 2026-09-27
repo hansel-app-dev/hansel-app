@@ -1,6 +1,7 @@
+import { LibraryFilePicker } from './LibraryFiles.js';
 /** @spec sign-photos REQ-001..009 */
 import { useEffect, useRef, useState } from 'react';
-import type { SignPhoto } from '@hansel/contracts';
+import { signPhotoSchema, type SignPhoto } from '@hansel/contracts';
 import type { SignPhotosApi } from './sign-photos-api.js';
 import { usePhotoUploads } from './use-photo-uploads.js';
 import { PhotoDeleteDialog } from './PhotoDeleteDialog.js';
@@ -18,6 +19,8 @@ export function SignPhotos({
   onBusyChange: (busy: boolean) => void;
 }) {
   const [photos, setPhotos] = useState<SignPhoto[]>([]);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const library = api.library;
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,8 +45,8 @@ export function SignPhotos({
     },
   );
   useEffect(() => {
-    notify.current(busy || !!target);
-  }, [busy, target]);
+    notify.current(busy || !!target || libraryOpen);
+  }, [busy, target, libraryOpen]);
   async function load(next?: string) {
     setLoading(true);
     setError('');
@@ -399,7 +402,10 @@ export function SignPhotos({
           </button>
           <button
             type="button"
-            disabled
+            disabled={!canManage || !api.library}
+            onClick={() => {
+              setLibraryOpen(true);
+            }}
             className={`${button} mt-2 w-full shrink-0 border-transparent bg-[#475569] text-white`}
           >
             Library files
@@ -419,6 +425,30 @@ export function SignPhotos({
           }}
           onConfirm={() => {
             void remove();
+          }}
+        />
+      )}
+      {libraryOpen && library && (
+        <LibraryFilePicker
+          confirmLabel="Add photos"
+          api={library.files}
+          kind="image"
+          multiple
+          onClose={() => {
+            setLibraryOpen(false);
+          }}
+          onSelect={async (files, key) => {
+            const result = await library.link(signId, {
+              idempotencyKey: key,
+              fileIds: files.map((file) => file.id),
+            });
+            if (mounted.current)
+              setPhotos((current) => [
+                ...current,
+                ...result.items
+                  .filter((file) => !current.some((old) => old.id === file.id))
+                  .map((file) => signPhotoSchema.parse(file)),
+              ]);
           }}
         />
       )}

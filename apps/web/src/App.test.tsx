@@ -481,72 +481,89 @@ describe('App [REQ-002]', () => {
         return Promise.resolve(
           new Response(
             JSON.stringify(
-              url.endsWith('/api/dashboard')
+              url.includes('/api/library-files?')
                 ? {
-                    viewer: {
-                      displayName: 'Nabin Singh',
-                      initials: 'NS',
-                      roleLabel: 'Owner',
-                    },
-                  }
-                : url.endsWith('/api/sites')
-                  ? {
-                      organizationName: 'Hansel',
-                      canCreateSite: true,
-                      canInviteMembers: true,
-                      creator: {
-                        email: 'owner@example.com',
-                        displayName: 'Owner',
-                        initials: 'O',
+                    files: [
+                      {
+                        id: uploadId,
+                        filename: 'Library.pdf',
+                        mediaType: 'application/pdf',
+                        byteSize: 5,
+                        uploadedBy: 'Owner',
+                        createdAt: '2026-09-06T00:00:00.000Z',
+                        sourceSite: { id: siteId, name: 'Direct site' },
+                        hasThumbnail: false,
                       },
-                      siteLimitReached: false,
-                      maximumSites: null,
-                      members: [],
-                      sites: [
-                        {
-                          id: siteId,
-                          name: 'Direct site',
-                          createdAt: '2026-09-05T10:00:00.000Z',
-                          updatedAt: '2026-09-05T10:00:00.000Z',
-                          memberCount: 0,
-                          memberPreview: [],
-                        },
-                      ],
+                    ],
+                    nextCursor: null,
+                  }
+                : url.endsWith('/api/dashboard')
+                  ? {
+                      viewer: {
+                        displayName: 'Nabin Singh',
+                        initials: 'NS',
+                        roleLabel: 'Owner',
+                      },
                     }
-                  : url.endsWith('/allocation-plans')
-                    ? { canAddPlans: true, plans: [] }
-                    : url.endsWith('/allocation-plan-drafts')
-                      ? {
-                          uploads: [
-                            {
-                              uploadId,
-                              uploadUrl: `https://uploads.example.com/${uploadId}`,
-                              expiresAt: new Date(
-                                Date.now() + 900_000,
-                              ).toISOString(),
-                              headers: {
-                                'content-type': 'application/pdf',
-                                'x-amz-checksum-sha256':
-                                  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                  : url.endsWith('/api/sites')
+                    ? {
+                        organizationName: 'Hansel',
+                        canCreateSite: true,
+                        canInviteMembers: true,
+                        creator: {
+                          email: 'owner@example.com',
+                          displayName: 'Owner',
+                          initials: 'O',
+                        },
+                        siteLimitReached: false,
+                        maximumSites: null,
+                        members: [],
+                        sites: [
+                          {
+                            id: siteId,
+                            name: 'Direct site',
+                            createdAt: '2026-09-05T10:00:00.000Z',
+                            updatedAt: '2026-09-05T10:00:00.000Z',
+                            memberCount: 0,
+                            memberPreview: [],
+                          },
+                        ],
+                      }
+                    : url.endsWith('/allocation-plans')
+                      ? { canAddPlans: true, plans: [] }
+                      : url.endsWith('/allocation-plan-drafts')
+                        ? {
+                            uploads: [
+                              {
+                                uploadId,
+                                uploadUrl: `https://uploads.example.com/${uploadId}`,
+                                expiresAt: new Date(
+                                  Date.now() + 900_000,
+                                ).toISOString(),
+                                headers: {
+                                  'content-type': 'application/pdf',
+                                  'x-amz-checksum-sha256':
+                                    'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                                },
                               },
-                            },
-                          ],
-                        }
-                      : url.endsWith('/verify')
-                        ? { uploadId, verified: true }
-                        : url.endsWith('/commit')
-                          ? {
-                              plan: {
-                                id: 'a87f107e-ac6e-46a7-b46c-11a86dd56c74',
-                                filename: 'plan.pdf',
-                                mediaType: 'application/pdf',
-                                byteSize: 5,
-                                createdAt: '2026-09-06T00:00:00.000Z',
-                                modifiedAt: '2026-09-06T00:00:00.000Z',
-                                uploadedBy: 'Owner',
-                              },
-                            }
-                          : { site: { id: siteId, name: 'Direct site' } },
+                            ],
+                          }
+                        : url.endsWith('/verify')
+                          ? { uploadId, verified: true }
+                          : url.endsWith('/commit') ||
+                              url.endsWith('/library-plans')
+                            ? {
+                                plan: {
+                                  id: 'a87f107e-ac6e-46a7-b46c-11a86dd56c74',
+                                  filename: 'plan.pdf',
+                                  mediaType: 'application/pdf',
+                                  byteSize: 5,
+                                  createdAt: '2026-09-06T00:00:00.000Z',
+                                  modifiedAt: '2026-09-06T00:00:00.000Z',
+                                  uploadedBy: 'Owner',
+                                },
+                              }
+                            : { site: { id: siteId, name: 'Direct site' } },
             ),
           ),
         );
@@ -581,7 +598,7 @@ describe('App [REQ-002]', () => {
     expect(
       screen.getByRole('link', { name: 'Allocations', current: 'page' }),
     ).toHaveAttribute('href', `/sites/${siteId}/allocations`);
-    fireEvent.click(screen.getByRole('button', { name: 'Add plan' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add plan' }));
     fireEvent.change(screen.getByLabelText('Allocation name'), {
       target: { value: 'Ground floor' },
     });
@@ -597,6 +614,17 @@ describe('App [REQ-002]', () => {
       expect(
         screen.getByRole('button', { name: 'Add Allocation' }),
       ).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Add plan' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Library files' }));
+    fireEvent.click(await screen.findByRole('radio', { name: 'Library.pdf' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select plan file' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('radio')).toBeNull();
     });
     fireEvent.click(screen.getByRole('button', { name: 'Add Allocation' }));
     await waitFor(() => {
@@ -1719,4 +1747,32 @@ describe('App [REQ-002]', () => {
       );
     });
   });
+});
+
+/** @spec library-files REQ-004 */
+it('renders authenticated Library Files through Files navigation', async () => {
+  const fetcher = vi.fn((url: string) =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify(
+          url.endsWith('/api/dashboard')
+            ? {
+                viewer: {
+                  displayName: 'Member',
+                  initials: 'M',
+                  roleLabel: 'Owner',
+                },
+              }
+            : { files: [], nextCursor: null },
+        ),
+      ),
+    ),
+  );
+  vi.stubGlobal('fetch', fetcher);
+  render(<App path="/library/files" />);
+  await screen.findByText('No files found.');
+  expect(screen.getByRole('link', { name: 'Files' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
 });

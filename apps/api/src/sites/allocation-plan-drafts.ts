@@ -1,3 +1,4 @@
+import type { LibraryRegistrationHook } from './library-files.js';
 /** @spec allocation-plan-multiple-files REQ-001, REQ-003, REQ-008..REQ-010 */
 import { randomUUID } from 'node:crypto';
 import type { Prisma, PrismaClient } from '@prisma/client';
@@ -33,12 +34,14 @@ export function createAllocationPlanDraftsFeature({
   objects,
   digest,
   activityEnabled = false,
+  library,
   now = () => new Date(),
 }: {
   prisma: PrismaClient;
   objects: AllocationPlanObjectStore;
   digest: (value: string) => string;
   activityEnabled?: boolean;
+  library?: LibraryRegistrationHook;
   now?: () => Date;
 }) {
   const legacy = createAllocationPlansFeature({
@@ -200,11 +203,37 @@ export function createAllocationPlanDraftsFeature({
               creationDigest,
             },
           });
-          for (const [position, id] of input.uploadIds.entries())
+          for (const [position, id] of input.uploadIds.entries()) {
+            // The validated selection above contains each locked, verified file.
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            const file = files.find((value) => value.id === id)!;
+            const asset = library
+              ? await library(tx, {
+                  tenantId: principal.tenantId,
+                  sourceSiteId: siteId,
+                  sourceKind: 'plan',
+                  sourceId: id,
+                  filename: file.filename,
+                  mediaType: file.mediaType,
+                  byteSize: file.byteSize,
+                  checksumSha256: file.checksumSha256,
+                  uploadedById: file.uploadedById,
+                  // Verification is required by the locked selection query.
+                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+                  originalKey: file.verifiedObjectKey!,
+                  createdAt: now(),
+                })
+              : null;
             await tx.allocationPlanUpload.update({
               where: { id },
-              data: { groupedPlanId: plan.id, position, status: 'COMPLETED' },
+              data: {
+                groupedPlanId: plan.id,
+                position,
+                status: 'COMPLETED',
+                ...(asset ? { libraryFileId: asset.id } : {}),
+              },
             });
+          }
           if (activityEnabled)
             await tx.activity.create({
               data: {

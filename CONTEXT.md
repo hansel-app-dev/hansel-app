@@ -51,7 +51,7 @@ A place or service managed in Hansel that groups its allocation plans, signs, ac
 _Avoid_: Property, Location when referring to the whole managed object
 
 **Allocation Plan**:
-A named plan for a Site with exactly one uploaded PDF or Image that organizes the Signs associated with that file. The Allocation Details dropdown switches between Allocation Plans within the Site.
+A named plan for a Site with exactly one uploaded or reused PDF or Image that organizes the Signs associated with that file. The Allocation Details dropdown switches between Allocation Plans within the Site.
 _Avoid_: Floor Plan when the plan is not necessarily a floor
 
 **Area**:
@@ -69,8 +69,12 @@ _Avoid_: Attachment when referring to the stored object itself
 
 **Image**:
 An uploaded image asset that may be linked to another Hansel object.
-The approved Sign Photos feature stores PNG/JPEG Images owned by a Sign separately from its Documents. The drawer uses “Photos” as UI copy; deleting one Image does not delete its Sign.
+The approved Sign Photos feature stores PNG/JPEG Image links owned by a Sign separately from its Documents. Completed uploads are retained as Library Files; deleting a Photo unlinks it from that Sign. The drawer uses “Photos” as UI copy; deleting one Image does not delete its Sign.
 _Avoid_: Photo when the asset may not be a photograph
+
+**Library File**:
+An immutable stored file registered when an Allocation Plan, Sign Document or Sign Photo upload is completed and committed. It retains its original filename, type, byte size, uploader, upload date and source Site. Only Memberships with current source Site Access may discover or reuse it. Reuse creates independent destination links to the same stored bytes; destination readers use their normal Site Access. Removing a link or its Sign preserves the Library File and other links. Comment attachments, Site covers and unfinished uploads are excluded.
+_Avoid_: Copy when referring to a reused file, Attachment when referring to the stored asset
 
 **Video**:
 An uploaded video asset that may be linked to another Hansel object.
