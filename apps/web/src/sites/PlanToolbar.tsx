@@ -68,7 +68,7 @@ export function PlanToolbar({
           onClick={() => {
             onChange(item.id);
           }}
-          className={`grid size-[34px] shrink-0 place-items-center rounded-[1px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff] disabled:cursor-not-allowed ${tool === item.id ? 'bg-[#4096ff] text-white' : 'text-[#27272a] enabled:hover:bg-[#f4f4f5]'}`}
+          className={`grid size-[34px] shrink-0 place-items-center rounded-[4px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#4096ff] disabled:cursor-not-allowed ${tool === item.id ? 'bg-[#4096ff] text-white' : 'text-[#27272a] enabled:hover:bg-[#f4f4f5]'}`}
         >
           <img
             src={item.icon}
