@@ -1,7 +1,8 @@
 # Feature: New sign type primary button
 
 - ID: `signage-new-type-button-style`
-- Status: `draft`
+- Status: `approved`
+- Approval: User explicitly approved this specification in the Codex task on 2026-09-27.
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
 - Last updated: `2026-09-27`
