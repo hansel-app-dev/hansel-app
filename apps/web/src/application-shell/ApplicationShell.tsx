@@ -1,5 +1,6 @@
 /** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010; sites-empty-state REQ-002..REQ-004, REQ-008..REQ-012; sites-populated-state REQ-005..REQ-008, REQ-018, REQ-020..REQ-022; site-details-activity-shell REQ-005, REQ-007, REQ-014..REQ-017 */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { DashboardResponse } from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
 import { AccountSettingsModal } from './AccountSettingsModal.js';
@@ -129,10 +130,26 @@ export function ApplicationShell({
   const [logoutError, setLogoutError] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sitesExpanded, setSitesExpanded] = useState(true);
+  const [siteTooltip, setSiteTooltip] = useState<
+    { label: string; left: number; top: number } | undefined
+  >();
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+
+  const showSiteTooltip = (
+    event:
+      React.MouseEvent<HTMLAnchorElement> | React.FocusEvent<HTMLAnchorElement>,
+    label: string,
+  ) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setSiteTooltip({
+      label,
+      left: bounds.left + bounds.width / 2,
+      top: bounds.top - 4,
+    });
+  };
 
   useEffect(() => {
     if (preloadedDashboard || preloadedViewer) return;
@@ -422,6 +439,18 @@ export function ApplicationShell({
                             }
                             href={`/sites/${encodeURIComponent(site.id)}/activity`}
                             className={`flex min-h-7 items-center gap-2 rounded-[4px] pl-[30px] pr-2 text-[12px] leading-[18px] hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-content'}`}
+                            onMouseEnter={(event) => {
+                              showSiteTooltip(event, site.name);
+                            }}
+                            onMouseLeave={() => {
+                              setSiteTooltip(undefined);
+                            }}
+                            onFocus={(event) => {
+                              showSiteTooltip(event, site.name);
+                            }}
+                            onBlur={() => {
+                              setSiteTooltip(undefined);
+                            }}
                             onClick={(event) => {
                               if (!navigate) return;
                               event.preventDefault();
@@ -435,13 +464,6 @@ export function ApplicationShell({
                               {site.name}
                             </span>
                           </a>
-                          <span
-                            aria-hidden="true"
-                            role="tooltip"
-                            className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-1 -translate-x-1/2 whitespace-nowrap rounded-[4px] bg-zinc-800 px-2 py-2 text-[11px] leading-normal text-white opacity-0 shadow-sm transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-                          >
-                            {site.name}
-                          </span>
                         </li>
                       ))}
                       {onCreateSite ? (
@@ -600,6 +622,18 @@ export function ApplicationShell({
           }}
         />
       ) : null}
+      {siteTooltip
+        ? createPortal(
+            <span
+              role="tooltip"
+              className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-[4px] bg-zinc-800 px-2 py-2 text-[11px] leading-normal text-white shadow-sm"
+              style={{ left: siteTooltip.left, top: siteTooltip.top }}
+            >
+              {siteTooltip.label}
+            </span>,
+            document.body,
+          )
+        : null}
     </main>
   );
 }

@@ -33,6 +33,10 @@ it('uses the designed custom tooltip for nested site names', () => {
     </ApplicationShell>,
   );
 
+  const siteLink = screen.getByRole('link', {
+    name: 'Westlake Campus – Building A',
+  });
+  fireEvent.mouseEnter(siteLink);
   expect(screen.queryByTitle('Westlake Campus – Building A')).toBeNull();
   expect(screen.getByRole('tooltip', { hidden: true })).toHaveTextContent(
     'Westlake Campus – Building A',
