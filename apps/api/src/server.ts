@@ -721,9 +721,9 @@ const sites: SitesModule = {
       ? signageScheduleFeature.updateSign(principal, siteId, id, input)
       : null;
   },
-  async load(credential) {
+  async load(credential, view = 'owned') {
     const principal = await resolveSitePrincipal(credential);
-    const page = principal ? await sitesFeature.load(principal) : null;
+    const page = principal ? await sitesFeature.load(principal, view) : null;
     return page
       ? {
           ...page,
