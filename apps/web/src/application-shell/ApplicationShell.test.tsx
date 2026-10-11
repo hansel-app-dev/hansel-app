@@ -13,6 +13,32 @@ const viewer = {
   roleLabel: 'Owner' as const,
 };
 afterEach(cleanup);
+
+it('uses the designed custom tooltip for nested site names', () => {
+  render(
+    <ApplicationShell
+      activePage="Sites"
+      headerActions={null}
+      headerLeading={null}
+      loadDashboard={vi.fn()}
+      loadErrorMessage="Unavailable"
+      logout={vi.fn()}
+      preloadedDashboard={{
+        viewer,
+        organization: { name: 'Workspace', planDisplayName: 'Free Plan' },
+      }}
+      siteNavigation={[{ id: 'site-1', name: 'Westlake Campus – Building A' }]}
+    >
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+
+  expect(screen.queryByTitle('Westlake Campus – Building A')).toBeNull();
+  expect(screen.getByRole('tooltip', { hidden: true })).toHaveTextContent(
+    'Westlake Campus – Building A',
+  );
+});
+
 it('retries logout failure and renders account settings without optional viewer metadata', async () => {
   const logout = vi
     .fn()

@@ -415,7 +415,7 @@ export function ApplicationShell({
                       aria-label="My Sites"
                     >
                       {siteNavigation?.map((site) => (
-                        <li className="min-w-0" key={site.id}>
+                        <li className="group relative min-w-0" key={site.id}>
                           <a
                             aria-current={
                               site.id === currentSiteId ? 'page' : undefined
@@ -431,13 +431,17 @@ export function ApplicationShell({
                             }}
                           >
                             <SidebarIcon name="site" />
-                            <span
-                              className="min-w-0 flex-1 truncate"
-                              title={site.name}
-                            >
+                            <span className="min-w-0 flex-1 truncate">
                               {site.name}
                             </span>
                           </a>
+                          <span
+                            aria-hidden="true"
+                            role="tooltip"
+                            className="pointer-events-none invisible absolute left-6 top-1/2 z-30 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-zinc-800 px-2 py-2 text-[11px] leading-normal text-white opacity-0 shadow-sm transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                          >
+                            {site.name}
+                          </span>
                         </li>
                       ))}
                       {onCreateSite ? (
