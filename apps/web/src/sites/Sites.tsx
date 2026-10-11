@@ -107,6 +107,7 @@ export function Sites({
       navigate={navigate}
       preloadedDashboard={preloadedDashboard}
       siteNavigation={sidebarSites}
+      sharedSiteNavigation={sharedOnly ? visibleSites : undefined}
       siteCount={page?.ownedSiteCount ?? sidebarSites?.length}
       sharedSiteCount={page?.sharedSiteCount}
       workspaceName={page?.organizationName}

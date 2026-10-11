@@ -24,6 +24,7 @@ export interface ApplicationShellProps {
   sharedSiteCount?: number | undefined;
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
+  sharedSiteNavigation?: readonly { id: string; name: string }[] | undefined;
   workspaceName?: string | undefined;
   onCreateSite?: (() => void) | undefined;
   onInviteMembers?:
@@ -49,6 +50,7 @@ export function ApplicationShell({
   sharedSiteCount,
   currentSiteId,
   siteNavigation,
+  sharedSiteNavigation,
   workspaceName,
   onCreateSite,
   onInviteMembers,
@@ -104,6 +106,7 @@ export function ApplicationShell({
         activePage={activePage}
         currentSiteId={currentSiteId}
         siteNavigation={siteNavigation}
+        sharedSiteNavigation={sharedSiteNavigation}
         siteCount={siteCount}
         sharedSiteCount={sharedSiteCount}
         organizationName={organizationName}

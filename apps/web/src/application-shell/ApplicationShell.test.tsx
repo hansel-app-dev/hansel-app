@@ -69,6 +69,37 @@ it('shows only the first five sites in the sidebar', () => {
   expect(screen.queryByRole('link', { name: 'Site 6' })).toBeNull();
 });
 
+it('shows only the first five shared sites when Shared Sites is active', () => {
+  render(
+    <ApplicationShell
+      activePage="SharedSites"
+      headerActions={null}
+      loadDashboard={vi.fn()}
+      loadErrorMessage="Unavailable"
+      logout={vi.fn()}
+      preloadedDashboard={{
+        viewer,
+        organization: { name: 'Workspace', planDisplayName: 'Free Plan' },
+      }}
+      sharedSiteNavigation={Array.from({ length: 6 }, (_, index) => ({
+        id: `shared-site-${String(index + 1)}`,
+        name: `Shared site ${String(index + 1)}`,
+      }))}
+      sharedSiteCount={6}
+    >
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+
+  expect(
+    screen.getByRole('link', { name: 'Shared Sites 6' }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', { name: 'Shared site 5' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Shared site 6' })).toBeNull();
+});
+
 it('shows the My Sites count in both active and inactive states', () => {
   const props = {
     headerActions: null,

@@ -19,7 +19,7 @@ const destinations = [
     label: 'Shared Sites',
     activePage: 'SharedSites',
     href: '/shared-sites',
-    showsSites: false,
+    showsSites: true,
   },
 ] as const;
 
@@ -27,6 +27,7 @@ export interface SidebarProps {
   activePage: 'Dashboard' | 'Sites' | 'Files' | 'SharedSites';
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
+  sharedSiteNavigation?: readonly { id: string; name: string }[] | undefined;
   siteCount?: number | undefined;
   sharedSiteCount?: number | undefined;
   organizationName?: string | undefined;
@@ -51,6 +52,7 @@ export function Sidebar({
   activePage,
   currentSiteId,
   siteNavigation,
+  sharedSiteNavigation,
   siteCount,
   sharedSiteCount,
   organizationName,
@@ -90,6 +92,7 @@ export function Sidebar({
   }>();
   const wasSettingsOpen = useRef(false);
   const visibleSiteNavigation = siteNavigation?.slice(0, 5);
+  const visibleSharedSiteNavigation = sharedSiteNavigation?.slice(0, 5);
 
   const showSiteTooltip = (
     event:
@@ -378,11 +381,23 @@ export function Sidebar({
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
             {destinations.map((item) => {
               const current = item.activePage === activePage;
+              const itemSiteNavigation =
+                item.label === 'Shared Sites'
+                  ? sharedSiteNavigation
+                  : siteNavigation;
+              const visibleItemSiteNavigation =
+                item.label === 'Shared Sites'
+                  ? visibleSharedSiteNavigation
+                  : visibleSiteNavigation;
               const hasSiteNavigation =
-                item.showsSites && Boolean(siteNavigation?.length);
+                item.showsSites && Boolean(itemSiteNavigation?.length);
               const showSitesDisclosure =
                 item.showsSites &&
-                (current || hasSiteNavigation || (siteCount ?? 0) > 0);
+                (current ||
+                  hasSiteNavigation ||
+                  (item.label === 'Shared Sites'
+                    ? (sharedSiteCount ?? 0) > 0
+                    : (siteCount ?? 0) > 0));
               return (
                 <div
                   className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
@@ -412,7 +427,7 @@ export function Sidebar({
                         }
                       />
                       {item.label}
-                      {item.showsSites && siteCount !== undefined ? (
+                      {item.label === 'My Sites' && siteCount !== undefined ? (
                         <span
                           className={`ml-auto text-[11px] text-sidebar-count transition-transform duration-150 ease-out motion-reduce:transition-none ${current ? '' : 'group-hover:-translate-x-1'}`}
                         >
@@ -456,9 +471,9 @@ export function Sidebar({
                   sitesExpanded ? (
                     <ul
                       className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5"
-                      aria-label="My Sites"
+                      aria-label={item.label}
                     >
-                      {visibleSiteNavigation?.map((site) => (
+                      {visibleItemSiteNavigation?.map((site) => (
                         <li className="group relative min-w-0" key={site.id}>
                           <a
                             aria-current={
@@ -492,7 +507,9 @@ export function Sidebar({
                           </a>
                         </li>
                       ))}
-                      {current && canCreateSiteFromSidebar ? (
+                      {item.label === 'My Sites' &&
+                      current &&
+                      canCreateSiteFromSidebar ? (
                         <li className="min-w-0">
                           <button
                             type="button"
