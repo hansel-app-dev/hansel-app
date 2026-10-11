@@ -321,7 +321,7 @@ export function ApplicationShell({
                           ref={settingsButtonRef}
                           role="menuitem"
                           type="button"
-                          className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#f4f4f5] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                          className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#e7e5e4] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
                           onClick={() => {
                             setMenuOpen(false);
                             setSettingsOpen(true);
@@ -383,7 +383,7 @@ export function ApplicationShell({
                         role="menuitem"
                         disabled={logoutPending}
                         type="button"
-                        className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#f4f4f5] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:opacity-60"
+                        className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#e7e5e4] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:opacity-60"
                         onClick={() => {
                           setLogoutPending(true);
                           setLogoutError(false);
