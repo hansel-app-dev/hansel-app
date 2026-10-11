@@ -438,7 +438,7 @@ export function ApplicationShell({
                           <span
                             aria-hidden="true"
                             role="tooltip"
-                            className="pointer-events-none invisible absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-zinc-800 px-2 py-2 text-[11px] leading-normal text-white opacity-0 shadow-sm transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                            className="pointer-events-none invisible absolute bottom-full left-[21px] z-30 mb-1 whitespace-nowrap rounded-[4px] bg-zinc-800 px-2 py-2 text-[11px] leading-normal text-white opacity-0 shadow-sm transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
                           >
                             {site.name}
                           </span>
