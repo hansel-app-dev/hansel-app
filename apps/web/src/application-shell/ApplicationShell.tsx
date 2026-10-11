@@ -368,7 +368,7 @@ export function ApplicationShell({
                         role="presentation"
                         className="flex h-8 min-w-0 items-center gap-1.5 rounded-[4px] p-1 text-[13px] leading-[19.6px]"
                       >
-                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#64748b] font-[Figtree] text-[10px] font-bold tracking-[0.5px] text-white">
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#64748b] font-['Figtree_Variable'] text-[10px] font-bold leading-[0px] tracking-[0.5px] text-white">
                           {displayedViewer.initials}
                         </span>
                         <span className="min-w-0 flex-1 truncate">
