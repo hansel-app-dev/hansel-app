@@ -102,6 +102,7 @@ it('shows the My Sites count in both active and inactive states', () => {
   expect(screen.getByRole('button', { name: 'Collapse sites' })).toHaveClass(
     'grid',
   );
+  expect(screen.getByText('2')).not.toHaveClass('group-hover:-translate-x-1');
 });
 
 it('shows the dashboard site count without a loaded site list', () => {
