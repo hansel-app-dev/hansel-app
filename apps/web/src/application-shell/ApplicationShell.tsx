@@ -1,5 +1,11 @@
 /** @spec dashboard-home REQ-001..REQ-017; dashboard-logout REQ-001..REQ-004, REQ-010; sites-empty-state REQ-002..REQ-004, REQ-008..REQ-012; sites-populated-state REQ-005..REQ-008, REQ-018, REQ-020..REQ-022; site-details-activity-shell REQ-005, REQ-007, REQ-014..REQ-017 */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 import type { DashboardResponse } from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
@@ -134,9 +140,13 @@ export function ApplicationShell({
     { label: string; left: number; top: number } | undefined
   >();
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const organizationMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
   const logoutButtonRef = useRef<HTMLButtonElement>(null);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const [organizationMenuPosition, setOrganizationMenuPosition] = useState<
+    { left: number; top: number } | undefined
+  >();
 
   const showSiteTooltip = (
     event:
@@ -181,12 +191,11 @@ export function ApplicationShell({
 
   useEffect(() => {
     if (!menuOpen) return;
-    (organization && canManageOrganization
-      ? settingsButtonRef
-      : logoutButtonRef
-    ).current?.focus();
     const closeOutside = (event: MouseEvent) => {
-      if (!accountMenuRef.current?.contains(event.target as Node))
+      if (
+        !accountMenuRef.current?.contains(event.target as Node) &&
+        !organizationMenuRef.current?.contains(event.target as Node)
+      )
         setMenuOpen(false);
     };
     const closeWithEscape = (event: KeyboardEvent) => {
@@ -201,6 +210,33 @@ export function ApplicationShell({
       document.removeEventListener('keydown', closeWithEscape);
     };
   }, [canManageOrganization, menuOpen, organization]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    (organization && canManageOrganization
+      ? settingsButtonRef
+      : logoutButtonRef
+    ).current?.focus();
+  }, [canManageOrganization, menuOpen, organization, organizationMenuPosition]);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !organization) return;
+    const updatePosition = () => {
+      const bounds = accountMenuRef.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setOrganizationMenuPosition({
+        left: bounds.left,
+        top: bounds.bottom + 8,
+      });
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [menuOpen, organization]);
 
   return (
     <main className="flex min-h-screen bg-surface text-content md:h-dvh md:overflow-hidden max-md:flex-col max-md:overflow-x-clip">
@@ -236,125 +272,146 @@ export function ApplicationShell({
                 <AppSymbol>more_vert</AppSymbol>
               </button>
             ) : null}
-            {organization && menuOpen && displayedViewer ? (
-              <div
-                id="organization-menu"
-                role="menu"
-                aria-label="Organization"
-                className="absolute left-0 top-9 z-20 w-full overflow-hidden rounded-[8px] border border-[#dedede] bg-surface shadow-[0_12px_28px_rgb(0_0_0/0.10)]"
-              >
-                <div
-                  role="presentation"
-                  className="mx-4 flex h-[52px] min-w-0 items-center gap-[7px] border-b border-[#dedede] text-[14px]"
-                >
-                  <span className="grid size-5 shrink-0 place-items-center rounded-[3px] bg-[#f0f3f7] text-[#687991]">
-                    <svg
-                      aria-hidden="true"
-                      className="size-[14px]"
-                      fill="none"
-                      viewBox="0 0 14 14"
-                    >
-                      <path
-                        d="m1.75 4 2.7 2.2L7 2.5l2.55 3.7L12.25 4l-1 7H2.75l-1-7Z"
-                        stroke="currentColor"
-                        strokeLinejoin="round"
-                        strokeWidth="1.2"
-                      />
-                    </svg>
-                  </span>
-                  <span className="truncate">
-                    {organization.planDisplayName}
-                  </span>
-                </div>
-                {canManageOrganization ? (
+            {organization &&
+            menuOpen &&
+            displayedViewer &&
+            organizationMenuPosition
+              ? createPortal(
                   <div
-                    role="group"
-                    aria-label="Organization management"
-                    className="mx-4 grid border-b border-[#dedede] py-[10px]"
-                  >
-                    <button
-                      ref={settingsButtonRef}
-                      role="menuitem"
-                      type="button"
-                      className="flex h-[34px] w-full items-center gap-[7px] rounded text-left text-[16px] hover:bg-[#f3f3f3] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setSettingsOpen(true);
-                      }}
-                    >
-                      <AppSymbol className="text-[22px]" weight={100}>
-                        tune
-                      </AppSymbol>
-                      Settings
-                    </button>
-                    <button
-                      role="menuitem"
-                      aria-disabled="true"
-                      disabled
-                      type="button"
-                      className="flex h-[34px] w-full items-center gap-[7px] text-left text-[16px] disabled:cursor-default disabled:opacity-100"
-                    >
-                      <AppSymbol className="text-[22px]" weight={100}>
-                        group_add
-                      </AppSymbol>
-                      Invite members
-                    </button>
-                  </div>
-                ) : null}
-                <div
-                  role="group"
-                  aria-label="Account"
-                  className="px-4 py-[11px]"
-                >
-                  <div
-                    role="presentation"
-                    className="flex h-[34px] min-w-0 items-center gap-[7px] text-[14px]"
-                  >
-                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#64748b] text-[10px] text-white">
-                      {displayedViewer.initials}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {displayedViewer.displayName}
-                    </span>
-                    <span className="max-w-[70px] shrink-0 truncate rounded-[3px] bg-[#e4e9ef] px-2 py-[2px] text-[11px] leading-4">
-                      {displayedViewer.roleLabel}
-                    </span>
-                  </div>
-                  <button
-                    ref={logoutButtonRef}
-                    role="menuitem"
-                    disabled={logoutPending}
-                    type="button"
-                    className="flex h-[34px] w-full items-center gap-[7px] rounded text-left text-[16px] hover:bg-[#f3f3f3] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:opacity-60"
-                    onClick={() => {
-                      setLogoutPending(true);
-                      setLogoutError(false);
-                      void logout()
-                        .then(() => {
-                          setMenuOpen(false);
-                        })
-                        .catch(() => {
-                          setMenuOpen(true);
-                          setLogoutError(true);
-                        })
-                        .finally(() => {
-                          setLogoutPending(false);
-                        });
+                    ref={organizationMenuRef}
+                    id="organization-menu"
+                    role="menu"
+                    aria-label="Organization"
+                    style={{
+                      left: organizationMenuPosition.left,
+                      top: organizationMenuPosition.top,
                     }}
+                    className="fixed z-50 flex w-[300px] flex-col gap-4 rounded-[8px] border border-[#e4e4e7] bg-white p-4 text-[#27272a] shadow-[0_16px_32px_-4px_rgb(12_12_13/0.10),0_4px_4px_-4px_rgb(12_12_13/0.05)]"
                   >
-                    <AppSymbol className="text-[22px]" weight={100}>
-                      logout
-                    </AppSymbol>
-                    {logoutPending ? 'Logging out…' : 'Log out'}
-                  </button>
-                  {logoutError ? (
-                    <p role="alert" className="py-1 text-sm text-danger">
-                      We couldn't log you out. Please try again.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
+                    <div
+                      role="presentation"
+                      className="flex h-5 items-center gap-1.5 text-[11px] leading-[19.6px]"
+                    >
+                      <span className="grid size-5 shrink-0 place-items-center rounded-[4px] bg-[#f1f5f9]">
+                        <img
+                          src="/assets/organization-menu/queen.svg"
+                          alt=""
+                          aria-hidden="true"
+                          className="size-[13px]"
+                        />
+                      </span>
+                      <span className="truncate">
+                        {organization.planDisplayName}
+                      </span>
+                    </div>
+                    <div
+                      className="h-px w-full bg-[#e4e4e7]"
+                      aria-hidden="true"
+                    />
+                    {canManageOrganization ? (
+                      <div
+                        role="group"
+                        aria-label="Organization management"
+                        className="grid gap-0.5"
+                      >
+                        <button
+                          ref={settingsButtonRef}
+                          role="menuitem"
+                          type="button"
+                          className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#f4f4f5] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setSettingsOpen(true);
+                          }}
+                        >
+                          <img
+                            src="/assets/organization-menu/settings.svg"
+                            alt=""
+                            aria-hidden="true"
+                            className="size-6"
+                          />
+                          Settings
+                        </button>
+                        <button
+                          role="menuitem"
+                          aria-disabled="true"
+                          disabled
+                          type="button"
+                          className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] disabled:cursor-default disabled:opacity-100"
+                        >
+                          <img
+                            src="/assets/organization-menu/invite.svg"
+                            alt=""
+                            aria-hidden="true"
+                            className="size-6"
+                          />
+                          Invite members
+                        </button>
+                      </div>
+                    ) : null}
+                    <div
+                      className="h-px w-full bg-[#e4e4e7]"
+                      aria-hidden="true"
+                    />
+                    <div
+                      role="group"
+                      aria-label="Account"
+                      className="grid gap-0.5"
+                    >
+                      <div
+                        role="presentation"
+                        className="flex h-8 min-w-0 items-center gap-1.5 rounded-[4px] p-1 text-[13px] leading-[19.6px]"
+                      >
+                        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#64748b] font-[Figtree] text-[10px] font-bold tracking-[0.5px] text-white">
+                          {displayedViewer.initials}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {displayedViewer.displayName}
+                        </span>
+                        <span className="shrink-0 rounded-[4px] border border-[#d6d3d1] bg-[#e7e5e4] px-2 py-[3px] text-[11px] leading-[14px] text-[#78716c]">
+                          {displayedViewer.roleLabel}
+                        </span>
+                      </div>
+                      <button
+                        ref={logoutButtonRef}
+                        role="menuitem"
+                        disabled={logoutPending}
+                        type="button"
+                        className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#f4f4f5] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus disabled:opacity-60"
+                        onClick={() => {
+                          setLogoutPending(true);
+                          setLogoutError(false);
+                          void logout()
+                            .then(() => {
+                              setMenuOpen(false);
+                            })
+                            .catch(() => {
+                              setMenuOpen(true);
+                              setLogoutError(true);
+                            })
+                            .finally(() => {
+                              setLogoutPending(false);
+                            });
+                        }}
+                      >
+                        <AppSymbol className="text-[24px]" weight={100}>
+                          logout
+                        </AppSymbol>
+                        {logoutPending ? 'Logging out…' : 'Log out'}
+                      </button>
+                      {logoutError ? (
+                        <p
+                          role="alert"
+                          className="px-1 py-1 text-sm text-danger"
+                        >
+                          We couldn't log you out. Please try again.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>,
+                  document.body,
+                )
+              : null}
           </div>
         ) : (
           <img
