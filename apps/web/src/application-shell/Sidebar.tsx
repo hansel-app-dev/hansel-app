@@ -347,13 +347,15 @@ export function Sidebar({
               const current = item.activePage === activePage;
               const hasSiteNavigation =
                 item.showsSites && Boolean(siteNavigation?.length);
+              const showSitesDisclosure =
+                item.showsSites && (hasSiteNavigation || (siteCount ?? 0) > 0);
               return (
                 <div
                   className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
                   key={item.label}
                 >
                   <div
-                    className={`flex min-h-7 items-center rounded-[4px] ${current ? 'bg-sidebar-item-active font-medium' : 'text-content hover:bg-sidebar-item-hover'}`}
+                    className={`group flex min-h-7 items-center rounded-[4px] ${current ? 'bg-sidebar-item-active font-medium' : 'text-content hover:bg-sidebar-item-hover'}`}
                   >
                     <a
                       href={item.href}
@@ -382,20 +384,25 @@ export function Sidebar({
                         </span>
                       ) : null}
                     </a>
-                    {hasSiteNavigation ? (
+                    {showSitesDisclosure ? (
                       <button
                         type="button"
-                        aria-expanded={sitesExpanded}
-                        aria-label={
-                          sitesExpanded ? 'Collapse sites' : 'Expand sites'
+                        disabled={!hasSiteNavigation}
+                        aria-expanded={
+                          hasSiteNavigation ? sitesExpanded : false
                         }
-                        className="mr-1 grid size-6 place-items-center rounded-[4px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        aria-label={
+                          hasSiteNavigation && sitesExpanded
+                            ? 'Collapse sites'
+                            : 'Expand sites'
+                        }
+                        className="mr-1 grid size-6 place-items-center rounded-[4px] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-default"
                         onClick={() => {
                           setSitesExpanded((expanded) => !expanded);
                         }}
                       >
                         <AppSymbol className="!size-4 text-[14px] text-content-muted">
-                          {sitesExpanded
+                          {hasSiteNavigation && sitesExpanded
                             ? 'keyboard_arrow_up'
                             : 'keyboard_arrow_down'}
                         </AppSymbol>

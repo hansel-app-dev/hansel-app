@@ -115,6 +115,7 @@ it('shows the dashboard site count without a loaded site list', () => {
     </ApplicationShell>,
   );
   expect(screen.getByRole('link', { name: 'My Sites 3' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Expand sites' })).toBeDisabled();
 });
 
 it('shows the New site action on a selected-site sidebar', () => {
