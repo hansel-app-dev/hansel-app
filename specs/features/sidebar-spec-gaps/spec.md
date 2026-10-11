@@ -9,7 +9,7 @@
 
 ## Problem
 
-The shared sidebar currently has four gaps against the approved Main Sidebar specification: Invite members is rendered as a disabled placeholder, Free plans have no upgrade action, Shared Sites routes to the owned-sites view, and the sidebar New site action disappears in an empty workspace for users who can create Sites.
+The shared sidebar currently has four gaps against the approved Main Sidebar specification: Invite members is rendered as a disabled placeholder, Free plans have no upgrade action, Shared Sites routes to the owned-sites view, and the sidebar New site action disappears in an empty workspace for users who can create Sites. The linked Figma Invite Members node (`2784:22767`) defines the modal layout and its empty and populated states.
 
 ## Outcome and success metrics
 
@@ -24,7 +24,7 @@ Users see only actions available to their Organization Role, can reach the speci
 
 ## Requirements
 
-- REQ-001: For a Membership authorized to invite members, the Organization menu MUST render Invite members as an enabled menu item that opens the existing Invite members modal flow. For a Membership not authorized to invite members, the item MUST be absent rather than disabled.
+- REQ-001: For a Membership authorized to invite members, the Organization menu MUST render Invite members as an enabled menu item that opens a standalone Invite members modal matching Figma node `2784:22767`. The modal MUST provide an email input, Viewer/Editor role selection, Add action, removable staged invite rows, Cancel, and Send invites actions; its empty state MUST keep Send invites disabled. For a Membership not authorized to invite members, the item MUST be absent rather than disabled.
 - REQ-002: When the Organization plan is Free, the Organization menu MUST show an enabled Upgrade action adjacent to the non-clickable plan badge. Selecting it MUST invoke the existing upgrade-flow boundary. Non-Free plans MUST not show the Upgrade action.
 - REQ-003: Selecting Shared Sites MUST navigate to a distinct Shared Sites view. That view MUST contain only accessible Sites not created by the current Membership and MUST show the approved Shared Sites empty state when the filtered result is empty. Selecting My Sites MUST continue to show Sites created by the current Membership.
 - REQ-004: The sidebar MUST show New site for roles authorized to create Sites even when the current My Sites result is empty, and MUST hide it for Editors and Viewers according to the approved sidebar role policy. The action MUST retain the existing site-limit disabled state when the role is authorized but the allowance is exhausted.
@@ -80,7 +80,7 @@ The menu items remain keyboard reachable, expose menuitem semantics, and announc
 
 ## API and integrations
 
-Extend the sites-navigation contract so the server returns the current Membership's created Sites and shared Sites without weakening existing Site Access checks. Preserve backward-compatible response parsing during rollout. Wire Invite members and Upgrade to the existing application callbacks or explicit deferred boundaries; no external billing or invitation provider is introduced by this feature.
+Extend the sites-navigation contract so the server returns the current Membership's created Sites and shared Sites without weakening existing Site Access checks. Preserve backward-compatible response parsing during rollout. Wire Invite members and Upgrade to application callbacks; this feature owns the Invite members modal UI and staged state but does not create a new invitation persistence model or email provider.
 
 ## Data and migration
 
@@ -96,7 +96,7 @@ Navigation and modal callbacks preserve existing error handling. Failed Site nav
 
 ## Test strategy
 
-Add contract tests for the navigation response, API tests for server-side My Sites/Shared Sites filtering, and web tests for menu visibility, upgrade callback, empty Shared Sites, empty-workspace New site, and role-hidden actions. Each test references the applicable requirement ID.
+Add contract tests for the navigation response, API tests for server-side My Sites/Shared Sites filtering, and web tests for menu visibility, the Figma modal empty/populated states, upgrade callback, empty Shared Sites, empty-workspace New site, and role-hidden actions. Each test references the applicable requirement ID.
 
 ## Rollout and rollback
 
