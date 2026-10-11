@@ -11,7 +11,6 @@ import {
   type CreateAllocationPlanUploadBatchResponse,
 } from '@hansel/contracts';
 import { AppSymbol } from '../application-shell/ApplicationShell.js';
-import { Button } from '../design-system/index.js';
 import { AllocationDraftFilesRejectedError } from './allocation-draft-errors.js';
 
 type Intent = CreateAllocationPlanUploadBatchResponse['uploads'][number];
@@ -23,6 +22,10 @@ interface Row {
   intent?: Intent;
   controller?: AbortController;
 }
+const secondary =
+  'h-10 min-w-20 rounded border border-[#d2d3d8] bg-transparent px-[15px] text-[14px] leading-5 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50';
+const primary =
+  'h-10 min-w-[65px] rounded bg-[#475569] px-4 text-[14px] leading-5 text-white disabled:bg-[#d4d4d8] disabled:text-[#71717a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
 const types = {
   'image/png': ['.png'],
   'image/jpeg': ['.jpg', '.jpeg'],
@@ -416,17 +419,20 @@ export function AddPlansModal({
               abandoned.
             </p>
             <div className="mt-6 flex flex-wrap justify-end gap-4">
-              <Button
-                variant="secondary"
+              <button
                 data-keep
+                type="button"
+                className={secondary}
                 onClick={() => {
                   setConfirm(false);
                   dialog.current?.focus();
                 }}
               >
                 Keep editing
-              </Button>
-              <Button onClick={abandon}>Discard allocation</Button>
+              </button>
+              <button type="button" className={primary} onClick={abandon}>
+                Discard allocation
+              </button>
             </div>
           </div>
         ) : (
@@ -468,15 +474,16 @@ export function AddPlansModal({
               ) : null}
               {library && stage === 'select' && (
                 <div className="my-4 grid gap-3">
-                  <Button
-                    variant="secondary"
+                  <button
+                    type="button"
+                    className={secondary}
                     disabled={preparing || creating || rows.length > 0}
                     onClick={() => {
                       setLibraryOpen(true);
                     }}
                   >
                     Library files
-                  </Button>
+                  </button>
                   {librarySelected && (
                     <div className="flex min-w-0 items-center justify-between gap-2 rounded border border-control-border p-3">
                       <span
@@ -485,15 +492,16 @@ export function AddPlansModal({
                       >
                         {librarySelected.filename}
                       </span>
-                      <Button
-                        variant="secondary"
+                      <button
+                        type="button"
+                        className={secondary}
                         disabled={creating}
                         onClick={() => {
                           setLibrarySelected(null);
                         }}
                       >
                         Remove selected file
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -568,14 +576,14 @@ export function AddPlansModal({
                       or
                       <span className="h-px flex-1 bg-[#dce1e9]" />
                     </div>
-                    <Button
-                      variant="secondary"
+                    <button
                       disabled={preparing || Boolean(librarySelected)}
                       onClick={() => picker.current?.click()}
-                      className="min-h-8 w-[108px] px-[11px] text-[14px] leading-5"
+                      className="h-8 w-[108px] rounded border border-[#d2d3d8] px-[11px] text-[14px] leading-5 focus-visible:outline-2 focus-visible:outline-focus"
+                      type="button"
                     >
                       Browse files
-                    </Button>
+                    </button>
                   </div>
                   <p className="mt-6 text-[12px] leading-5 text-[#71717a]">
                     PNG, JPG and PDF supported and up to 5mb.
@@ -693,11 +701,18 @@ export function AddPlansModal({
               ) : null}
             </div>
             <footer className="flex min-h-[74px] shrink-0 items-center justify-end gap-4 bg-[#f8fafc] px-6 py-4">
-              <Button variant="secondary" disabled={creating} onClick={dismiss}>
+              <button
+                type="button"
+                className={secondary}
+                disabled={creating}
+                onClick={dismiss}
+              >
                 Cancel
-              </Button>
+              </button>
               {stage === 'select' ? (
-                <Button
+                <button
+                  className={primary}
+                  type="button"
                   disabled={
                     preparing ||
                     creating ||
@@ -716,15 +731,16 @@ export function AddPlansModal({
                       : librarySelected
                         ? 'Add Allocation'
                         : 'Next'}
-                </Button>
+                </button>
               ) : (
-                <Button
-                  className="min-w-[132px]"
+                <button
+                  className={`${primary} min-w-[132px]`}
+                  type="button"
                   disabled={!ready || !validName.success || creating || !commit}
                   onClick={() => void create()}
                 >
                   {creating ? 'Adding…' : 'Add Allocation'}
-                </Button>
+                </button>
               )}
             </footer>
           </>
