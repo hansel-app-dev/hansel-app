@@ -421,7 +421,7 @@ export function ApplicationShell({
                               site.id === currentSiteId ? 'page' : undefined
                             }
                             href={`/sites/${encodeURIComponent(site.id)}/activity`}
-                            className={`flex min-h-7 items-center gap-2 rounded-[4px] px-2 text-[12px] leading-[18px] hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-content'}`}
+                            className={`flex min-h-7 items-center gap-2 rounded-[4px] pl-[30px] pr-2 text-[12px] leading-[18px] hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-content'}`}
                             onClick={(event) => {
                               if (!navigate) return;
                               event.preventDefault();
@@ -445,7 +445,7 @@ export function ApplicationShell({
                           <button
                             type="button"
                             disabled={createSiteDisabled}
-                            className="flex min-h-7 w-full items-center gap-2 rounded-[4px] px-2 text-left text-[12px] leading-[18px] text-content-brand hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            className="flex min-h-7 w-full items-center gap-2 rounded-[4px] pl-[30px] pr-2 text-left text-[12px] leading-[18px] text-content-brand hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             onClick={onCreateSite}
                           >
                             <SidebarIcon name="newSite" />
