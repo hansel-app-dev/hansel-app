@@ -331,7 +331,7 @@ export function ApplicationShell({
                             src="/assets/organization-menu/settings.svg"
                             alt=""
                             aria-hidden="true"
-                            className="size-6"
+                            className="size-4"
                           />
                           Settings
                         </button>
@@ -346,7 +346,7 @@ export function ApplicationShell({
                             src="/assets/organization-menu/invite.svg"
                             alt=""
                             aria-hidden="true"
-                            className="size-6"
+                            className="size-4"
                           />
                           Invite members
                         </button>
@@ -404,7 +404,7 @@ export function ApplicationShell({
                           src="/assets/organization-menu/logout.svg"
                           alt=""
                           aria-hidden="true"
-                          className="size-6"
+                          className="size-4"
                         />
                         {logoutPending ? 'Logging out…' : 'Log out'}
                       </button>
