@@ -10,8 +10,9 @@ function avatarColorClass(index: number) {
   return index % 3 === 2 ? 'bg-[#9038d0]' : 'bg-[#2873ca]';
 }
 
-function siteDestination(siteId: string) {
-  return `/sites/${encodeURIComponent(siteId)}/activity`;
+function siteDestination(siteId: string, shared = false) {
+  const basePath = shared ? '/shared-sites' : '/sites';
+  return `${basePath}/${encodeURIComponent(siteId)}/activity`;
 }
 
 export function relativeTime(instant: string, now: Date): string {
@@ -49,13 +50,15 @@ function SiteLink({
   className,
   navigate,
   site,
+  shared,
 }: {
   children: React.ReactNode;
   className: string;
   navigate?: ((destination: string) => void) | undefined;
   site: SiteSummary;
+  shared?: boolean;
 }) {
-  const destination = siteDestination(site.id);
+  const destination = siteDestination(site.id, shared);
   return (
     <a
       aria-label={site.name}
@@ -145,11 +148,13 @@ export function SiteGrid({
   navigate,
   now,
   sites,
+  shared = false,
 }: {
   loadCoverImage?: CoverImageLoader | undefined;
   navigate?: ((destination: string) => void) | undefined;
   now: Date;
   sites: readonly SiteSummary[];
+  shared?: boolean;
 }) {
   return (
     <ul
@@ -164,6 +169,7 @@ export function SiteGrid({
               className="block overflow-hidden rounded-[4px] border border-[#e2e2e7] bg-white transition-shadow duration-150 hover:shadow-[0_2px_3px_rgb(0_0_0/18%)] focus-visible:shadow-[0_2px_3px_rgb(0_0_0/18%)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-reduce:transition-none"
               navigate={navigate}
               site={site}
+              shared={shared}
             >
               <SiteCoverImage
                 siteId={site.id}
@@ -209,10 +215,12 @@ export function SiteList({
   navigate,
   now,
   sites,
+  shared = false,
 }: {
   navigate?: ((destination: string) => void) | undefined;
   now: Date;
   sites: readonly SiteSummary[];
+  shared?: boolean;
 }) {
   return (
     <div className="max-w-full overflow-x-auto">
@@ -248,6 +256,7 @@ export function SiteList({
                     className="min-w-0 truncate rounded font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                     navigate={navigate}
                     site={site}
+                    shared={shared}
                   >
                     {site.name}
                   </SiteLink>
@@ -280,11 +289,13 @@ export function SiteCollection({
   navigate,
   now = new Date(),
   sites,
+  shared = false,
 }: {
   loadCoverImage?: CoverImageLoader | undefined;
   navigate?: ((destination: string) => void) | undefined;
   now?: Date;
   sites: readonly SiteSummary[];
+  shared?: boolean;
 }) {
   const [view, setView] = useState<SiteView>('grid');
   return (
@@ -297,10 +308,11 @@ export function SiteCollection({
           navigate={navigate}
           now={now}
           sites={sites}
+          shared={shared}
           loadCoverImage={loadCoverImage}
         />
       ) : (
-        <SiteList navigate={navigate} now={now} sites={sites} />
+        <SiteList navigate={navigate} now={now} sites={sites} shared={shared} />
       )}
     </section>
   );

@@ -127,6 +127,38 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     );
   });
 
+  it('uses shared-site detail routes from the shared-site thumbnail', async () => {
+    const navigate = vi.fn();
+    render(
+      <Sites
+        {...props}
+        activePage="SharedSites"
+        sharedOnly
+        loadSites={() =>
+          Promise.resolve({
+            ...emptyPage,
+            sites: [{ ...sydneySite, isOwnedByCurrentMembership: false }],
+          })
+        }
+        navigate={navigate}
+      />,
+    );
+
+    const links = await screen.findAllByRole('link', {
+      name: 'Sydney Central',
+    });
+    const card = links.at(-1);
+    if (!card) throw new Error('Expected shared-site thumbnail link');
+    expect(card).toHaveAttribute(
+      'href',
+      `/shared-sites/${sydneySite.id}/activity`,
+    );
+    fireEvent.click(card);
+    expect(navigate).toHaveBeenCalledWith(
+      `/shared-sites/${sydneySite.id}/activity`,
+    );
+  });
+
   it('preserves one newest-first collection across the sidebar, grid, and list [sites-populated-state REQ-001, REQ-004..REQ-010; sites-latest-first REQ-003, REQ-007]', async () => {
     const olderSite = {
       ...sydneySite,

@@ -155,6 +155,7 @@ export function Sites({
         <SiteCollection
           loadCoverImage={loadCoverImage}
           navigate={navigate}
+          shared={sharedOnly}
           sites={visibleSites}
           {...(now ? { now } : {})}
         />
