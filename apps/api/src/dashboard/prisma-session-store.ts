@@ -1,6 +1,34 @@
 /** @spec dashboard-home REQ-007, REQ-010, REQ-011, REQ-018; dashboard-logout REQ-005, REQ-007 */
 import type { PrismaClient } from '@prisma/client';
 
+type SiteCounter = { count(input: { where: unknown }): Promise<number> };
+
+async function countAccessibleSites(
+  prisma: unknown,
+  tenantId: string,
+  membershipId: string,
+  roleId: string,
+) {
+  const site = (prisma as { site?: SiteCounter }).site;
+  if (!site) return undefined;
+  return site.count({
+    where:
+      roleId === 'owner'
+        ? { tenantId }
+        : {
+            tenantId,
+            OR: [
+              { accessScope: 'ORGANIZATION' },
+              { createdByMembershipId: membershipId },
+              {
+                accessScope: 'PEOPLE_INVITED',
+                grants: { some: { membershipId } },
+              },
+            ],
+          },
+  });
+}
+
 export function createPrismaDashboardSessionStore(
   prisma: PrismaClient,
   recordEvent: (name: string) => void,
@@ -72,6 +100,7 @@ export function createPrismaDashboardSessionStore(
           },
         },
         select: {
+          id: true,
           roleId: true,
           tenant: {
             select: {
@@ -93,6 +122,12 @@ export function createPrismaDashboardSessionStore(
         recordEvent('dashboard_membership_rejected');
         return null;
       }
+      const siteCount = await countAccessibleSites(
+        prisma,
+        credential.family.tenantId,
+        membership.id,
+        membership.roleId,
+      );
       return {
         ...credential.family.user.personalProfile,
         roleId: membership.roleId,
@@ -108,6 +143,7 @@ export function createPrismaDashboardSessionStore(
                 membership.tenant.memberships[0].user.planSelection.planId,
             }
           : {}),
+        ...(siteCount === undefined ? {} : { siteCount }),
       };
     },
     async rotateRefresh(input: {
@@ -179,6 +215,7 @@ export function createPrismaDashboardSessionStore(
             },
           },
           select: {
+            id: true,
             roleId: true,
             tenant: {
               select: {
@@ -200,6 +237,12 @@ export function createPrismaDashboardSessionStore(
           recordEvent('dashboard_membership_rejected');
           return { status: 'rejected' } as const;
         }
+        const siteCount = await countAccessibleSites(
+          transaction,
+          credential.family.tenantId,
+          membership.id,
+          membership.roleId,
+        );
         const consumed =
           await transaction.applicationSessionCredential.updateMany({
             where: { id: credential.id, consumedAt: null },
@@ -256,6 +299,7 @@ export function createPrismaDashboardSessionStore(
                     membership.tenant.memberships[0].user.planSelection.planId,
                 }
               : {}),
+            ...(siteCount === undefined ? {} : { siteCount }),
           },
         };
       });

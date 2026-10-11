@@ -83,6 +83,7 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
           },
         }),
       },
+      site: { count: vi.fn().mockResolvedValue(3) },
     };
     const store = createPrismaDashboardSessionStore(prisma as never, vi.fn());
 
@@ -95,6 +96,7 @@ describe('Prisma dashboard session store [dashboard-home REQ-007, REQ-010, REQ-0
       email: 'owner@example.com',
       organizationName: 'Hansel',
       planId: 'free',
+      siteCount: 3,
     });
     expect(prisma.membership.findUnique).toHaveBeenCalledWith({
       where: {

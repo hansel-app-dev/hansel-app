@@ -20,6 +20,7 @@ export interface ApplicationShellProps {
   pageHeading?: string | undefined;
   preloadedViewer?: DashboardResponse['viewer'] | undefined;
   preloadedDashboard?: DashboardResponse | undefined;
+  siteCount?: number | undefined;
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   workspaceName?: string | undefined;
@@ -40,6 +41,7 @@ export function ApplicationShell({
   pageHeading,
   preloadedViewer,
   preloadedDashboard,
+  siteCount: siteCountOverride,
   currentSiteId,
   siteNavigation,
   workspaceName,
@@ -73,6 +75,11 @@ export function ApplicationShell({
   const organization =
     preloadedDashboard?.organization ?? dashboard?.organization;
   const organizationName = organization?.name ?? workspaceName;
+  const siteCount =
+    siteCountOverride ??
+    preloadedDashboard?.siteCount ??
+    dashboard?.siteCount ??
+    siteNavigation?.length;
   const canCreateSiteFromSidebar = Boolean(onCreateSite ?? navigate);
   const canManageOrganization = ['Owner', 'Administrator', 'Editor'].includes(
     displayedViewer?.roleLabel ?? '',
@@ -85,6 +92,7 @@ export function ApplicationShell({
         activePage={activePage}
         currentSiteId={currentSiteId}
         siteNavigation={siteNavigation}
+        siteCount={siteCount}
         organizationName={organizationName}
         organization={organization}
         displayedViewer={displayedViewer}

@@ -112,6 +112,7 @@ describe('dashboard application session [dashboard-home REQ-005, REQ-010, REQ-01
       email: 'owner@example.com',
       organizationName: 'Hansel',
       planId: 'plus',
+      siteCount: 3,
     };
     const dependencies = {
       authorizeAccess: vi.fn().mockResolvedValue(identity),
@@ -136,6 +137,7 @@ describe('dashboard application session [dashboard-home REQ-005, REQ-010, REQ-01
         email: 'owner@example.com',
       },
       organization: { name: 'Hansel', planDisplayName: 'Plus Plan' },
+      siteCount: 3,
     });
   });
 

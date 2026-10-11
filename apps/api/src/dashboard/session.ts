@@ -8,6 +8,7 @@ interface ViewerIdentity {
   email?: string;
   organizationName?: string;
   planId?: string;
+  siteCount?: number;
 }
 
 interface DashboardSessionDependencies {
@@ -69,15 +70,19 @@ function dashboardFrom(
   enabled: boolean,
 ): DashboardResponse {
   const viewer = viewerFrom(identity, enabled);
-  return enabled && identity.organizationName && identity.planId
-    ? {
-        viewer,
-        organization: {
-          name: identity.organizationName,
-          planDisplayName: planDisplayName(identity.planId),
-        },
-      }
-    : { viewer };
+  const response: DashboardResponse =
+    enabled && identity.organizationName && identity.planId
+      ? {
+          viewer,
+          organization: {
+            name: identity.organizationName,
+            planDisplayName: planDisplayName(identity.planId),
+          },
+        }
+      : { viewer };
+  return identity.siteCount === undefined
+    ? response
+    : { ...response, siteCount: identity.siteCount };
 }
 
 export function createDashboardSession(

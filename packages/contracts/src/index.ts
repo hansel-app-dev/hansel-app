@@ -511,6 +511,7 @@ export type DiscoveryResponse = z.infer<typeof discoveryResponseSchema>;
 
 export const dashboardResponseSchema = z
   .object({
+    siteCount: z.number().int().nonnegative().optional(),
     viewer: z
       .object({
         displayName: z.string().min(1).max(201),

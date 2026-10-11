@@ -100,6 +100,23 @@ it('shows the My Sites count in both active and inactive states', () => {
   expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
 });
 
+it('shows the dashboard site count without a loaded site list', () => {
+  render(
+    <ApplicationShell
+      activePage="Dashboard"
+      headerActions={null}
+      loadDashboard={vi.fn()}
+      loadErrorMessage="Unavailable"
+      logout={vi.fn()}
+      siteCount={3}
+      preloadedDashboard={{ viewer }}
+    >
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+  expect(screen.getByRole('link', { name: 'My Sites 3' })).toBeInTheDocument();
+});
+
 it('shows the New site action on a selected-site sidebar', () => {
   const navigate = vi.fn();
   render(

@@ -441,6 +441,12 @@ describe('dashboard contract [dashboard-home REQ-005, REQ-007]', () => {
     ).toThrow();
   });
 
+  it('accepts the authenticated site count', () => {
+    expect(
+      dashboardResponseSchema.parse({ ...response, siteCount: 3 }),
+    ).toEqual({ ...response, siteCount: 3 });
+  });
+
   it('accepts the bounded Organization tray summary without internal keys [organization-tray-settings REQ-012]', () => {
     const tray = {
       viewer: {

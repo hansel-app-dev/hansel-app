@@ -91,10 +91,9 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     const navigation = within(
       screen.getByRole('navigation', { name: 'Application' }),
     );
-    expect(navigation.getByRole('link', { name: 'My Sites' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
+    expect(
+      navigation.getByRole('link', { name: 'My Sites 0' }),
+    ).toHaveAttribute('aria-current', 'page');
   });
 
   it('shows tenant-owned sites instead of an incorrect empty state and navigates client-side [sites-populated-state REQ-002, REQ-006, REQ-010]', async () => {

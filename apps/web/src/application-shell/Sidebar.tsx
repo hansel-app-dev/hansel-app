@@ -23,6 +23,7 @@ export interface SidebarProps {
   activePage: 'Dashboard' | 'Sites' | 'Files';
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
+  siteCount?: number | undefined;
   organizationName?: string | undefined;
   organization?: DashboardResponse['organization'] | undefined;
   displayedViewer?: DashboardResponse['viewer'] | undefined;
@@ -41,6 +42,7 @@ export function Sidebar({
   activePage,
   currentSiteId,
   siteNavigation,
+  siteCount,
   organizationName,
   organization,
   displayedViewer,
@@ -374,9 +376,9 @@ export function Sidebar({
                         }
                       />
                       {item.label}
-                      {item.showsSites && siteNavigation?.length ? (
+                      {item.showsSites && siteCount !== undefined ? (
                         <span className="ml-auto text-[11px] text-sidebar-count">
-                          {siteNavigation.length}
+                          {siteCount}
                         </span>
                       ) : null}
                     </a>
