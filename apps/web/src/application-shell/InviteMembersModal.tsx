@@ -30,10 +30,10 @@ export function InviteMembersModal({
   };
 
   const submit = async () => {
-    if (!invites.length || !onSubmit) return;
+    if (!invites.length) return;
     setSubmitting(true);
     try {
-      await onSubmit(invites);
+      await onSubmit?.(invites);
       onClose();
     } finally {
       setSubmitting(false);
@@ -140,7 +140,7 @@ export function InviteMembersModal({
           Cancel
         </Button>
         <Button
-          disabled={!invites.length || !onSubmit || submitting}
+          disabled={!invites.length || submitting}
           onClick={() => void submit()}
         >
           {submitting

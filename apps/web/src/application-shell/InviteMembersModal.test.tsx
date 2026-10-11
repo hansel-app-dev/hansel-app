@@ -13,7 +13,7 @@ it('renders the empty Figma state with disabled send action', () => {
 });
 
 it('stages a role-specific invite and allows it to be removed', () => {
-  render(<InviteMembersModal onClose={vi.fn()} onSubmit={vi.fn()} />);
+  render(<InviteMembersModal onClose={vi.fn()} />);
 
   fireEvent.change(screen.getByRole('textbox', { name: 'Email address' }), {
     target: { value: 'person@example.com' },
