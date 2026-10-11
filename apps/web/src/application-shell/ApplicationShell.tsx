@@ -21,6 +21,7 @@ export interface ApplicationShellProps {
   preloadedViewer?: DashboardResponse['viewer'] | undefined;
   preloadedDashboard?: DashboardResponse | undefined;
   siteCount?: number | undefined;
+  sharedSiteCount?: number | undefined;
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   workspaceName?: string | undefined;
@@ -45,6 +46,7 @@ export function ApplicationShell({
   preloadedViewer,
   preloadedDashboard,
   siteCount: siteCountOverride,
+  sharedSiteCount,
   currentSiteId,
   siteNavigation,
   workspaceName,
@@ -103,6 +105,7 @@ export function ApplicationShell({
         currentSiteId={currentSiteId}
         siteNavigation={siteNavigation}
         siteCount={siteCount}
+        sharedSiteCount={sharedSiteCount}
         organizationName={organizationName}
         organization={organization}
         displayedViewer={displayedViewer}

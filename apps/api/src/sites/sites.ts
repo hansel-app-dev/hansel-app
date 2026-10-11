@@ -106,6 +106,10 @@ export function createSitesFeature(dependencies: SitesDependencies) {
           ? site.isOwnedByCurrentMembership === false
           : site.isOwnedByCurrentMembership !== false,
       );
+      const ownedSiteCount = context.sites.filter(
+        (site) => site.isOwnedByCurrentMembership !== false,
+      ).length;
+      const sharedSiteCount = context.sites.length - ownedSiteCount;
       const authorized = canCreate(principal.roleId);
       const creator = context.members.find(
         ({ email }) => email.toLowerCase() === principal.email.toLowerCase(),
@@ -121,6 +125,8 @@ export function createSitesFeature(dependencies: SitesDependencies) {
         creator,
         siteLimitReached,
         maximumSites: context.maximumSites,
+        ownedSiteCount,
+        sharedSiteCount,
         members: authorized
           ? context.members.filter(
               ({ email }) =>

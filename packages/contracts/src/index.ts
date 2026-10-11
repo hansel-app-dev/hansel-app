@@ -660,6 +660,8 @@ export const sitesPageResponseSchema = z
     creator: siteMemberChoiceSchema,
     siteLimitReached: z.boolean(),
     maximumSites: z.number().int().positive().nullable(),
+    ownedSiteCount: z.number().int().nonnegative().optional(),
+    sharedSiteCount: z.number().int().nonnegative().optional(),
     members: z.array(siteMemberChoiceSchema).max(1_000),
     sites: z.array(siteSummarySchema).max(10_000),
   })

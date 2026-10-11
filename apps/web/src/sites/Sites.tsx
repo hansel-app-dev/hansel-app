@@ -107,6 +107,8 @@ export function Sites({
       navigate={navigate}
       preloadedDashboard={preloadedDashboard}
       siteNavigation={sidebarSites}
+      siteCount={page?.ownedSiteCount ?? sidebarSites?.length}
+      sharedSiteCount={page?.sharedSiteCount}
       workspaceName={page?.organizationName}
       onCreateSite={openModal}
       createSiteDisabled={createDisabled}

@@ -139,6 +139,8 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
       },
       siteLimitReached: true,
       maximumSites: 1,
+      ownedSiteCount: 1,
+      sharedSiteCount: 0,
       members: [],
       sites: [{ ...siteSummary, name: 'Existing' }],
     });

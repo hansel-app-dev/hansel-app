@@ -84,6 +84,7 @@ it('shows the My Sites count in both active and inactive states', () => {
       { id: 'site-1', name: 'First site' },
       { id: 'site-2', name: 'Second site' },
     ],
+    sharedSiteCount: 4,
   } as const;
 
   const { rerender } = render(
@@ -92,6 +93,9 @@ it('shows the My Sites count in both active and inactive states', () => {
     </ApplicationShell>,
   );
   expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', { name: 'Shared Sites 4' }),
+  ).toBeInTheDocument();
   expect(screen.getByText('2')).toHaveClass('transition-transform');
 
   rerender(
@@ -100,6 +104,9 @@ it('shows the My Sites count in both active and inactive states', () => {
     </ApplicationShell>,
   );
   expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
+  expect(
+    screen.getByRole('link', { name: 'Shared Sites 4' }),
+  ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Collapse sites' })).toHaveClass(
     'grid',
   );

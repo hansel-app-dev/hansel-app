@@ -28,6 +28,7 @@ export interface SidebarProps {
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   siteCount?: number | undefined;
+  sharedSiteCount?: number | undefined;
   organizationName?: string | undefined;
   organization?: DashboardResponse['organization'] | undefined;
   displayedViewer?: DashboardResponse['viewer'] | undefined;
@@ -51,6 +52,7 @@ export function Sidebar({
   currentSiteId,
   siteNavigation,
   siteCount,
+  sharedSiteCount,
   organizationName,
   organization,
   displayedViewer,
@@ -415,6 +417,12 @@ export function Sidebar({
                           className={`ml-auto text-[11px] text-sidebar-count transition-transform duration-150 ease-out motion-reduce:transition-none ${current ? '' : 'group-hover:-translate-x-1'}`}
                         >
                           {siteCount}
+                        </span>
+                      ) : null}
+                      {item.label === 'Shared Sites' &&
+                      sharedSiteCount !== undefined ? (
+                        <span className="ml-auto text-[11px] text-sidebar-count">
+                          {sharedSiteCount}
                         </span>
                       ) : null}
                     </a>
