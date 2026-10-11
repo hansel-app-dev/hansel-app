@@ -63,4 +63,22 @@ describe('TextField [design-system-foundation REQ-005]', () => {
     expect(input).not.toHaveAttribute('aria-describedby');
     expect(input).toHaveAttribute('aria-invalid', 'grammar');
   });
+
+  it('renders the warning treatment with an accessible status message', () => {
+    render(
+      <TextField
+        label="Site name"
+        placeholder="Placeholder"
+        warning="This name is already in use."
+      />,
+    );
+
+    const input = screen.getByRole('textbox', { name: 'Site name' });
+    expect(input).toHaveAccessibleDescription('This name is already in use.');
+    expect(input).toHaveClass('border-[#f97316]', 'bg-[#fff8ef]');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This name is already in use.',
+    );
+    expect(screen.getByText('error')).toHaveAttribute('aria-hidden', 'true');
+  });
 });

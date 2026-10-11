@@ -38,6 +38,11 @@ export const States: Story = {
           value="invalid"
           readOnly
         />
+        <TextField
+          label="Site name with warning"
+          placeholder="Placeholder"
+          warning="This name is already in use."
+        />
         <TextField disabled label="Disabled email" value="name@example.com" />
       </div>
     </main>
