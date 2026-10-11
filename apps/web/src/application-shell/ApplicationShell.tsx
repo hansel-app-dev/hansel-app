@@ -28,6 +28,32 @@ const destinations = [
   },
 ] as const;
 
+const sidebarIconPaths = {
+  home: '/assets/sidebar-icons/home.svg',
+  mySites: '/assets/sidebar-icons/my-sites.svg',
+  sharedSites: '/assets/sidebar-icons/shared-sites.svg',
+  library: '/assets/sidebar-icons/library.svg',
+  newSite: '/assets/sidebar-icons/new-site.svg',
+  site: '/assets/sidebar-icons/site.svg',
+} as const;
+
+function SidebarIcon({
+  name,
+  className = '',
+}: {
+  name: keyof typeof sidebarIconPaths;
+  className?: string;
+}) {
+  return (
+    <img
+      aria-hidden="true"
+      className={`size-4 shrink-0 ${className}`}
+      src={sidebarIconPaths[name]}
+      alt=""
+    />
+  );
+}
+
 export function AppSymbol({
   children,
   className = '',
@@ -347,9 +373,15 @@ export function ApplicationShell({
                         navigate(item.href);
                       }}
                     >
-                      <AppSymbol className="!size-4 text-[16px] text-content-muted">
-                        {item.icon}
-                      </AppSymbol>
+                      <SidebarIcon
+                        name={
+                          item.label === 'Home'
+                            ? 'home'
+                            : item.label === 'My Sites'
+                              ? 'mySites'
+                              : 'sharedSites'
+                        }
+                      />
                       {item.label}
                       {item.showsSites && siteNavigation?.length ? (
                         <span className="ml-auto text-[11px] text-sidebar-count">
@@ -398,9 +430,7 @@ export function ApplicationShell({
                               );
                             }}
                           >
-                            <AppSymbol className="!size-4 text-[15px] text-content-muted">
-                              layers
-                            </AppSymbol>
+                            <SidebarIcon name="site" />
                             <span
                               className="min-w-0 flex-1 truncate"
                               title={site.name}
@@ -418,9 +448,7 @@ export function ApplicationShell({
                             className="flex min-h-7 w-full items-center gap-2 rounded-[4px] px-2 text-left text-[12px] leading-[18px] text-content-brand hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                             onClick={onCreateSite}
                           >
-                            <AppSymbol className="!size-4 text-[16px]">
-                              add_circle
-                            </AppSymbol>
+                            <SidebarIcon name="newSite" />
                             New site
                           </button>
                         </li>
@@ -443,9 +471,7 @@ export function ApplicationShell({
               }}
               className={`flex min-h-7 items-center gap-2 rounded-[4px] px-2 text-[12px] leading-[18px] text-content hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${activePage === 'Files' ? 'bg-sidebar-item-active font-medium' : ''}`}
             >
-              <AppSymbol className="!size-4 text-[16px] text-content-muted">
-                attach_file
-              </AppSymbol>
+              <SidebarIcon name="library" />
               Library
             </a>
           </div>
