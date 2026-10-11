@@ -164,7 +164,7 @@ export function ApplicationShell({
         {organizationName ? (
           <div
             ref={organization ? accountMenuRef : undefined}
-            className="relative flex h-8 min-w-0 items-center gap-2"
+            className="relative flex h-9 min-w-0 items-center gap-2"
           >
             <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-sidebar-brand text-[12px] font-semibold text-white">
               {organizationName.charAt(0).toLocaleUpperCase()}
