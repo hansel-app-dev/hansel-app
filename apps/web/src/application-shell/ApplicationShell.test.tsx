@@ -99,6 +99,9 @@ it('shows the My Sites count in both active and inactive states', () => {
     </ApplicationShell>,
   );
   expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Collapse sites' })).toHaveClass(
+    'grid',
+  );
 });
 
 it('shows the dashboard site count without a loaded site list', () => {

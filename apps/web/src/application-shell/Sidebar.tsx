@@ -348,7 +348,8 @@ export function Sidebar({
               const hasSiteNavigation =
                 item.showsSites && Boolean(siteNavigation?.length);
               const showSitesDisclosure =
-                item.showsSites && (hasSiteNavigation || (siteCount ?? 0) > 0);
+                item.showsSites &&
+                (current || hasSiteNavigation || (siteCount ?? 0) > 0);
               return (
                 <div
                   className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
@@ -389,20 +390,20 @@ export function Sidebar({
                         type="button"
                         disabled={!hasSiteNavigation}
                         aria-expanded={
-                          hasSiteNavigation ? sitesExpanded : false
+                          current || (hasSiteNavigation && sitesExpanded)
                         }
                         aria-label={
-                          hasSiteNavigation && sitesExpanded
+                          current || (hasSiteNavigation && sitesExpanded)
                             ? 'Collapse sites'
                             : 'Expand sites'
                         }
-                        className="mr-1 hidden size-6 place-items-center rounded-[4px] group-hover:grid group-focus-within:grid focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-default"
+                        className={`mr-1 ${current ? 'grid' : 'hidden group-hover:grid group-focus-within:grid'} size-6 place-items-center rounded-[4px] focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-default`}
                         onClick={() => {
                           setSitesExpanded((expanded) => !expanded);
                         }}
                       >
                         <AppSymbol className="!size-4 text-[14px] text-content-muted">
-                          {hasSiteNavigation && sitesExpanded
+                          {current || (hasSiteNavigation && sitesExpanded)
                             ? 'keyboard_arrow_up'
                             : 'keyboard_arrow_down'}
                         </AppSymbol>
