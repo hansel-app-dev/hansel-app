@@ -252,7 +252,7 @@ describe('App [REQ-002]', () => {
       .mock.calls.filter(([url]) =>
         String(url).endsWith('/api/dashboard'),
       ).length;
-    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
     expect(
       screen.getAllByRole('heading', { name: 'Widget title' }),
     ).toHaveLength(4);
@@ -1771,7 +1771,7 @@ it('renders authenticated Library Files through Files navigation', async () => {
   vi.stubGlobal('fetch', fetcher);
   render(<App path="/library/files" />);
   await screen.findByText('No files found.');
-  expect(screen.getByRole('link', { name: 'Files' })).toHaveAttribute(
+  expect(screen.getByRole('link', { name: 'Library' })).toHaveAttribute(
     'aria-current',
     'page',
   );

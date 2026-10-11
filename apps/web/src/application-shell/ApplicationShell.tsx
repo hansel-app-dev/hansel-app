@@ -5,29 +5,28 @@ import { Button } from '../design-system/index.js';
 import { AccountSettingsModal } from './AccountSettingsModal.js';
 
 const destinations = [
-  { label: 'Dashboard', icon: 'home', href: '/dashboard' },
-  { label: 'Sites', icon: 'domain_add', href: '/sites' },
+  {
+    label: 'Home',
+    activePage: 'Dashboard',
+    icon: 'home',
+    href: '/dashboard',
+    showsSites: false,
+  },
+  {
+    label: 'My Sites',
+    activePage: 'Sites',
+    icon: 'layers',
+    href: '/sites',
+    showsSites: true,
+  },
+  {
+    label: 'Shared Sites',
+    activePage: null,
+    icon: 'layers',
+    href: '/sites',
+    showsSites: false,
+  },
 ] as const;
-
-const libraries = [{ label: 'Styleguide', icon: 'text_fields' }] as const;
-
-function SidebarSiteSymbol({ compact = false }: { compact?: boolean }) {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className={compact ? 'size-4' : 'size-5 shrink-0'}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 21V10l7-4 7 4v11h-5v-6H8v6H3Z" />
-      <path d="M13 7V3h8v18h-4M17 6h1M17 10h1M20 14h1M20 18h1M6 11h1M12 11h1" />
-    </svg>
-  );
-}
 
 export function AppSymbol({
   children,
@@ -73,6 +72,8 @@ export interface ApplicationShellProps {
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   workspaceName?: string | undefined;
+  onCreateSite?: (() => void) | undefined;
+  createSiteDisabled?: boolean | undefined;
 }
 
 export function ApplicationShell({
@@ -91,6 +92,8 @@ export function ApplicationShell({
   currentSiteId,
   siteNavigation,
   workspaceName,
+  onCreateSite,
+  createSiteDisabled = false,
 }: ApplicationShellProps) {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -157,19 +160,17 @@ export function ApplicationShell({
   return (
     <main className="flex min-h-screen bg-surface text-content md:h-dvh md:overflow-hidden max-md:flex-col max-md:overflow-x-clip">
       <h1 className="sr-only">{pageHeading ?? activePage}</h1>
-      <aside
-        className={`flex shrink-0 flex-col border-r border-[#e5e5e5] bg-surface py-[26px] md:overflow-y-auto md:[&>*]:shrink-0 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5 ${organizationName ? 'w-[300px] px-6' : 'w-[284px] px-8'}`}
-      >
+      <aside className="flex shrink-0 flex-col border-r border-[#e5e5e5] bg-sidebar-background px-[18px] py-6 md:w-[252px] md:overflow-y-auto md:[&>*]:shrink-0 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5">
         {organizationName ? (
           <div
             ref={organization ? accountMenuRef : undefined}
             className="relative flex h-8 min-w-0 items-center gap-2"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded bg-[#f5f6f8] text-[12px] font-semibold text-[#607080]">
+            <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-sidebar-brand text-[12px] font-semibold text-white">
               {organizationName.charAt(0).toLocaleUpperCase()}
             </span>
             <span
-              className="truncate text-[14px] font-medium leading-5 text-[#17253d]"
+              className="truncate text-[13px] font-semibold leading-5 text-content"
               title={organizationName}
             >
               {organizationName}
@@ -182,7 +183,7 @@ export function ApplicationShell({
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-controls="organization-menu"
-                className="ml-auto grid size-8 place-items-center rounded focus-visible:outline-2 focus-visible:outline-focus"
+                className="ml-auto grid size-7 place-items-center rounded-[4px] text-content-muted focus-visible:outline-2 focus-visible:outline-focus"
                 onClick={() => {
                   setMenuOpen((open) => !open);
                 }}
@@ -318,42 +319,43 @@ export function ApplicationShell({
           />
         )}
         <nav
-          className={`flex flex-1 flex-col max-md:mt-7 ${organizationName ? 'mt-[34px]' : 'mt-[66px] max-md:grid max-md:grid-cols-2 max-md:gap-2'}`}
+          className="flex flex-1 flex-col max-md:mt-7"
           aria-label="Application"
         >
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-[18px]">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
             {destinations.map((item) => {
-              const current = item.label === activePage;
+              const current = item.activePage === activePage;
               const hasSiteNavigation =
-                item.label === 'Sites' && Boolean(siteNavigation?.length);
+                item.showsSites && Boolean(siteNavigation?.length);
               return (
                 <div
                   className="grid min-w-0 grid-cols-[minmax(0,1fr)]"
                   key={item.label}
                 >
                   <div
-                    className={`flex min-h-10 items-center rounded-md ${current ? 'bg-[#f1f5f9] font-semibold' : 'text-[#303238] hover:bg-[#f7f7f7]'}`}
+                    className={`flex min-h-7 items-center rounded-[4px] ${current ? 'bg-sidebar-item-active font-medium' : 'text-content hover:bg-sidebar-item-hover'}`}
                   >
                     <a
                       href={item.href}
                       aria-current={
                         current && !currentSiteId ? 'page' : undefined
                       }
-                      className={`flex min-w-0 flex-1 items-center gap-[10px] rounded py-[10px] text-[14px] leading-5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${organizationName ? 'px-3' : 'px-4'}`}
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-[4px] px-2 py-[5px] text-[12px] leading-[18px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                       onClick={(event) => {
                         if (!navigate) return;
                         event.preventDefault();
                         navigate(item.href);
                       }}
                     >
-                      {item.label === 'Sites' ? (
-                        <SidebarSiteSymbol />
-                      ) : (
-                        <AppSymbol className="!size-5 text-[20px]">
-                          {item.icon}
-                        </AppSymbol>
-                      )}
+                      <AppSymbol className="!size-4 text-[16px] text-content-muted">
+                        {item.icon}
+                      </AppSymbol>
                       {item.label}
+                      {item.showsSites && siteNavigation?.length ? (
+                        <span className="ml-auto text-[11px] text-sidebar-count">
+                          {siteNavigation.length}
+                        </span>
+                      ) : null}
                     </a>
                     {hasSiteNavigation ? (
                       <button
@@ -362,12 +364,12 @@ export function ApplicationShell({
                         aria-label={
                           sitesExpanded ? 'Collapse sites' : 'Expand sites'
                         }
-                        className="mr-[7px] grid size-6 place-items-center rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        className="mr-1 grid size-6 place-items-center rounded-[4px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                         onClick={() => {
                           setSitesExpanded((expanded) => !expanded);
                         }}
                       >
-                        <AppSymbol className="!size-[17px] rounded-[4px] bg-[#e2e5ea] text-[14px]">
+                        <AppSymbol className="!size-4 text-[14px] text-content-muted">
                           {sitesExpanded
                             ? 'keyboard_arrow_up'
                             : 'keyboard_arrow_down'}
@@ -377,8 +379,8 @@ export function ApplicationShell({
                   </div>
                   {hasSiteNavigation && sitesExpanded ? (
                     <ul
-                      className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1"
-                      aria-label="Sites"
+                      className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5"
+                      aria-label="My Sites"
                     >
                       {siteNavigation?.map((site) => (
                         <li className="min-w-0" key={site.id}>
@@ -387,7 +389,7 @@ export function ApplicationShell({
                               site.id === currentSiteId ? 'page' : undefined
                             }
                             href={`/sites/${encodeURIComponent(site.id)}/activity`}
-                            className={`flex min-h-10 items-center gap-2 rounded px-[10px] text-[12px] leading-[18px] hover:bg-[#f7f7f7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-[#303238]'}`}
+                            className={`flex min-h-7 items-center gap-2 rounded-[4px] px-2 text-[12px] leading-[18px] hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-content'}`}
                             onClick={(event) => {
                               if (!navigate) return;
                               event.preventDefault();
@@ -396,9 +398,9 @@ export function ApplicationShell({
                               );
                             }}
                           >
-                            <span className="grid size-5 shrink-0 place-items-center rounded-sm bg-site-symbol text-on-action">
-                              <SidebarSiteSymbol compact />
-                            </span>
+                            <AppSymbol className="!size-4 text-[15px] text-content-muted">
+                              layers
+                            </AppSymbol>
                             <span
                               className="min-w-0 flex-1 truncate"
                               title={site.name}
@@ -408,16 +410,28 @@ export function ApplicationShell({
                           </a>
                         </li>
                       ))}
+                      {onCreateSite ? (
+                        <li className="min-w-0">
+                          <button
+                            type="button"
+                            disabled={createSiteDisabled}
+                            className="flex min-h-7 w-full items-center gap-2 rounded-[4px] px-2 text-left text-[12px] leading-[18px] text-content-brand hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                            onClick={onCreateSite}
+                          >
+                            <AppSymbol className="!size-4 text-[16px]">
+                              add_circle
+                            </AppSymbol>
+                            New site
+                          </button>
+                        </li>
+                      ) : null}
                     </ul>
                   ) : null}
                 </div>
               );
             })}
           </div>
-          <div className="mt-11 grid gap-3 max-md:mt-0">
-            <p className="text-[12px] leading-[18px] text-[#71717f]">
-              Libraries
-            </p>
+          <div className="mt-5 grid gap-1 max-md:mt-0">
             <a
               href="/library/files"
               aria-current={activePage === 'Files' ? 'page' : undefined}
@@ -427,20 +441,13 @@ export function ApplicationShell({
                   navigate('/library/files');
                 }
               }}
-              className="flex min-h-10 items-center gap-2 rounded px-1 text-[14px] leading-5 text-[#303238] hover:bg-[#f4f4f5] focus-visible:outline-2 focus-visible:outline-focus"
+              className={`flex min-h-7 items-center gap-2 rounded-[4px] px-2 text-[12px] leading-[18px] text-content hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${activePage === 'Files' ? 'bg-sidebar-item-active font-medium' : ''}`}
             >
-              <AppSymbol>folder</AppSymbol>Files
+              <AppSymbol className="!size-4 text-[16px] text-content-muted">
+                attach_file
+              </AppSymbol>
+              Library
             </a>
-            {libraries.map((item) => (
-              <span
-                key={item.label}
-                aria-disabled="true"
-                className="flex min-h-10 items-center gap-2 rounded px-1 text-[14px] leading-5 text-[#303238]"
-              >
-                <AppSymbol>{item.icon}</AppSymbol>
-                {item.label}
-              </span>
-            ))}
           </div>
         </nav>
         {!organization ? (

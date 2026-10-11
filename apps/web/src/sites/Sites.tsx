@@ -96,6 +96,8 @@ export function Sites({
       preloadedDashboard={preloadedDashboard}
       siteNavigation={page?.sites}
       workspaceName={page?.sites.length ? page.organizationName : undefined}
+      onCreateSite={openModal}
+      createSiteDisabled={createDisabled}
       headerActions={
         <>
           <NotificationSymbol />

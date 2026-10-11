@@ -193,14 +193,14 @@ describe('SiteAllocationPlans [site-allocation-plans-empty-state REQ-001..REQ-02
       within(application).getByRole('link', { name: 'Sydney Central' }),
     ).toHaveAttribute('aria-current', 'page');
     const siteNavigation = within(application).getByRole('list', {
-      name: 'Sites',
+      name: 'My Sites',
     });
     const siteLinks = within(siteNavigation).getAllByRole('link');
     expect(siteLinks).toHaveLength(2);
     expect(siteLinks[0]).toHaveAccessibleName('Sydney Central');
     expect(siteLinks[1]).toHaveAccessibleName('Older Site');
     expect(
-      within(application).getByRole('link', { name: 'Sites' }),
+      within(application).getByRole('link', { name: /^My Sites/ }),
     ).not.toHaveAttribute('aria-current');
 
     const sections = screen.getByRole('navigation', { name: 'Site sections' });

@@ -91,7 +91,7 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
     const navigation = within(
       screen.getByRole('navigation', { name: 'Application' }),
     );
-    expect(navigation.getByRole('link', { name: 'Sites' })).toHaveAttribute(
+    expect(navigation.getByRole('link', { name: 'My Sites' })).toHaveAttribute(
       'aria-current',
       'page',
     );
@@ -157,7 +157,7 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
       screen.getByRole('navigation', { name: 'Application' }),
     );
     const sidebarSites = within(
-      await navigation.findByRole('list', { name: 'Sites' }),
+      await navigation.findByRole('list', { name: 'My Sites' }),
     );
     const expectedDestinations = [
       `/sites/${latestSite.id}/activity`,

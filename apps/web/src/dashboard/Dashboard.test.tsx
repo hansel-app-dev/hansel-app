@@ -146,25 +146,22 @@ describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
       '/assets/hansel-logo-beta.svg',
     );
     const navigation = within(screen.getByRole('navigation'));
-    expect(navigation.getByText('Dashboard')).toHaveAttribute(
+    expect(navigation.getByText('Home')).toHaveAttribute(
       'aria-current',
       'page',
     );
-    expect(navigation.getByRole('link', { name: 'Sites' })).toHaveAttribute(
+    expect(navigation.getByRole('link', { name: 'My Sites' })).toHaveAttribute(
       'href',
       '/sites',
     );
-    expect(navigation.getByRole('link', { name: 'Files' })).toHaveAttribute(
+    expect(navigation.getByRole('link', { name: 'Library' })).toHaveAttribute(
       'href',
       '/library/files',
     );
-    for (const label of ['Styleguide']) {
-      expect(navigation.getByText(label)).toHaveAttribute(
-        'aria-disabled',
-        'true',
-      );
-    }
-    expect(navigation.getByText('Libraries')).toBeInTheDocument();
+    expect(navigation.getByText('Shared Sites')).toHaveAttribute(
+      'href',
+      '/sites',
+    );
     expect(
       screen.getAllByRole('heading', { name: 'Widget title', level: 2 }),
     ).toHaveLength(4);

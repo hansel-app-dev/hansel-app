@@ -302,7 +302,7 @@ it('library-files page uses the authenticated shell and current Files navigation
     />,
   );
   await screen.findByText('Floor.pdf');
-  const link = screen.getByRole('link', { name: 'Files' });
+  const link = screen.getByRole('link', { name: 'Library' });
   expect(link).toHaveAttribute('aria-current', 'page');
   fireEvent.click(link);
   expect(navigate).toHaveBeenCalledWith('/library/files');

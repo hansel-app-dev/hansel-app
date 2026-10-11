@@ -136,7 +136,7 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
       event.preventDefault();
     });
     document.addEventListener('click', prevent);
-    fireEvent.click(screen.getByRole('link', { name: 'Dashboard' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Home' }));
     fireEvent.click(screen.getByRole('link', { name: 'Activity' }));
     fireEvent.click(
       within(

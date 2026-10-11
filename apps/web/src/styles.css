@@ -53,6 +53,10 @@
   --color-surface: var(--color-foundation-white);
   --color-surface-muted: var(--color-palette-zinc-100);
   --color-sidebar-background: var(--color-palette-stone-100);
+  --color-sidebar-brand: #5da900;
+  --color-sidebar-item-active: #e5e5e5;
+  --color-sidebar-item-hover: #efefef;
+  --color-sidebar-count: #a3a3a3;
   --color-content: var(--color-palette-zinc-800);
   --color-content-muted: var(--color-palette-zinc-500);
   --color-content-subtle: var(--color-palette-zinc-400);
