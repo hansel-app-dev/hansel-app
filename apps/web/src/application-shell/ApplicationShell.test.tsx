@@ -69,7 +69,7 @@ it('shows only the first five sites in the sidebar', () => {
   expect(screen.queryByRole('link', { name: 'Site 6' })).toBeNull();
 });
 
-it('shows the My Sites count only when My Sites is inactive', () => {
+it('shows the My Sites count in both active and inactive states', () => {
   const props = {
     headerActions: null,
     loadDashboard: vi.fn(),
@@ -97,8 +97,7 @@ it('shows the My Sites count only when My Sites is inactive', () => {
       <p>Content</p>
     </ApplicationShell>,
   );
-  expect(screen.getByRole('link', { name: 'My Sites' })).toBeInTheDocument();
-  expect(screen.queryByRole('link', { name: 'My Sites 2' })).toBeNull();
+  expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
 });
 
 it('shows the New site action on a selected-site sidebar', () => {

@@ -473,7 +473,7 @@ export function ApplicationShell({
                         }
                       />
                       {item.label}
-                      {item.showsSites && !current && siteNavigation?.length ? (
+                      {item.showsSites && siteNavigation?.length ? (
                         <span className="ml-auto text-[11px] text-sidebar-count">
                           {siteNavigation.length}
                         </span>
