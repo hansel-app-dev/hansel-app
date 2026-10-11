@@ -173,6 +173,7 @@ export function ApplicationShell({
   const organization =
     preloadedDashboard?.organization ?? dashboard?.organization;
   const organizationName = organization?.name ?? workspaceName;
+  const visibleSiteNavigation = siteNavigation?.slice(0, 5);
   const canManageOrganization = ['Owner', 'Administrator', 'Editor'].includes(
     displayedViewer?.roleLabel ?? '',
   );
@@ -431,7 +432,7 @@ export function ApplicationShell({
                       className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5"
                       aria-label="My Sites"
                     >
-                      {siteNavigation?.map((site) => (
+                      {visibleSiteNavigation?.map((site) => (
                         <li className="group relative min-w-0" key={site.id}>
                           <a
                             aria-current={

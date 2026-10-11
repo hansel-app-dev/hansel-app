@@ -43,6 +43,32 @@ it('uses the designed custom tooltip for nested site names', () => {
   );
 });
 
+it('shows only the first five sites in the sidebar', () => {
+  render(
+    <ApplicationShell
+      activePage="Sites"
+      headerActions={null}
+      headerLeading={null}
+      loadDashboard={vi.fn()}
+      loadErrorMessage="Unavailable"
+      logout={vi.fn()}
+      preloadedDashboard={{
+        viewer,
+        organization: { name: 'Workspace', planDisplayName: 'Free Plan' },
+      }}
+      siteNavigation={Array.from({ length: 6 }, (_, index) => ({
+        id: `site-${String(index + 1)}`,
+        name: `Site ${String(index + 1)}`,
+      }))}
+    >
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+
+  expect(screen.getByRole('link', { name: 'Site 5' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Site 6' })).toBeNull();
+});
+
 it('retries logout failure and renders account settings without optional viewer metadata', async () => {
   const logout = vi
     .fn()
