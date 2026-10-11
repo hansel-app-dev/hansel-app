@@ -69,6 +69,31 @@ it('shows only the first five sites in the sidebar', () => {
   expect(screen.queryByRole('link', { name: 'Site 6' })).toBeNull();
 });
 
+it('shows the New site action on a selected-site sidebar', () => {
+  const navigate = vi.fn();
+  render(
+    <ApplicationShell
+      activePage="Sites"
+      headerActions={null}
+      headerLeading={null}
+      loadDashboard={vi.fn()}
+      loadErrorMessage="Unavailable"
+      logout={vi.fn()}
+      navigate={navigate}
+      preloadedDashboard={{
+        viewer,
+        organization: { name: 'Workspace', planDisplayName: 'Free Plan' },
+      }}
+      siteNavigation={[{ id: 'site-1', name: 'Selected site' }]}
+    >
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'New site' }));
+  expect(navigate).toHaveBeenCalledWith('/sites');
+});
+
 it('retries logout failure and renders account settings without optional viewer metadata', async () => {
   const logout = vi
     .fn()

@@ -174,6 +174,7 @@ export function ApplicationShell({
     preloadedDashboard?.organization ?? dashboard?.organization;
   const organizationName = organization?.name ?? workspaceName;
   const visibleSiteNavigation = siteNavigation?.slice(0, 5);
+  const canCreateSiteFromSidebar = Boolean(onCreateSite ?? navigate);
   const canManageOrganization = ['Owner', 'Administrator', 'Editor'].includes(
     displayedViewer?.roleLabel ?? '',
   );
@@ -467,13 +468,19 @@ export function ApplicationShell({
                           </a>
                         </li>
                       ))}
-                      {onCreateSite ? (
+                      {canCreateSiteFromSidebar ? (
                         <li className="min-w-0">
                           <button
                             type="button"
-                            disabled={createSiteDisabled}
+                            disabled={onCreateSite ? createSiteDisabled : false}
                             className="flex min-h-7 w-full items-center gap-2 rounded-[4px] pl-[30px] pr-2 text-left text-[12px] leading-[18px] text-content-brand hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                            onClick={onCreateSite}
+                            onClick={() => {
+                              if (onCreateSite) {
+                                onCreateSite();
+                              } else {
+                                navigate?.('/sites');
+                              }
+                            }}
                           >
                             <SidebarIcon name="newSite" />
                             New site
