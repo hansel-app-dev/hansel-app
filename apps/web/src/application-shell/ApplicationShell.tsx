@@ -387,9 +387,8 @@ export function ApplicationShell({
                       }
                       className="flex min-w-0 flex-1 items-center gap-2 rounded-[4px] px-2 py-[5px] text-[12px] leading-[18px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                       onClick={(event) => {
-                        if (!navigate) return;
                         event.preventDefault();
-                        navigate(item.href);
+                        navigate?.(item.href);
                       }}
                     >
                       <SidebarIcon
@@ -454,9 +453,8 @@ export function ApplicationShell({
                               setSiteTooltip(undefined);
                             }}
                             onClick={(event) => {
-                              if (!navigate) return;
                               event.preventDefault();
-                              navigate(
+                              navigate?.(
                                 `/sites/${encodeURIComponent(site.id)}/activity`,
                               );
                             }}
@@ -498,10 +496,8 @@ export function ApplicationShell({
               href="/library/files"
               aria-current={activePage === 'Files' ? 'page' : undefined}
               onClick={(event) => {
-                if (navigate) {
-                  event.preventDefault();
-                  navigate('/library/files');
-                }
+                event.preventDefault();
+                navigate?.('/library/files');
               }}
               className={`flex min-h-7 items-center gap-2 rounded-[4px] px-2 text-[12px] leading-[18px] text-content hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${activePage === 'Files' ? 'bg-sidebar-item-active font-medium' : ''}`}
             >
