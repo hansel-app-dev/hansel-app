@@ -226,7 +226,7 @@ export function ApplicationShell({
       if (!bounds) return;
       setOrganizationMenuPosition({
         left: bounds.left,
-        top: bounds.bottom + 8,
+        top: bounds.bottom,
       });
     };
     updatePosition();
@@ -304,11 +304,11 @@ export function ApplicationShell({
                         {organization.planDisplayName}
                       </span>
                     </div>
-                    <div className="h-px w-full" aria-hidden="true">
+                    <div className="h-0 w-full" aria-hidden="true">
                       <img
                         src="/assets/organization-menu/divider.svg"
                         alt=""
-                        className="block h-px w-full"
+                        className="relative -top-px block h-px w-full"
                       />
                     </div>
                     {canManageOrganization ? (
@@ -352,11 +352,11 @@ export function ApplicationShell({
                         </button>
                       </div>
                     ) : null}
-                    <div className="h-px w-full" aria-hidden="true">
+                    <div className="h-0 w-full" aria-hidden="true">
                       <img
                         src="/assets/organization-menu/divider.svg"
                         alt=""
-                        className="block h-px w-full"
+                        className="relative -top-px block h-px w-full"
                       />
                     </div>
                     <div
