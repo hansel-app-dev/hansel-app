@@ -1,7 +1,7 @@
 # Feature: Sidebar specification gaps 1–4
 
 - ID: `sidebar-spec-gaps`
-- Status: `draft`
+- Status: `approved`
 - Owner: `Product`
 - Technical owner: `Web platform`
 - Last updated: `2026-10-11`
