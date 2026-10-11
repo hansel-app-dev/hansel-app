@@ -75,6 +75,7 @@ it('shows the My Sites count in both active and inactive states', () => {
     loadDashboard: vi.fn(),
     loadErrorMessage: 'Unavailable',
     logout: vi.fn(),
+    onCreateSite: vi.fn(),
     preloadedDashboard: {
       viewer,
       organization: { name: 'Workspace', planDisplayName: 'Free Plan' },
@@ -102,7 +103,15 @@ it('shows the My Sites count in both active and inactive states', () => {
   expect(screen.getByRole('button', { name: 'Collapse sites' })).toHaveClass(
     'grid',
   );
+  expect(screen.getByRole('button', { name: 'New site' })).toBeInTheDocument();
   expect(screen.getByText('2')).not.toHaveClass('group-hover:-translate-x-1');
+
+  rerender(
+    <ApplicationShell {...props} activePage="Dashboard">
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+  expect(screen.queryByRole('button', { name: 'New site' })).toBeNull();
 });
 
 it('shows the dashboard site count without a loaded site list', () => {

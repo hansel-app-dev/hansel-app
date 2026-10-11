@@ -484,7 +484,7 @@ export function Sidebar({
                           </a>
                         </li>
                       ))}
-                      {canCreateSiteFromSidebar ? (
+                      {current && canCreateSiteFromSidebar ? (
                         <li className="min-w-0">
                           <button
                             type="button"
