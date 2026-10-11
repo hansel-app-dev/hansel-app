@@ -186,7 +186,7 @@ export function ApplicationShell({
   return (
     <main className="flex min-h-screen bg-surface text-content md:h-dvh md:overflow-hidden max-md:flex-col max-md:overflow-x-clip">
       <h1 className="sr-only">{pageHeading ?? activePage}</h1>
-      <aside className="flex shrink-0 flex-col border-r border-[#e5e5e5] bg-sidebar-background px-[18px] py-6 md:w-[252px] md:overflow-y-auto md:[&>*]:shrink-0 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5">
+      <aside className="flex shrink-0 flex-col border-r border-[#e5e5e5] bg-sidebar-background px-[18px] py-6 md:w-[252px] md:overflow-x-clip md:overflow-y-auto md:[&>*]:shrink-0 max-md:w-full max-md:border-b max-md:border-r-0 max-md:px-5 max-md:py-5">
         {organizationName ? (
           <div
             ref={organization ? accountMenuRef : undefined}
