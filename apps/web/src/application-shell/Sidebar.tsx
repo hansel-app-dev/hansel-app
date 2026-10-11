@@ -379,7 +379,7 @@ export function Sidebar({
                       />
                       {item.label}
                       {item.showsSites && siteCount !== undefined ? (
-                        <span className="ml-auto text-[11px] text-sidebar-count">
+                        <span className="ml-auto text-[11px] text-sidebar-count transition-transform duration-150 ease-out group-hover:-translate-x-1 motion-reduce:transition-none">
                           {siteCount}
                         </span>
                       ) : null}

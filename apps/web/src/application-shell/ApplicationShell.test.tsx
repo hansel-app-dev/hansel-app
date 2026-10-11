@@ -91,6 +91,7 @@ it('shows the My Sites count in both active and inactive states', () => {
     </ApplicationShell>,
   );
   expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
+  expect(screen.getByText('2')).toHaveClass('transition-transform');
 
   rerender(
     <ApplicationShell {...props} activePage="Sites">
