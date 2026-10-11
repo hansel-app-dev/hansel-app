@@ -396,7 +396,7 @@ export function Sidebar({
                             ? 'Collapse sites'
                             : 'Expand sites'
                         }
-                        className="mr-1 grid size-6 place-items-center rounded-[4px] opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-default"
+                        className="mr-1 hidden size-6 place-items-center rounded-[4px] group-hover:grid group-focus-within:grid focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-default"
                         onClick={() => {
                           setSitesExpanded((expanded) => !expanded);
                         }}
