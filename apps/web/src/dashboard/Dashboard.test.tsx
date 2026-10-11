@@ -39,7 +39,7 @@ describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
     });
     fireEvent.click(trigger);
     const menu = screen.getByRole('menu', { name: 'Organization' });
-    expect(within(menu).getByText('Pro Plan')).toBeVisible();
+    expect(within(menu).getByText('Pro')).toBeVisible();
     expect(
       within(menu).getByRole('menuitem', { name: 'Invite members' }),
     ).toBeDisabled();

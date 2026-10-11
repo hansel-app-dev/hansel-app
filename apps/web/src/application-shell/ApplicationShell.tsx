@@ -301,7 +301,9 @@ export function ApplicationShell({
                         />
                       </span>
                       <span className="truncate">
-                        {organization.planDisplayName}
+                        {organization.planDisplayName === 'Pro Plan'
+                          ? 'Pro'
+                          : organization.planDisplayName}
                       </span>
                     </div>
                     <div className="h-0 w-full" aria-hidden="true">
