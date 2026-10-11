@@ -92,6 +92,28 @@ describe('SiteActivity [site-details-activity-shell REQ-001..REQ-021]', () => {
       expect(navigate).toHaveBeenCalledWith(`/sites/${siteId}/activity`);
     },
   );
+  it('keeps shared-site details in the Shared Sites context', async () => {
+    const navigate = vi.fn();
+    render(
+      <SiteActivity
+        {...props}
+        activePage="SharedSites"
+        loadActivity={() => Promise.resolve({ site })}
+        navigate={navigate}
+      />,
+    );
+
+    const sharedSitesLink = await screen.findByRole('link', {
+      name: 'Shared Sites',
+    });
+    expect(sharedSitesLink.parentElement).toHaveClass('bg-sidebar-item-active');
+    expect(
+      screen.getByRole('link', { name: 'My Sites' }).parentElement,
+    ).not.toHaveClass('bg-sidebar-item-active');
+    expect(sharedSitesLink).toHaveAttribute('href', '/shared-sites');
+    fireEvent.click(screen.getByRole('link', { name: 'Shared Sites' }));
+    expect(navigate).toHaveBeenCalledWith('/shared-sites');
+  });
   it('combines the authorized Site identity and Sites context in one loaded shell [site-details-activity-shell REQ-003..REQ-007]', async () => {
     let resolveActivity: ((value: SiteActivityResponse) => void) | undefined;
     let resolveSites: ((value: SitesPageResponse) => void) | undefined;

@@ -97,6 +97,10 @@ it('shows only the first five shared sites when Shared Sites is active', () => {
   expect(
     screen.getByRole('link', { name: 'Shared site 5' }),
   ).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Shared site 1' })).toHaveAttribute(
+    'href',
+    '/shared-sites/shared-site-1/activity',
+  );
   expect(screen.queryByRole('link', { name: 'Shared site 6' })).toBeNull();
 });
 

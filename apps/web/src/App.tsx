@@ -261,9 +261,8 @@ export function App({
       />
     );
   }
-  const siteActivityMatch = /^\/sites\/([0-9a-f-]{36})\/activity$/.exec(
-    currentPath,
-  );
+  const siteActivityMatch =
+    /^(\/sites|\/shared-sites)\/([0-9a-f-]{36})\/activity$/.exec(currentPath);
   const signageMatch = /^\/sites\/([0-9a-f-]{36})\/signage-schedule$/.exec(
     currentPath,
   );
@@ -299,8 +298,9 @@ export function App({
       />
     );
   }
-  if (siteActivityMatch?.[1]) {
-    const siteId = siteActivityMatch[1];
+  if (siteActivityMatch?.[2]) {
+    const siteId = siteActivityMatch[2];
+    const sharedSiteContext = siteActivityMatch[1] === '/shared-sites';
     return (
       <SiteActivity
         {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
@@ -322,7 +322,12 @@ export function App({
         isSiteActivityNotFound={(error) =>
           error instanceof SiteActivityNotFoundError
         }
-        loadSites={() => handleApplicationSession(loadSites(apiUrl))}
+        activePage={sharedSiteContext ? 'SharedSites' : 'Sites'}
+        loadSites={() =>
+          handleApplicationSession(
+            loadSites(apiUrl, sharedSiteContext ? 'shared' : 'owned'),
+          )
+        }
         logout={logoutAuthenticatedViewer}
         navigate={navigate}
       />

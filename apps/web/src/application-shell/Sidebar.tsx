@@ -389,6 +389,8 @@ export function Sidebar({
                 item.label === 'Shared Sites'
                   ? visibleSharedSiteNavigation
                   : visibleSiteNavigation;
+              const siteBasePath =
+                item.label === 'Shared Sites' ? '/shared-sites' : '/sites';
               const hasSiteNavigation =
                 item.showsSites && Boolean(itemSiteNavigation?.length);
               const showSitesDisclosure =
@@ -473,40 +475,41 @@ export function Sidebar({
                       className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5"
                       aria-label={item.label}
                     >
-                      {visibleItemSiteNavigation?.map((site) => (
-                        <li className="group relative min-w-0" key={site.id}>
-                          <a
-                            aria-current={
-                              site.id === currentSiteId ? 'page' : undefined
-                            }
-                            href={`/sites/${encodeURIComponent(site.id)}/activity`}
-                            className={`flex min-h-7 items-center gap-2 rounded-[4px] pl-[30px] pr-2 text-[12px] leading-[18px] hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-content'}`}
-                            onMouseEnter={(event) => {
-                              showSiteTooltip(event, site.name);
-                            }}
-                            onMouseLeave={() => {
-                              setSiteTooltip(undefined);
-                            }}
-                            onFocus={(event) => {
-                              showSiteTooltip(event, site.name);
-                            }}
-                            onBlur={() => {
-                              setSiteTooltip(undefined);
-                            }}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              navigate?.(
-                                `/sites/${encodeURIComponent(site.id)}/activity`,
-                              );
-                            }}
-                          >
-                            <SidebarIcon name="site" />
-                            <span className="min-w-0 flex-1 truncate">
-                              {site.name}
-                            </span>
-                          </a>
-                        </li>
-                      ))}
+                      {visibleItemSiteNavigation?.map((site) => {
+                        const siteHref = `${siteBasePath}/${encodeURIComponent(site.id)}/activity`;
+                        return (
+                          <li className="group relative min-w-0" key={site.id}>
+                            <a
+                              aria-current={
+                                site.id === currentSiteId ? 'page' : undefined
+                              }
+                              href={siteHref}
+                              className={`flex min-h-7 items-center gap-2 rounded-[4px] pl-[30px] pr-2 text-[12px] leading-[18px] hover:bg-sidebar-item-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${site.id === currentSiteId ? 'font-medium text-content' : 'font-normal text-content'}`}
+                              onMouseEnter={(event) => {
+                                showSiteTooltip(event, site.name);
+                              }}
+                              onMouseLeave={() => {
+                                setSiteTooltip(undefined);
+                              }}
+                              onFocus={(event) => {
+                                showSiteTooltip(event, site.name);
+                              }}
+                              onBlur={() => {
+                                setSiteTooltip(undefined);
+                              }}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                navigate?.(siteHref);
+                              }}
+                            >
+                              <SidebarIcon name="site" />
+                              <span className="min-w-0 flex-1 truncate">
+                                {site.name}
+                              </span>
+                            </a>
+                          </li>
+                        );
+                      })}
                       {item.label === 'My Sites' &&
                       current &&
                       canCreateSiteFromSidebar ? (

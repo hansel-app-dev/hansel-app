@@ -52,6 +52,7 @@ type SiteDetailsLoadState =
   | (SiteDetailsRequest & { status: 'failed' });
 
 interface SharedSiteDetailsProps {
+  activePage?: 'Sites' | 'SharedSites';
   loadDashboard: () => Promise<DashboardResponse>;
   loadSite: () => Promise<SiteActivityResponse>;
   loadSites: () => Promise<SitesPageResponse>;
@@ -293,6 +294,7 @@ export function AllocationPlanCollection({
 }
 
 function SiteDetails({
+  activePage = 'Sites',
   activeSection,
   loadDashboard,
   loadSite,
@@ -415,7 +417,7 @@ function SiteDetails({
   if (!currentState)
     return (
       <ApplicationShell
-        activePage="Sites"
+        activePage={activePage}
         headerActions={<NotificationSymbol />}
         loadDashboard={loadDashboard}
         loadErrorMessage="We couldn't load your account. Please try again."
@@ -454,7 +456,7 @@ function SiteDetails({
   if (currentState.status === 'failed')
     return (
       <ApplicationShell
-        activePage="Sites"
+        activePage={activePage}
         headerActions={<NotificationSymbol />}
         loadDashboard={loadDashboard}
         loadErrorMessage="We couldn't load your account. Please try again."
@@ -512,13 +514,15 @@ function SiteDetails({
     activityPage,
   } = currentState;
   const siteId = encodeURIComponent(siteContext.site.id);
-  const activityDestination = `/sites/${siteId}/activity`;
+  const siteBasePath =
+    activePage === 'SharedSites' ? '/shared-sites' : '/sites';
+  const activityDestination = `${siteBasePath}/${siteId}/activity`;
   const allocationsDestination = `/sites/${siteId}/allocations`;
   const signageDestination = `/sites/${siteId}/signage-schedule`;
 
   return (
     <ApplicationShell
-      activePage="Sites"
+      activePage={activePage}
       siteHeader
       headerActions={
         <SiteShareControls
@@ -532,11 +536,13 @@ function SiteDetails({
             <li className="flex shrink-0 items-center">
               <a
                 className="rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                href="/sites"
+                href={activePage === 'SharedSites' ? '/shared-sites' : '/sites'}
                 onClick={(event) => {
                   if (!navigate) return;
                   event.preventDefault();
-                  navigate('/sites');
+                  navigate(
+                    activePage === 'SharedSites' ? '/shared-sites' : '/sites',
+                  );
                 }}
               >
                 Sites
@@ -587,7 +593,14 @@ function SiteDetails({
             : siteContext.site.name
       }
       preloadedDashboard={dashboard}
-      siteNavigation={sitesPage.sites}
+      siteNavigation={activePage === 'Sites' ? sitesPage.sites : undefined}
+      sharedSiteNavigation={
+        activePage === 'SharedSites' ? sitesPage.sites : undefined
+      }
+      siteCount={activePage === 'Sites' ? sitesPage.ownedSiteCount : undefined}
+      sharedSiteCount={
+        activePage === 'SharedSites' ? sitesPage.sharedSiteCount : undefined
+      }
       workspaceName={sitesPage.organizationName}
     >
       <section
