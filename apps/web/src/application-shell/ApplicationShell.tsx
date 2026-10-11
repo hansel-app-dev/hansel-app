@@ -319,7 +319,7 @@ export function ApplicationShell({
           />
         )}
         <nav
-          className="mt-4 flex flex-1 flex-col max-md:mt-7"
+          className="mt-8 flex flex-1 flex-col max-md:mt-7"
           aria-label="Application"
         >
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1">
