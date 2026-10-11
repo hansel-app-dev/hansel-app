@@ -34,7 +34,7 @@ jobs:
       DATABASE_URL: postgresql://hansel:hansel@127.0.0.1:5432/hansel?schema=public
       TEST_DATABASE_URL: postgresql://hansel:hansel@127.0.0.1:5432/hansel?schema=public
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -72,7 +72,7 @@ jobs:
       DATABASE_URL: postgresql://hansel:hansel@127.0.0.1:5433/hansel?schema=public
       E2E_DATABASE_URL: postgresql://hansel:hansel@127.0.0.1:5433/hansel?schema=public
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -94,5 +94,5 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/dependency-review-action@v4
