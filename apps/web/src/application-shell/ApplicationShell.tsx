@@ -491,7 +491,7 @@ export function ApplicationShell({
               );
             })}
           </div>
-          <div className="mt-5 grid gap-1 max-md:mt-0">
+          <div className="mt-0.5 grid gap-1 max-md:mt-0">
             <a
               href="/library/files"
               aria-current={activePage === 'Files' ? 'page' : undefined}
