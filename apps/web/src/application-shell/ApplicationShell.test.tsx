@@ -69,6 +69,38 @@ it('shows only the first five sites in the sidebar', () => {
   expect(screen.queryByRole('link', { name: 'Site 6' })).toBeNull();
 });
 
+it('shows the My Sites count only when My Sites is inactive', () => {
+  const props = {
+    headerActions: null,
+    loadDashboard: vi.fn(),
+    loadErrorMessage: 'Unavailable',
+    logout: vi.fn(),
+    preloadedDashboard: {
+      viewer,
+      organization: { name: 'Workspace', planDisplayName: 'Free Plan' },
+    },
+    siteNavigation: [
+      { id: 'site-1', name: 'First site' },
+      { id: 'site-2', name: 'Second site' },
+    ],
+  } as const;
+
+  const { rerender } = render(
+    <ApplicationShell {...props} activePage="Dashboard">
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+  expect(screen.getByRole('link', { name: 'My Sites 2' })).toBeInTheDocument();
+
+  rerender(
+    <ApplicationShell {...props} activePage="Sites">
+      <p>Content</p>
+    </ApplicationShell>,
+  );
+  expect(screen.getByRole('link', { name: 'My Sites' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'My Sites 2' })).toBeNull();
+});
+
 it('shows the New site action on a selected-site sidebar', () => {
   const navigate = vi.fn();
   render(
