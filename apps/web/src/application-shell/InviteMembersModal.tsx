@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { Button, Modal } from '../design-system/index.js';
 
-export type WorkspaceInvite = { email: string; role: 'Viewer' | 'Editor' };
+export interface WorkspaceInvite {
+  email: string;
+  role: 'Viewer' | 'Editor';
+}
 
 export interface InviteMembersModalProps {
   initialInvites?: readonly WorkspaceInvite[];
@@ -23,7 +26,7 @@ export function InviteMembersModal({
 
   const addInvite = () => {
     const normalized = email.trim().toLowerCase();
-    if (!normalized || !normalized.includes('@')) return;
+    if (!normalized.includes('@')) return;
     if (invites.some((invite) => invite.email === normalized)) return;
     setInvites((current) => [...current, { email: normalized, role }]);
     setEmail('');
@@ -64,7 +67,9 @@ export function InviteMembersModal({
             <input
               aria-label="Email address"
               className="h-10 min-w-0 flex-1 rounded-[6px] border border-[#e4e4e7] px-4 py-2 text-[13px] outline-none focus:border-[#64748b] focus:ring-2 focus:ring-[#cbd5e1]"
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
@@ -78,9 +83,9 @@ export function InviteMembersModal({
             <select
               aria-label="Invite role"
               className="h-10 w-[110px] rounded-[6px] border border-[#e4e4e7] bg-white px-4 py-2 text-[13px] outline-none focus:border-[#64748b] focus:ring-2 focus:ring-[#cbd5e1]"
-              onChange={(event) =>
-                setRole(event.target.value as WorkspaceInvite['role'])
-              }
+              onChange={(event) => {
+                setRole(event.target.value as WorkspaceInvite['role']);
+              }}
               value={role}
             >
               <option>Viewer</option>
@@ -101,25 +106,45 @@ export function InviteMembersModal({
               <p className="text-[13px] leading-[19.6px]">You are inviting</p>
               {invites.map((invite) => (
                 <div
-                  className="flex items-center justify-between rounded-[6px] border border-[#a855f7] bg-[#faf5ff] p-3"
+                  className={`relative flex items-center justify-between rounded-[6px] border p-3 ${invite.role === 'Editor' ? 'border-[#ffcb94] bg-[#fff8ef]' : 'border-[#a855f7] bg-[#faf5ff]'}`}
                   key={`${invite.email}-${invite.role}`}
                 >
-                  <span className="min-w-0 truncate text-[13px] font-semibold">
-                    {invite.email}{' '}
-                    <span className="font-normal text-[#a855f7]">External</span>
+                  <span className="min-w-0 pr-3 text-[13px] font-semibold">
+                    <span className="block truncate">
+                      {invite.email}{' '}
+                      <span
+                        className={
+                          invite.role === 'Editor'
+                            ? 'font-normal text-[#c42020]'
+                            : 'font-normal text-[#a855f7]'
+                        }
+                      >
+                        External
+                      </span>
+                    </span>
+                    {invite.role === 'Editor' ? (
+                      <span className="mt-1 block text-[11px] font-normal leading-4 text-[#c42020]">
+                        This user needs a paid seat to be an editor.{' '}
+                        <a className="underline" href="/help/paid-seats">
+                          Learn more
+                        </a>
+                      </span>
+                    ) : null}
                   </span>
                   <span className="ml-3 flex shrink-0 items-center gap-2">
-                    <span className="rounded-[4px] bg-[#e2e8f0] px-2 py-[3px] text-[11px] font-medium">
+                    <span
+                      className={`rounded-[4px] px-2 py-[3px] text-[11px] font-medium ${invite.role === 'Editor' ? 'bg-[#ffe4e4] text-[#bd1717]' : 'bg-[#e2e8f0]'}`}
+                    >
                       {invite.role}
                     </span>
                     <button
                       aria-label={`Remove ${invite.email}`}
                       className="grid size-6 place-items-center rounded-[4px] text-[18px] leading-none text-[#686763] hover:bg-white"
-                      onClick={() =>
+                      onClick={() => {
                         setInvites((current) =>
                           current.filter((item) => item !== invite),
-                        )
-                      }
+                        );
+                      }}
                       type="button"
                     >
                       ×
@@ -146,7 +171,7 @@ export function InviteMembersModal({
           {submitting
             ? 'Sending…'
             : invites.length
-              ? `Send ${invites.length} invite${invites.length === 1 ? '' : 's'}`
+              ? `Send ${String(invites.length)} invite${invites.length === 1 ? '' : 's'}`
               : 'Send invites'}
         </Button>
       </div>

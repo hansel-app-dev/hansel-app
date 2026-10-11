@@ -25,6 +25,13 @@ it('stages a role-specific invite and allows it to be removed', () => {
 
   expect(screen.getByText('person@example.com')).toBeVisible();
   expect(screen.getAllByText('Editor')).toHaveLength(2);
+  expect(
+    screen.getByText('This user needs a paid seat to be an editor.'),
+  ).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Learn more' })).toHaveAttribute(
+    'href',
+    '/help/paid-seats',
+  );
   expect(screen.getByRole('button', { name: 'Send 1 invite' })).toBeEnabled();
   fireEvent.click(
     screen.getByRole('button', { name: 'Remove person@example.com' }),

@@ -36,7 +36,7 @@ export const WithSites: Story = {
     loadError: false,
     settingsOpen: false,
     onOpenSettings: () => undefined,
-    logout: async () => undefined,
+    logout: () => Promise.resolve(),
   },
 };
 
@@ -52,6 +52,6 @@ export const Loading: Story = {
     loadError: false,
     settingsOpen: false,
     onOpenSettings: () => undefined,
-    logout: async () => undefined,
+    logout: () => Promise.resolve(),
   },
 };

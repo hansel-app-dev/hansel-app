@@ -616,7 +616,9 @@ export function Sidebar({
         : null}
       {inviteOpen ? (
         <InviteMembersModal
-          onClose={() => setInviteOpen(false)}
+          onClose={() => {
+            setInviteOpen(false);
+          }}
           {...(onInviteMembers ? { onSubmit: onInviteMembers } : {})}
         />
       ) : null}

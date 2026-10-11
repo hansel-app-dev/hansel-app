@@ -152,7 +152,7 @@ export function Sites({
         <SiteCollection
           loadCoverImage={loadCoverImage}
           navigate={navigate}
-          sites={visibleSites ?? []}
+          sites={visibleSites}
           {...(now ? { now } : {})}
         />
       ) : (

@@ -3,7 +3,6 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { DashboardResponse } from '@hansel/contracts';
 import { Button } from '../design-system/index.js';
 import { AccountSettingsModal } from './AccountSettingsModal.js';
-import { AppSymbol, NotificationSymbol } from './SidebarPrimitives.js';
 import { Sidebar } from './Sidebar.js';
 import type { WorkspaceInvite } from './InviteMembersModal.js';
 export { AppSymbol, NotificationSymbol } from './SidebarPrimitives.js';
@@ -116,7 +115,9 @@ export function ApplicationShell({
         onCreateSite={onCreateSite}
         onInviteMembers={onInviteMembers}
         onUpgrade={onUpgrade}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => {
+          setSettingsOpen(true);
+        }}
         settingsOpen={settingsOpen}
         logout={logout}
       />
