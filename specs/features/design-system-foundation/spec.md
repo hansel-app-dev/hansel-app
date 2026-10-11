@@ -4,8 +4,9 @@
 - Status: `approved`
 - Owner: `Hansel product`
 - Technical owner: `Hansel engineering`
-- Last updated: `2026-09-01`
+- Last updated: `2026-10-11`
 - Product clarification: `User confirmed on 2026-09-01 that Sites and authentication primary actions must use the same shared Button component and Figma color`
+- Theme update: `User approved on 2026-10-11 the Figma Hansel Design System variable source at node 12:169. The verified theme variables add Inter typography, slate/zinc/stone/red/orange palettes, semantic Tokens mappings, and Radius values while preserving the existing brown-500 contract.`
 
 ## Problem
 
@@ -26,16 +27,16 @@ Hansel has a version-controlled frontend design-system foundation whose semantic
 ## Requirements
 
 - REQ-001: The web workspace MUST define named semantic Tailwind CSS tokens for verified Hansel colors, typography, spacing, radii, borders, shadows, and focus treatment; reusable components MUST consume semantic tokens instead of unexplained raw values.
-- REQ-002: The initial verified sources MUST include Figma `Foundation / Brown / brown-500` (`#634739`), `Foundation / Off-white / off-white-500` (`#F7F5EB`), `Colours / Greys / White` (`#FFFFFF`), and the Figtree typeface used by onboarding frame `1:3`. The web application and Storybook MUST bundle and load Figtree rather than relying on its presence on the user's device; unverified brand, state, or typography values MUST NOT be presented as Figma-derived tokens.
+- REQ-002: The initial verified sources MUST include Figma `Foundation / Brown / brown-500` (`#634739`), `Foundation / Off-white / off-white-500` (`#F7F5EB`), `Colours / Greys / White` (`#FFFFFF`), and the Figma Hansel Design System variable collection at node `12:169`. The variable collection's verified body typeface is Inter; the web application and Storybook MUST bundle and load Inter rather than relying on its presence on the user's device. Unverified brand, state, or typography values MUST NOT be presented as Figma-derived tokens.
 - REQ-003: The design-system module MUST expose `Button`, `TextField`, `AuthFormLayout`, and `ProviderAction` through one public barrel interface and MUST keep Tailwind class composition inside their implementations.
-- REQ-004: `Button` MUST support native button attributes, visible keyboard focus, disabled behavior, and only the observed `primary` and `secondary` visual variants; its default `type` MUST be `button` to prevent accidental form submission. Every primary Button MUST obtain the Figma slate action color `#485463` and its `#3D4855` hover state from the shared semantic action tokens; product pages and layout components MUST NOT replace the component's base color with page-specific classes.
+- REQ-004: `Button` MUST support native button attributes, visible keyboard focus, disabled behavior, and only the observed `primary` and `secondary` visual variants; its default `type` MUST be `button` to prevent accidental form submission. Every primary Button MUST obtain its Figma slate action and hover colors from the shared semantic action tokens; product pages and layout components MUST NOT replace the component's base color with page-specific classes.
 - REQ-005: `TextField` MUST support native input attributes, a programmatically associated visible label, optional description, optional error, invalid and disabled states, visible keyboard focus, and deterministic accessible-description relationships without requiring callers to construct IDs.
 - REQ-006: The design-system interfaces MUST use typed React composition and MUST NOT expose raw Tailwind class strings as a required caller concern; an optional `className` escape hatch MAY be accepted for layout integration.
 - REQ-007: An isolated Storybook workbench MUST document every initial primitive and its meaningful states without coupling stories to application APIs, authentication, or PostgreSQL.
 - REQ-008: Automated accessibility checks MUST run against the workbench, and unit tests MUST verify observable primitive semantics through their public interfaces while frontend statement, branch, function, and line coverage remain 100%.
 - REQ-009: A browser visual-regression check MUST render the workbench at a deterministic viewport and compare a committed baseline screenshot; intentional baseline updates MUST be reviewed with the code change.
 - REQ-010: Tailwind Plus MAY be used as a licensed implementation reference for accessible React and Tailwind patterns, but the Hansel Figma designs and approved specifications remain authoritative for visual decisions and component scope.
-- REQ-011: Design-system source files MUST identify the governing specification and the exact verified Figma reference nodes: onboarding frame `1:3`, welcome-email frame `131:549`, and dashboard frame `2019:2296`.
+- REQ-011: Design-system source files MUST identify the governing specification and the exact verified Figma reference nodes: Hansel variable collection `12:169`, onboarding frame `1:3`, welcome-email frame `131:549`, and dashboard frame `2019:2296`.
 - REQ-012: Repository specification checks MUST reject missing design-system tokens, exports, workbench configuration, required test commands, or governing Figma references.
 - REQ-013: Every newly introduced reusable browser UI component MUST ship with a Storybook story covering its meaningful approved states, accessibility automation, and deterministic visual-regression coverage. Each implemented product screen MUST also ship with an API-independent Storybook story for visual review at its approved representative viewport. A story MUST identify its governing specification and Figma node, use fictional data, and MUST NOT make production network requests or weaken the component's runtime accessibility contract.
 - REQ-014: `AuthFormLayout` MUST own the shared Hansel authentication canvas, exported logo, 350-pixel column, 27-pixel regular heading, 40-pixel section rhythm, form region, provider divider/group, and responsive positioning used by onboarding account creation and login. `ProviderAction` MUST render the same secondary-action appearance for native buttons and navigation links, use the exact committed Google, Microsoft, or Apple mark in a fixed 24-pixel icon area, retain a 16-pixel icon-to-label gap, and preserve the native semantics supplied by its caller. Screen-specific copy, field autocomplete purpose, submission behavior, and destinations remain caller-owned.
@@ -86,6 +87,8 @@ Hansel has a version-controlled frontend design-system foundation whose semantic
 - Then equivalent controls have identical width, height, typography, border, radius, spacing, icon assets, and responsive positioning while retaining their required button, link, form, and autocomplete semantics
 
 ## UX and accessibility
+
+Figma node: `12:169` (Hansel Design System variables)
 
 Figma node: `1:3`
 
