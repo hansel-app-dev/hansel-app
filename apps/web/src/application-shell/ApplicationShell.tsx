@@ -304,10 +304,13 @@ export function ApplicationShell({
                         {organization.planDisplayName}
                       </span>
                     </div>
-                    <div
-                      className="h-px w-full bg-[#e4e4e7]"
-                      aria-hidden="true"
-                    />
+                    <div className="h-px w-full" aria-hidden="true">
+                      <img
+                        src="/assets/organization-menu/divider.svg"
+                        alt=""
+                        className="block h-px w-full"
+                      />
+                    </div>
                     {canManageOrganization ? (
                       <div
                         role="group"
@@ -349,10 +352,13 @@ export function ApplicationShell({
                         </button>
                       </div>
                     ) : null}
-                    <div
-                      className="h-px w-full bg-[#e4e4e7]"
-                      aria-hidden="true"
-                    />
+                    <div className="h-px w-full" aria-hidden="true">
+                      <img
+                        src="/assets/organization-menu/divider.svg"
+                        alt=""
+                        className="block h-px w-full"
+                      />
+                    </div>
                     <div
                       role="group"
                       aria-label="Account"
@@ -394,9 +400,12 @@ export function ApplicationShell({
                             });
                         }}
                       >
-                        <AppSymbol className="text-[24px]" weight={100}>
-                          logout
-                        </AppSymbol>
+                        <img
+                          src="/assets/organization-menu/logout.svg"
+                          alt=""
+                          aria-hidden="true"
+                          className="size-6"
+                        />
                         {logoutPending ? 'Logging out…' : 'Log out'}
                       </button>
                       {logoutError ? (
