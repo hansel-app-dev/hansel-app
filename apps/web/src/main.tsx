@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import '@fontsource-variable/figtree';
+import '@fontsource-variable/inter';
 import { App } from './App.js';
 
 const root = document.getElementById('root');

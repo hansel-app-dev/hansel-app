@@ -75,7 +75,7 @@ describe('TextField [design-system-foundation REQ-005]', () => {
 
     const input = screen.getByRole('textbox', { name: 'Site name' });
     expect(input).toHaveAccessibleDescription('This name is already in use.');
-    expect(input).toHaveClass('border-[#f97316]', 'bg-[#fff8ef]');
+    expect(input).toHaveClass('border-warning', 'bg-warning-surface');
     expect(screen.getByRole('status')).toHaveTextContent(
       'This name is already in use.',
     );

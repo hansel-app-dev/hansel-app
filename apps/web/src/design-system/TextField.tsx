@@ -50,13 +50,13 @@ export function TextField({
           {...props}
           aria-describedby={describedBy || undefined}
           aria-invalid={error ? true : ariaInvalid}
-          className={`min-h-10 w-full rounded-control border-control px-field-inline py-field-block pr-10 text-sm text-content shadow-control outline-none placeholder:text-content-subtle focus-visible:outline-solid focus-visible:outline-[length:var(--focus-ring-width)] focus-visible:outline-offset-[var(--focus-ring-offset)] disabled:cursor-not-allowed disabled:opacity-60 ${error ? 'border-danger bg-[#fff5f5] focus-visible:outline-danger' : warning ? 'border-[#f97316] bg-[#fff8ef] focus-visible:outline-[#f97316]' : 'border-control-border bg-surface focus-visible:outline-focus'} ${className}`}
+          className={`min-h-10 w-full rounded-control border-control px-field-inline py-field-block pr-10 text-sm text-content shadow-control outline-none placeholder:text-content-subtle focus-visible:outline-solid focus-visible:outline-[length:var(--focus-ring-width)] focus-visible:outline-offset-[var(--focus-ring-offset)] disabled:cursor-not-allowed disabled:opacity-60 ${error ? 'border-danger bg-danger-surface focus-visible:outline-danger' : warning ? 'border-warning bg-warning-surface focus-visible:outline-warning' : 'border-control-border bg-surface focus-visible:outline-focus'} ${className}`}
           id={inputId}
         />
         {error || warning ? (
           <span
             aria-hidden="true"
-            className={`material-symbols-100 pointer-events-none absolute right-3 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center text-[20px] ${error ? 'text-danger' : 'text-[#f97316]'}`}
+            className={`material-symbols-100 pointer-events-none absolute right-3 top-1/2 inline-flex size-5 -translate-y-1/2 items-center justify-center text-[20px] ${error ? 'text-danger' : 'text-warning'}`}
           >
             error
           </span>
@@ -68,7 +68,7 @@ export function TextField({
         </p>
       ) : null}
       {warning ? (
-        <p className="text-sm text-[#f97316]" id={warningId} role="status">
+        <p className="text-sm text-warning" id={warningId} role="status">
           {warning}
         </p>
       ) : null}
