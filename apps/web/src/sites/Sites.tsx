@@ -38,6 +38,7 @@ function NewSiteButton({
 }
 
 export interface SitesProps {
+  activePage?: 'Sites' | 'SharedSites';
   loadCoverImage?: CoverImageLoader;
   uploadCoverImage?: (siteId: string, file: File) => Promise<void>;
   coverImageEnabled?: boolean;
@@ -48,6 +49,7 @@ export interface SitesProps {
   navigate?: (destination: string) => void;
   now?: Date;
   preloadedDashboard?: DashboardResponse;
+  sharedOnly?: boolean;
 }
 
 export function Sites({
@@ -61,6 +63,8 @@ export function Sites({
   navigate,
   now,
   preloadedDashboard,
+  sharedOnly = false,
+  activePage = 'Sites',
 }: SitesProps) {
   const [page, setPage] = useState<SitesPageResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,31 +89,41 @@ export function Sites({
     setModalOpen(true);
   };
   const createDisabled = !page?.canCreateSite || page.siteLimitReached;
+  const visibleSites = page?.sites.filter((site) =>
+    sharedOnly
+      ? site.isOwnedByCurrentMembership === false
+      : site.isOwnedByCurrentMembership !== false,
+  );
+  const sidebarSites = page?.sites.filter(
+    (site) => site.isOwnedByCurrentMembership !== false,
+  );
 
   return (
     <ApplicationShell
-      activePage="Sites"
+      activePage={activePage}
       loadDashboard={loadDashboard}
       loadErrorMessage="We couldn't load your account. Please try again."
       logout={logout}
       navigate={navigate}
       preloadedDashboard={preloadedDashboard}
-      siteNavigation={page?.sites}
-      workspaceName={page?.sites.length ? page.organizationName : undefined}
+      siteNavigation={sidebarSites}
+      workspaceName={page?.organizationName}
       onCreateSite={openModal}
       createSiteDisabled={createDisabled}
       headerActions={
         <>
           <NotificationSymbol />
-          <NewSiteButton
-            compact
-            disabled={createDisabled}
-            onClick={openModal}
-          />
+          {!sharedOnly ? (
+            <NewSiteButton
+              compact
+              disabled={createDisabled}
+              onClick={openModal}
+            />
+          ) : null}
         </>
       }
     >
-      {page?.siteLimitReached ? (
+      {!sharedOnly && page?.siteLimitReached ? (
         <p
           className="mx-8 mt-6 rounded-control border border-control-border bg-surface-muted px-4 py-3 text-sm text-content-muted max-md:mx-5"
           role="status"
@@ -134,11 +148,11 @@ export function Sites({
             Loading sites…
           </p>
         </section>
-      ) : page?.sites.length ? (
+      ) : visibleSites?.length ? (
         <SiteCollection
           loadCoverImage={loadCoverImage}
           navigate={navigate}
-          sites={page.sites}
+          sites={visibleSites ?? []}
           {...(now ? { now } : {})}
         />
       ) : (
@@ -182,12 +196,16 @@ export function Sites({
               id="sites-empty-heading"
               className="mt-5 text-[18px] font-semibold leading-7"
             >
-              No sites
+              {sharedOnly ? 'No shared sites' : 'No sites'}
             </h2>
             <p className="mt-1 text-[15px] leading-6 text-[#737373]">
-              Create a new site to get started.
+              {sharedOnly
+                ? 'Sites shared with you will appear here.'
+                : 'Create a new site to get started.'}
             </p>
-            <NewSiteButton disabled={createDisabled} onClick={openModal} />
+            {!sharedOnly ? (
+              <NewSiteButton disabled={createDisabled} onClick={openModal} />
+            ) : null}
           </div>
         </section>
       )}

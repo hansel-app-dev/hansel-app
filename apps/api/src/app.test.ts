@@ -637,7 +637,7 @@ describe('site routes [sites-add-new REQ-007..REQ-016]', () => {
       .set('Cookie', 'hansel_access=access-token')
       .expect(200, page);
     expect(response.headers['cache-control']).toBe('private, no-store');
-    expect(fixture.sites.load).toHaveBeenCalledWith('access-token');
+    expect(fixture.sites.load).toHaveBeenCalledWith('access-token', 'owned');
   });
 
   it('creates a site from a strict same-origin request', async () => {

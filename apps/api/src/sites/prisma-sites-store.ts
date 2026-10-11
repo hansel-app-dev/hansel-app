@@ -16,6 +16,7 @@ const siteSummarySelect = {
   },
   id: true,
   name: true,
+  createdByMembershipId: true,
   createdAt: true,
   updatedAt: true,
   _count: { select: { grants: true } },
@@ -71,10 +72,14 @@ function profileIdentity(
   };
 }
 
-function toSiteSummary(site: SiteSummaryRecord): SiteSummary {
+function toSiteSummary(
+  site: SiteSummaryRecord,
+  membershipId: string,
+): SiteSummary {
   return {
     hasCoverImage: site.coverImage.length > 0,
     id: site.id,
+    isOwnedByCurrentMembership: site.createdByMembershipId === membershipId,
     name: site.name,
     createdAt: site.createdAt.toISOString(),
     updatedAt: site.updatedAt.toISOString(),
@@ -217,7 +222,9 @@ export function createPrismaSitesStore(
           email: user.email,
           ...displayIdentity(user),
         })),
-        sites: tenant.sites.map(toSiteSummary),
+        sites: tenant.sites.map((site) =>
+          toSiteSummary(site, principal.membershipId),
+        ),
       };
     },
 

@@ -15,6 +15,7 @@ const createdAt = new Date('2026-08-01T10:00:00.000Z');
 const updatedAt = new Date('2026-09-01T11:00:00.000Z');
 const siteRecord = {
   coverImage: [],
+  createdByMembershipId: 'membership-1',
   id: siteId,
   name: 'Existing',
   createdAt,
@@ -231,6 +232,7 @@ describe('Prisma sites store [sites-add-new REQ-010..REQ-016, REQ-019]', () => {
         {
           id: siteId,
           hasCoverImage: false,
+          isOwnedByCurrentMembership: true,
           name: 'Existing',
           createdAt: '2026-08-01T10:00:00.000Z',
           updatedAt: '2026-09-01T11:00:00.000Z',

@@ -144,6 +144,39 @@ describe('Sites feature [sites-add-new REQ-007..REQ-016]', () => {
     });
   });
 
+  it('returns only owned or shared sites for the requested view', async () => {
+    const h = harness({
+      loadContext: vi.fn().mockResolvedValue({
+        organizationName: 'Hansel',
+        planId: 'plus',
+        maximumSites: null,
+        members: [
+          {
+            email: 'owner@example.com',
+            displayName: 'Owner Example',
+            initials: 'OE',
+          },
+        ],
+        sites: [
+          { ...siteSummary, isOwnedByCurrentMembership: true },
+          {
+            ...siteSummary,
+            id: 'shared-site',
+            name: 'Shared site',
+            isOwnedByCurrentMembership: false,
+          },
+        ],
+      }),
+    });
+
+    await expect(h.feature.load(principal, 'owned')).resolves.toMatchObject({
+      sites: [{ id: siteId }],
+    });
+    await expect(h.feature.load(principal, 'shared')).resolves.toMatchObject({
+      sites: [{ id: 'shared-site' }],
+    });
+  });
+
   it('fails closed when the authenticated tenant member is absent from context', async () => {
     const h = harness({
       loadContext: vi.fn().mockResolvedValue({

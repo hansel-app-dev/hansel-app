@@ -2,6 +2,10 @@ import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DashboardResponse } from '@hansel/contracts';
 import { AppSymbol, SidebarIcon } from './SidebarPrimitives.js';
+import {
+  InviteMembersModal,
+  type WorkspaceInvite,
+} from './InviteMembersModal.js';
 
 const destinations = [
   {
@@ -13,14 +17,14 @@ const destinations = [
   { label: 'My Sites', activePage: 'Sites', href: '/sites', showsSites: true },
   {
     label: 'Shared Sites',
-    activePage: null,
-    href: '/sites',
+    activePage: 'SharedSites',
+    href: '/shared-sites',
     showsSites: false,
   },
 ] as const;
 
 export interface SidebarProps {
-  activePage: 'Dashboard' | 'Sites' | 'Files';
+  activePage: 'Dashboard' | 'Sites' | 'Files' | 'SharedSites';
   currentSiteId?: string | undefined;
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   siteCount?: number | undefined;
@@ -28,12 +32,16 @@ export interface SidebarProps {
   organization?: DashboardResponse['organization'] | undefined;
   displayedViewer?: DashboardResponse['viewer'] | undefined;
   canManageOrganization: boolean;
+  canInviteMembers: boolean;
   canCreateSiteFromSidebar: boolean;
   createSiteDisabled: boolean;
   loadError: boolean;
   navigate?: ((destination: string) => void) | undefined;
   onCreateSite?: (() => void) | undefined;
   onOpenSettings: () => void;
+  onInviteMembers:
+    ((invites: readonly WorkspaceInvite[]) => void | Promise<void>) | undefined;
+  onUpgrade: (() => void) | undefined;
   settingsOpen: boolean;
   logout: () => Promise<void>;
 }
@@ -47,16 +55,20 @@ export function Sidebar({
   organization,
   displayedViewer,
   canManageOrganization,
+  canInviteMembers,
   canCreateSiteFromSidebar,
   createSiteDisabled,
   loadError,
   navigate,
   onCreateSite,
   onOpenSettings,
+  onInviteMembers,
+  onUpgrade,
   settingsOpen,
   logout,
 }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
   const [sitesExpanded, setSitesExpanded] = useState(true);
@@ -212,6 +224,19 @@ export function Sidebar({
                           ? 'Pro'
                           : organization.planDisplayName}
                       </span>
+                      {organization.planDisplayName === 'Free Plan' ? (
+                        <button
+                          className="ml-auto rounded-[4px] bg-[#334155] px-2 py-1 text-[11px] text-white hover:bg-[#334155]"
+                          onClick={() => {
+                            setMenuOpen(false);
+                            onUpgrade?.();
+                          }}
+                          role="menuitem"
+                          type="button"
+                        >
+                          Upgrade
+                        </button>
+                      ) : null}
                     </div>
                     <div className="h-0 w-full" aria-hidden="true">
                       <img
@@ -220,45 +245,51 @@ export function Sidebar({
                         className="relative -top-px block h-px w-full"
                       />
                     </div>
-                    {canManageOrganization ? (
+                    {canManageOrganization || canInviteMembers ? (
                       <div
                         role="group"
                         aria-label="Organization management"
                         className="grid gap-0.5"
                       >
-                        <button
-                          ref={settingsButtonRef}
-                          role="menuitem"
-                          type="button"
-                          className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#e7e5e4] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
-                          onClick={() => {
-                            setMenuOpen(false);
-                            onOpenSettings();
-                          }}
-                        >
-                          <img
-                            src="/assets/organization-menu/settings.svg"
-                            alt=""
-                            aria-hidden="true"
-                            className="size-4"
-                          />
-                          Settings
-                        </button>
-                        <button
-                          role="menuitem"
-                          aria-disabled="true"
-                          disabled
-                          type="button"
-                          className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] disabled:cursor-default disabled:opacity-100"
-                        >
-                          <img
-                            src="/assets/organization-menu/invite.svg"
-                            alt=""
-                            aria-hidden="true"
-                            className="size-4"
-                          />
-                          Invite members
-                        </button>
+                        {canManageOrganization ? (
+                          <button
+                            ref={settingsButtonRef}
+                            role="menuitem"
+                            type="button"
+                            className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#e7e5e4] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                            onClick={() => {
+                              setMenuOpen(false);
+                              onOpenSettings();
+                            }}
+                          >
+                            <img
+                              src="/assets/organization-menu/settings.svg"
+                              alt=""
+                              aria-hidden="true"
+                              className="size-4"
+                            />
+                            Settings
+                          </button>
+                        ) : null}
+                        {canInviteMembers ? (
+                          <button
+                            role="menuitem"
+                            type="button"
+                            className="flex h-8 w-full items-center gap-1.5 rounded-[4px] p-1 text-left text-[13px] leading-[19.6px] hover:bg-[#e7e5e4] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus"
+                            onClick={() => {
+                              setMenuOpen(false);
+                              setInviteOpen(true);
+                            }}
+                          >
+                            <img
+                              src="/assets/organization-menu/invite.svg"
+                              alt=""
+                              aria-hidden="true"
+                              className="size-4"
+                            />
+                            Invite members
+                          </button>
+                        ) : null}
                       </div>
                     ) : null}
                     <div className="h-0 w-full" aria-hidden="true">
@@ -412,7 +443,9 @@ export function Sidebar({
                       </button>
                     ) : null}
                   </div>
-                  {hasSiteNavigation && sitesExpanded ? (
+                  {(hasSiteNavigation ||
+                    (item.showsSites && canCreateSiteFromSidebar)) &&
+                  sitesExpanded ? (
                     <ul
                       className="mt-1 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-0.5"
                       aria-label="My Sites"
@@ -581,6 +614,12 @@ export function Sidebar({
             document.body,
           )
         : null}
+      {inviteOpen ? (
+        <InviteMembersModal
+          onClose={() => setInviteOpen(false)}
+          {...(onInviteMembers ? { onSubmit: onInviteMembers } : {})}
+        />
+      ) : null}
     </>
   );
 }

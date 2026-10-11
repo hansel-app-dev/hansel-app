@@ -215,9 +215,13 @@ export class SiteCreateError extends Error {
 
 export async function loadSites(
   baseUrl: string,
+  viewOrFetcher: 'owned' | 'shared' | typeof fetch = 'owned',
   fetcher: typeof fetch = fetch,
 ): Promise<SitesPageResponse> {
-  const response = await fetcher(`${baseUrl}/api/sites`, {
+  const view = typeof viewOrFetcher === 'function' ? 'owned' : viewOrFetcher;
+  const requestFetcher =
+    typeof viewOrFetcher === 'function' ? viewOrFetcher : fetcher;
+  const response = await requestFetcher(`${baseUrl}/api/sites?view=${view}`, {
     credentials: 'include',
   });
   if (response.status === 401) throw new DashboardAuthenticationRequiredError();

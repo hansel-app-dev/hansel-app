@@ -76,7 +76,7 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
       ).toBeEnabled(),
     );
     const actions = screen.getAllByRole('button', { name: 'New site' });
-    expect(actions).toHaveLength(2);
+    expect(actions).toHaveLength(3);
     const firstAction = actions.at(0);
     const secondAction = actions.at(1);
     if (!firstAction || !secondAction)
@@ -238,7 +238,7 @@ describe('Sites [sites-empty-state REQ-001..REQ-013, sites-add-new REQ-001, REQ-
       navigation.queryByRole('link', { name: 'Sydney Central' }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Sites grid' })).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand sites' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sites' }));
     expect(
       navigation.getByRole('link', { name: 'Sydney Central' }),
     ).toBeVisible();

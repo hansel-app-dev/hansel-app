@@ -242,6 +242,25 @@ export function App({
       />
     );
   }
+  if (currentPath === '/shared-sites') {
+    return (
+      <Sites
+        activePage="SharedSites"
+        sharedOnly
+        loadDashboard={loadAuthenticatedViewer}
+        loadSites={async () => {
+          await loadAuthenticatedViewer();
+          return handleApplicationSession(loadSites(apiUrl, 'shared'));
+        }}
+        logout={logoutAuthenticatedViewer}
+        navigate={navigate}
+        {...(dashboardCache ? { preloadedDashboard: dashboardCache } : {})}
+        createSite={() =>
+          Promise.reject(new Error('shared_sites_create_disabled'))
+        }
+      />
+    );
+  }
   const siteActivityMatch = /^\/sites\/([0-9a-f-]{36})\/activity$/.exec(
     currentPath,
   );

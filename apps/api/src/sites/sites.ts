@@ -69,6 +69,8 @@ interface SitesDependencies {
   now?: () => Date;
 }
 
+export type SitesView = 'owned' | 'shared';
+
 export class SitesForbiddenError extends Error {
   readonly code = 'sites_forbidden';
 }
@@ -94,8 +96,16 @@ const canCreate = (roleId: string) =>
 
 export function createSitesFeature(dependencies: SitesDependencies) {
   return {
-    async load(principal: ApplicationPrincipal): Promise<SitesPageResponse> {
+    async load(
+      principal: ApplicationPrincipal,
+      view: SitesView = 'owned',
+    ): Promise<SitesPageResponse> {
       const context = await dependencies.loadContext(principal);
+      const visibleSites = context.sites.filter((site) =>
+        view === 'shared'
+          ? site.isOwnedByCurrentMembership === false
+          : site.isOwnedByCurrentMembership !== false,
+      );
       const authorized = canCreate(principal.roleId);
       const creator = context.members.find(
         ({ email }) => email.toLowerCase() === principal.email.toLowerCase(),
@@ -117,7 +127,7 @@ export function createSitesFeature(dependencies: SitesDependencies) {
                 email.toLowerCase() !== principal.email.toLowerCase(),
             )
           : [],
-        sites: context.sites,
+        sites: visibleSites,
       };
     },
 

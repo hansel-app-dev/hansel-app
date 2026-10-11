@@ -146,6 +146,7 @@ import {
   SitesNotFoundError,
   SitesPaidSeatRequiredError,
   SitesUpgradeRequiredError,
+  type SitesView,
 } from './sites/sites.js';
 import {
   AllocationPlanUploadRejectedError,
@@ -293,7 +294,10 @@ export interface SitesModule {
     Parameters<typeof registerSignDocumentRoutes>[1],
     'enabled' | 'allowedOrigin'
   >;
-  load(accessCredential: string): Promise<SitesPageResponse | null>;
+  load(
+    accessCredential: string,
+    view?: SitesView,
+  ): Promise<SitesPageResponse | null>;
   create(
     accessCredential: string,
     input: CreateSiteRequest,
@@ -1352,7 +1356,12 @@ export function createApp(
         return;
       }
       try {
-        const result = await sites.load(credential);
+        const requestedView = request.query.view;
+        const view =
+          requestedView === 'shared' || requestedView === 'owned'
+            ? requestedView
+            : 'owned';
+        const result = await sites.load(credential, view);
         if (!result) {
           response.status(401).json({ error: 'authentication_required' });
           return;

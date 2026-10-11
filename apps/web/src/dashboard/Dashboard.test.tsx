@@ -13,7 +13,7 @@ import { Dashboard } from './Dashboard.js';
 afterEach(cleanup);
 
 describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
-  it('opens the Organization tray and Account settings with unavailable actions disabled [organization-tray-settings REQ-001..REQ-011]', async () => {
+  it('opens the Organization tray, Invite members modal and Account settings [sidebar-spec-gaps REQ-001]', async () => {
     render(
       <Dashboard
         loadDashboard={() =>
@@ -40,10 +40,20 @@ describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
     fireEvent.click(trigger);
     const menu = screen.getByRole('menu', { name: 'Organization' });
     expect(within(menu).getByText('Pro')).toBeVisible();
-    expect(
+    fireEvent.click(
       within(menu).getByRole('menuitem', { name: 'Invite members' }),
-    ).toBeDisabled();
-    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Settings' }));
+    );
+    expect(
+      await screen.findByRole('dialog', { name: 'Invite members' }),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Close invite members' }),
+    );
+    fireEvent.click(trigger);
+    const reopenedMenu = screen.getByRole('menu', { name: 'Organization' });
+    fireEvent.click(
+      within(reopenedMenu).getByRole('menuitem', { name: 'Settings' }),
+    );
 
     const dialog = screen.getByRole('dialog', { name: 'Settings' });
     expect(within(dialog).getByText('john@example.com')).toBeVisible();
@@ -160,7 +170,7 @@ describe('Dashboard [dashboard-home REQ-001..REQ-017]', () => {
     );
     expect(navigation.getByText('Shared Sites')).toHaveAttribute(
       'href',
-      '/sites',
+      '/shared-sites',
     );
     expect(
       screen.getAllByRole('heading', { name: 'Widget title', level: 2 }),

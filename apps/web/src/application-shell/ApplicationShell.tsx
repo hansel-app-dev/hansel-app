@@ -5,10 +5,11 @@ import { Button } from '../design-system/index.js';
 import { AccountSettingsModal } from './AccountSettingsModal.js';
 import { AppSymbol, NotificationSymbol } from './SidebarPrimitives.js';
 import { Sidebar } from './Sidebar.js';
+import type { WorkspaceInvite } from './InviteMembersModal.js';
 export { AppSymbol, NotificationSymbol } from './SidebarPrimitives.js';
 
 export interface ApplicationShellProps {
-  activePage: 'Dashboard' | 'Sites' | 'Files';
+  activePage: 'Dashboard' | 'Sites' | 'Files' | 'SharedSites';
   children: ReactNode;
   headerActions: ReactNode;
   headerLeading?: ReactNode;
@@ -25,6 +26,9 @@ export interface ApplicationShellProps {
   siteNavigation?: readonly { id: string; name: string }[] | undefined;
   workspaceName?: string | undefined;
   onCreateSite?: (() => void) | undefined;
+  onInviteMembers?:
+    ((invites: readonly WorkspaceInvite[]) => void | Promise<void>) | undefined;
+  onUpgrade?: (() => void) | undefined;
   createSiteDisabled?: boolean | undefined;
 }
 
@@ -46,6 +50,8 @@ export function ApplicationShell({
   siteNavigation,
   workspaceName,
   onCreateSite,
+  onInviteMembers,
+  onUpgrade,
   createSiteDisabled = false,
 }: ApplicationShellProps) {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
@@ -80,7 +86,12 @@ export function ApplicationShell({
     preloadedDashboard?.siteCount ??
     dashboard?.siteCount ??
     siteNavigation?.length;
-  const canCreateSiteFromSidebar = Boolean(onCreateSite ?? navigate);
+  const canCreateSiteFromSidebar =
+    Boolean(onCreateSite ?? navigate) &&
+    ['Owner', 'Administrator'].includes(displayedViewer?.roleLabel ?? '');
+  const canInviteMembers = ['Owner', 'Administrator'].includes(
+    displayedViewer?.roleLabel ?? '',
+  );
   const canManageOrganization = ['Owner', 'Administrator', 'Editor'].includes(
     displayedViewer?.roleLabel ?? '',
   );
@@ -97,11 +108,14 @@ export function ApplicationShell({
         organization={organization}
         displayedViewer={displayedViewer}
         canManageOrganization={canManageOrganization}
+        canInviteMembers={canInviteMembers}
         canCreateSiteFromSidebar={canCreateSiteFromSidebar}
         createSiteDisabled={createSiteDisabled}
         loadError={loadError}
         navigate={navigate}
         onCreateSite={onCreateSite}
+        onInviteMembers={onInviteMembers}
+        onUpgrade={onUpgrade}
         onOpenSettings={() => setSettingsOpen(true)}
         settingsOpen={settingsOpen}
         logout={logout}

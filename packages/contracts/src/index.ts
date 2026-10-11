@@ -638,6 +638,7 @@ export type SiteIdentity = z.infer<typeof siteIdentitySchema>;
 
 export const siteSummarySchema = siteIdentitySchema
   .extend({
+    isOwnedByCurrentMembership: z.boolean().optional(),
     hasCoverImage: z.boolean().optional(),
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
