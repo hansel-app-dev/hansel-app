@@ -245,13 +245,13 @@ export function ApplicationShell({
         {organizationName ? (
           <div
             ref={organization ? accountMenuRef : undefined}
-            className="relative flex h-9 min-w-0 items-center gap-2"
+            className="group relative flex h-9 min-w-0 items-center gap-2 rounded-[8px] pl-[2px] pr-1 py-[2px] hover:bg-[#e7e5e4]"
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-[4px] bg-sidebar-brand text-[12px] font-semibold text-white">
+            <span className="grid size-8 shrink-0 place-items-center rounded-[6px] bg-[#65a30d] text-[13px] font-bold leading-[19.6px] text-white">
               {organizationName.charAt(0).toLocaleUpperCase()}
             </span>
             <span
-              className="truncate text-[13px] font-semibold leading-5 text-content"
+              className="truncate text-[13px] font-medium leading-[19.6px] text-[#292524]"
               title={organizationName}
             >
               {organizationName}
@@ -264,12 +264,16 @@ export function ApplicationShell({
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 aria-controls="organization-menu"
-                className="ml-auto grid size-7 place-items-center rounded-[4px] text-content-muted focus-visible:outline-2 focus-visible:outline-focus"
+                className="ml-auto grid size-6 shrink-0 place-items-center rounded-[4px] text-content-muted opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-focus"
                 onClick={() => {
                   setMenuOpen((open) => !open);
                 }}
               >
-                <AppSymbol>more_vert</AppSymbol>
+                <img
+                  src="/assets/organization-menu/more-vertical.svg"
+                  alt=""
+                  aria-hidden="true"
+                />
               </button>
             ) : null}
             {organization &&
