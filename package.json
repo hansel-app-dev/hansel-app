@@ -24,17 +24,17 @@
     "verify": "pnpm spec:check && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:coverage && pnpm build && pnpm --filter @hansel/web build:storybook && pnpm test:design-system"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.13.0",
-    "@eslint/js": "^9.34.0",
-    "@playwright/test": "^1.55.0",
-    "@types/node": "^24.0.0",
-    "eslint": "^9.34.0",
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.5",
+    "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^16.3.0",
-    "prettier": "^3.6.2",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2",
-    "typescript-eslint": "^8.41.0",
-    "yaml": "^2.8.1"
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.72.0",
+    "yaml": "^2.9.1"
   }
 }
